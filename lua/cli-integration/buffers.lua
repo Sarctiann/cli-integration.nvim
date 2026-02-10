@@ -3,7 +3,7 @@ local M = {}
 
 --- Get paths of all open buffers visible in bufline
 --- @param working_dir string|nil The working directory to make paths relative to
---- @return table List of buffer file paths
+--- @return string[] List of buffer file paths
 function M.get_open_buffers_paths(working_dir)
 	local buffers = vim.api.nvim_list_bufs()
 	local paths = {}

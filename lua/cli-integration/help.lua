@@ -53,7 +53,29 @@ end
 --- Generate help text from configuration
 --- @return string Formatted help text
 local function generate_help_text()
-	local keys = config.options.terminal_keys
+	local terminal = require("cli-integration.terminal")
+	local current_buf = vim.api.nvim_get_current_buf()
+
+	-- Get integration for current terminal buffer
+	local integration = terminal.get_integration_for_buf(current_buf)
+
+	-- Get terminal keys and cli_cmd from integration or fallback to global defaults
+	local keys = nil
+	local cli_cmd = "CLI Tool"
+
+	if integration and integration.terminal_keys then
+		keys = integration.terminal_keys
+		cli_cmd = integration.cli_cmd or "CLI Tool"
+	else
+		-- Fallback to global defaults
+		keys = config.options.terminal_keys
+		cli_cmd = "CLI Tool"
+	end
+
+	if not keys then
+		return ""
+	end
+
 	local lines = {}
 
 	-- Terminal Mode section
@@ -103,7 +125,6 @@ local function generate_help_text()
 	table.insert(lines, "")
 
 	-- CLI tool commands section
-	local cli_cmd = config.options.cli_cmd or "CLI Tool"
 	table.insert(lines, cli_cmd .. " commands:")
 	local cmd_entries = {
 		{ key_str = "quit | exit", description = "(<CR>) Close " .. cli_cmd },
@@ -125,25 +146,40 @@ local function generate_help_text()
 end
 
 --- Show help notification with keymaps and commands
+--- @return nil
 function M.show_help()
-	Snacks.notify(
-		generate_help_text(),
-		{ title = "Keymaps", style = "compact", history = false, timeout = 5000 }
-	)
+	Snacks.notify(generate_help_text(), { title = "Keymaps", style = "compact", history = false, timeout = 5000 })
 end
 
 --- Show quick help notification on terminal open
+--- @return nil
 function M.show_quick_help()
-	local keys = config.options.terminal_keys
+	local terminal = require("cli-integration.terminal")
+	local current_buf = vim.api.nvim_get_current_buf()
+
+	-- Get integration for current terminal buffer
+	local integration = terminal.get_integration_for_buf(current_buf)
+
+	-- Get terminal keys from integration or fallback to global defaults
+	local keys = nil
+
+	if integration and integration.terminal_keys then
+		keys = integration.terminal_keys
+	else
+		-- Fallback to global defaults
+		keys = config.options.terminal_keys
+	end
+
+	if not keys or not keys.terminal_mode or not keys.terminal_mode.help then
+		return
+	end
+
 	local help_keys = {}
 	for _, key in ipairs(keys.terminal_mode.help) do
 		table.insert(help_keys, "[" .. key .. "]")
 	end
 	local help_text = " Press: " .. table.concat(help_keys, " | ") .. " to Show Help "
-	Snacks.notify(
-		help_text,
-		{ title = "", style = "compact", history = false, timeout = 3000 }
-	)
+	Snacks.notify(help_text, { title = "", style = "compact", history = false, timeout = 3000 })
 end
 
 return M

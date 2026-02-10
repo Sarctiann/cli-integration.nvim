@@ -1,19 +1,18 @@
 --- Terminal management module
-local config = require("cli-integration.config")
 local M = {}
 
--- Singleton terminal for CLI tool
-M.cli_term = nil
-M.term_buf = nil
-M.working_dir = nil
-M.current_file = nil
-M.is_expanded = false -- Track if terminal is expanded to full width
+-- Terminals storage: indexed by cli_cmd
+-- Each entry contains: { cli_term, term_buf, working_dir, current_file, is_expanded, integration }
+M.terminals = {}
 
 --- Insert text into the terminal
 --- @param text string The text to insert
-function M.insert_text(text)
-	if M.term_buf then
-		local job_id = vim.b.terminal_job_id or vim.api.nvim_buf_get_var(M.term_buf, "terminal_job_id")
+--- @param term_buf number|nil The terminal buffer (if nil, uses current terminal)
+--- @return nil
+function M.insert_text(text, term_buf)
+	term_buf = term_buf or M.get_current_terminal_buf()
+	if term_buf then
+		local job_id = vim.b.terminal_job_id or vim.api.nvim_buf_get_var(term_buf, "terminal_job_id")
 
 		if job_id and vim.fn.jobwait({ job_id }, 10)[1] == -1 then
 			vim.fn.chansend(job_id, text)
@@ -21,27 +20,57 @@ function M.insert_text(text)
 	end
 end
 
+--- Get current terminal buffer from active window
+--- @return number|nil
+function M.get_current_terminal_buf()
+	local current_buf = vim.api.nvim_get_current_buf()
+	local buftype = vim.api.nvim_get_option_value("buftype", { buf = current_buf })
+	if buftype == "terminal" then
+		return current_buf
+	end
+	return nil
+end
+
+--- Get integration for a terminal buffer
+--- @param term_buf number|nil The terminal buffer
+--- @return cli-integration.Integration|nil
+function M.get_integration_for_buf(term_buf)
+	term_buf = term_buf or M.get_current_terminal_buf()
+	if not term_buf then
+		return nil
+	end
+
+	for _, term_data in pairs(M.terminals) do
+		if term_data.term_buf == term_buf then
+			return term_data.integration
+		end
+	end
+	return nil
+end
+
 --- Attach current file to the terminal when CLI tool is ready
 --- @param file_path string The file path to attach
+--- @param term_buf number The terminal buffer
+--- @param cli_cmd string The CLI command name
 --- @param tries number|nil Number of tries so far
-function M.attach_file_when_ready(file_path, tries)
+--- @return nil
+function M.attach_file_when_ready(file_path, term_buf, cli_cmd, tries)
 	vim.defer_fn(function()
 		tries = tries or 0
 		local max_tries = 12
 
-		if tries >= max_tries or not M.term_buf then
+		if tries >= max_tries or not term_buf then
 			return
 		end
 
-		if not vim.api.nvim_buf_is_valid(M.term_buf) then
+		if not vim.api.nvim_buf_is_valid(term_buf) then
 			return
 		end
 
-		local buf_lines = vim.api.nvim_buf_get_lines(M.term_buf, 0, 5, false)
+		local buf_lines = vim.api.nvim_buf_get_lines(term_buf, 0, 5, false)
 		-- Check if any of the first 5 lines contains the CLI command name
-		local cli_cmd = config.options.cli_cmd or ""
 		local found = false
-		if cli_cmd ~= "" then
+		if cli_cmd and cli_cmd ~= "" then
 			for i = 1, #buf_lines do
 				if buf_lines[i] and buf_lines[i]:match(cli_cmd) then
 					found = true
@@ -50,12 +79,12 @@ function M.attach_file_when_ready(file_path, tries)
 			end
 		end
 		if found then
-			M.insert_text("@" .. file_path .. "\n\n")
+			M.insert_text("@" .. file_path .. "\n\n", term_buf)
 			return
 		end
 
 		-- Recursively retry after 300ms
-		M.attach_file_when_ready(file_path, tries + 1)
+		M.attach_file_when_ready(file_path, term_buf, cli_cmd, tries + 1)
 	end, 300)
 end
 
@@ -66,12 +95,16 @@ cli-integration.nvim requires configuration.
 
 Minimum configuration:
   require("cli-integration").setup({
-    cli_cmd = "your-cli-tool",  -- Required: specify your CLI command name
+    integrations = {
+      { cli_cmd = "your-cli-tool" },  -- Required: specify your CLI command name
+    },
   })
 
 Example:
   require("cli-integration").setup({
-    cli_cmd = "cursor-agent",
+    integrations = {
+      { cli_cmd = "cursor-agent" },
+    },
   })
 ]]
 	Snacks.notify(help_text, {
@@ -83,65 +116,106 @@ Example:
 end
 
 --- Open or toggle the CLI tool terminal
+--- @param integration cli-integration.Integration The integration configuration
 --- @param args string|nil Command line arguments for CLI tool
 --- @param keep_open boolean|nil Whether to keep the terminal open after execution
-function M.open_terminal(args, keep_open)
-	-- Check if cli_cmd is configured
-	local cli_cmd = config.options.cli_cmd
-	if not cli_cmd or cli_cmd == "" then
+--- @param working_dir string|nil Working directory for the terminal
+--- @return nil
+function M.open_terminal(integration, args, keep_open, working_dir)
+	if not integration or not integration.cli_cmd or integration.cli_cmd == "" then
 		show_config_help()
 		return
 	end
 
-	if M.cli_term and M.cli_term.toggle then
-		M.cli_term:toggle()
-	else
-		local cmd = args and " " .. args or ""
-		local current_file_abs = vim.fn.expand("%:p")
+	local cli_cmd = integration.cli_cmd
+	local term_data = M.terminals[cli_cmd]
 
-		local base_dir = M.working_dir or vim.fn.getcwd()
-		M.current_file = vim.fn.expand("%")
-		if base_dir and base_dir ~= "" then
-			M.current_file = vim.fs.relpath(base_dir, current_file_abs) or vim.fn.fnamemodify(current_file_abs, ":.")
-		end
-
-		M.cli_term = Snacks.terminal(cli_cmd .. cmd, {
-			interactive = true,
-			cwd = base_dir,
-			win = {
-				title = " " .. cli_cmd .. " " .. (args and " ( " .. args .. " ) " or ""),
-				position = keep_open and "float" or "right",
-				min_width = keep_open and nil or config.options.window_width,
-				border = "rounded",
-				on_close = function()
-					M.cli_term = nil
-					M.is_expanded = false
-				end,
-				resize = true,
-			},
-			auto_close = not keep_open,
-			start_insert = not keep_open,
-			auto_insert = not keep_open,
-		})
-
-		if M.cli_term.buf ~= M.term_buf then
-			M.attach_file_when_ready(M.current_file)
-		end
-		M.term_buf = M.cli_term.buf
-		M.is_expanded = false -- Reset expansion state when opening new terminal
+	-- Toggle if terminal already exists
+	if term_data and term_data.cli_term and term_data.cli_term.toggle then
+		term_data.cli_term:toggle()
+		return
 	end
+
+	-- Create new terminal
+	local cmd = args and " " .. args or ""
+	local current_file_abs = vim.fn.expand("%:p")
+
+	local base_dir = working_dir or vim.fn.getcwd()
+	local current_file = vim.fn.expand("%")
+	if base_dir and base_dir ~= "" then
+		current_file = vim.fs.relpath(base_dir, current_file_abs) or vim.fn.fnamemodify(current_file_abs, ":.")
+	end
+
+	local cli_term = Snacks.terminal(cli_cmd .. cmd, {
+		interactive = true,
+		cwd = base_dir,
+		win = {
+			title = " " .. cli_cmd .. " " .. (args and " ( " .. args .. " ) " or ""),
+			position = keep_open and "float" or "right",
+			min_width = keep_open and nil or integration.window_width,
+			border = "rounded",
+			on_close = function()
+				M.terminals[cli_cmd] = nil
+			end,
+			resize = true,
+		},
+		auto_close = not keep_open,
+		start_insert = not keep_open,
+		auto_insert = not keep_open,
+	})
+
+	-- Verify terminal was created successfully
+	if not cli_term then
+		return
+	end
+
+	local term_buf = cli_term.buf
+
+	-- Verify buffer exists
+	if not term_buf then
+		return
+	end
+
+	-- Store terminal data
+	M.terminals[cli_cmd] = {
+		cli_term = cli_term,
+		term_buf = term_buf,
+		working_dir = base_dir,
+		current_file = current_file,
+		is_expanded = false,
+		integration = integration,
+	}
+
+	-- Attach file if new terminal
+	M.attach_file_when_ready(current_file, term_buf, cli_cmd)
 end
 
 --- Toggle terminal window width between default and maximum
-function M.toggle_width()
-	if not M.cli_term or not M.term_buf then
+--- @param term_buf number|nil The terminal buffer (if nil, uses current terminal)
+--- @return nil
+function M.toggle_width(term_buf)
+	term_buf = term_buf or M.get_current_terminal_buf()
+	if not term_buf then
+		return
+	end
+
+	-- Find terminal data
+	local term_data = nil
+	for _, data in pairs(M.terminals) do
+		if data.term_buf == term_buf then
+			term_data = data
+			break
+		end
+	end
+
+	if not term_data then
 		return
 	end
 
 	-- Get the terminal window
 	local term_win = nil
 	for _, win in ipairs(vim.api.nvim_list_wins()) do
-		if vim.api.nvim_win_get_buf(win) == M.term_buf then
+		if vim.api.nvim_win_get_buf(win) == term_buf then
 			term_win = win
 			break
 		end
@@ -151,21 +225,22 @@ function M.toggle_width()
 		return
 	end
 
-	local window_width = config.options.window_width
+	local integration = term_data.integration
+	local window_width = integration.window_width
 	local columns = vim.o.columns
 
 	-- Calculate maximum width (accounting for borders and margins)
 	-- Assuming 2 columns for border (1 on each side)
 	local max_width = columns - 2
 
-	if M.is_expanded then
+	if term_data.is_expanded then
 		-- Return to default width
 		vim.api.nvim_win_set_width(term_win, window_width)
-		M.is_expanded = false
+		term_data.is_expanded = false
 	else
 		-- Expand to maximum width
 		vim.api.nvim_win_set_width(term_win, max_width)
-		M.is_expanded = true
+		term_data.is_expanded = true
 	end
 end
 

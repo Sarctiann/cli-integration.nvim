@@ -18,9 +18,39 @@ local function set_keymaps(mode, keys, callback, opts)
 end
 
 --- Setup keymaps for the CLI tool terminal
+--- @return nil
 function M.setup_terminal_keymaps()
 	local opts = { buffer = 0, silent = true, noremap = true }
-	local keys = config.options.terminal_keys
+	local current_buf = vim.api.nvim_get_current_buf()
+
+	-- Get integration for current terminal buffer
+	local integration = terminal.get_integration_for_buf(current_buf)
+
+	-- Get terminal keys and new_lines_amount from integration or fallback to global defaults
+	local keys = nil
+	local new_lines_amount = 2
+
+	if integration and integration.terminal_keys then
+		keys = integration.terminal_keys
+		new_lines_amount = integration.new_lines_amount or config.options.new_lines_amount or 2
+	else
+		-- Fallback to global defaults
+		keys = config.options.terminal_keys
+		new_lines_amount = config.options.new_lines_amount or 2
+	end
+
+	if not keys then
+		return
+	end
+
+	-- Get terminal data for current file and working dir
+	local term_data = nil
+	for _, data in pairs(terminal.terminals) do
+		if data.term_buf == current_buf then
+			term_data = data
+			break
+		end
+	end
 
 	-- NOTE: Prevent default Enter key behavior
 	vim.keymap.set("t", "<CR>", "", opts)
@@ -35,23 +65,24 @@ function M.setup_terminal_keymaps()
 
 	-- Insert current file path
 	set_keymaps("t", keys.terminal_mode.insert_file_path, function()
-		if terminal.current_file then
-			terminal.insert_text("@" .. terminal.current_file .. " ")
+		if term_data and term_data.current_file then
+			terminal.insert_text("@" .. term_data.current_file .. " ", current_buf)
 		end
 	end, opts)
 
 	-- Insert all open buffer paths
 	set_keymaps("t", keys.terminal_mode.insert_all_buffers, function()
-		local paths = buffers.get_open_buffers_paths(terminal.working_dir)
+		local working_dir = term_data and term_data.working_dir or nil
+		local paths = buffers.get_open_buffers_paths(working_dir)
 		for _, path in ipairs(paths) do
-			terminal.insert_text("@" .. path .. "\n")
+			terminal.insert_text("@" .. path .. "\n", current_buf)
 		end
 	end, opts)
 
 	-- New lines
 	set_keymaps("t", keys.terminal_mode.new_lines, function()
-		local new_lines = string.rep("\n", config.options.new_lines_amount)
-		terminal.insert_text(new_lines)
+		local new_lines = string.rep("\n", new_lines_amount)
+		terminal.insert_text(new_lines, current_buf)
 	end, opts)
 
 	-- Submit commands
@@ -74,10 +105,18 @@ function M.setup_terminal_keymaps()
 
 	-- Toggle window width for modes i, t, n, v
 	local toggle_opts = { buffer = 0, silent = true }
-	set_keymaps("i", keys.terminal_mode.toggle_width, terminal.toggle_width, toggle_opts)
-	set_keymaps("t", keys.terminal_mode.toggle_width, terminal.toggle_width, toggle_opts)
-	set_keymaps("n", keys.normal_mode.toggle_width, terminal.toggle_width, toggle_opts)
-	set_keymaps("v", keys.normal_mode.toggle_width, terminal.toggle_width, toggle_opts)
+	set_keymaps("i", keys.terminal_mode.toggle_width, function()
+		terminal.toggle_width(current_buf)
+	end, toggle_opts)
+	set_keymaps("t", keys.terminal_mode.toggle_width, function()
+		terminal.toggle_width(current_buf)
+	end, toggle_opts)
+	set_keymaps("n", keys.normal_mode.toggle_width, function()
+		terminal.toggle_width(current_buf)
+	end, toggle_opts)
+	set_keymaps("v", keys.normal_mode.toggle_width, function()
+		terminal.toggle_width(current_buf)
+	end, toggle_opts)
 end
 
 return M
