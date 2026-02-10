@@ -3,6 +3,12 @@ local config = require("cli-integration.config")
 
 local M = {}
 
+--- Check if Snacks is available
+--- @return boolean
+local function has_snacks()
+	return type(Snacks) == "table" and type(Snacks.notify) == "function"
+end
+
 --- Format array of keys into a string with separators
 --- @param keys string[] Array of key combinations
 --- @return string Formatted string with keys joined by " | "
@@ -72,7 +78,7 @@ local function generate_help_text()
 		cli_cmd = "CLI Tool"
 	end
 
-	if not keys then
+	if not keys or not keys.terminal_mode or not keys.normal_mode then
 		return ""
 	end
 
@@ -100,7 +106,10 @@ local function generate_help_text()
 		if entry.separator then
 			table.insert(lines, "    ---")
 		elseif entry.keys then
-			table.insert(lines, format_help_line(entry.keys, entry.description, term_key_width))
+			-- Validate keys is an array
+			if type(entry.keys) == "table" then
+				table.insert(lines, format_help_line(entry.keys, entry.description, term_key_width))
+			end
 		elseif entry.key_str then
 			table.insert(lines, format_help_line(entry.key_str, entry.description, term_key_width))
 		end
@@ -117,7 +126,10 @@ local function generate_help_text()
 	local norm_key_width = get_max_key_width(norm_entries)
 	for _, entry in ipairs(norm_entries) do
 		if entry.keys then
-			table.insert(lines, format_help_line(entry.keys, entry.description, norm_key_width))
+			-- Validate keys is an array
+			if type(entry.keys) == "table" then
+				table.insert(lines, format_help_line(entry.keys, entry.description, norm_key_width))
+			end
 		elseif entry.key_str then
 			table.insert(lines, format_help_line(entry.key_str, entry.description, norm_key_width))
 		end
@@ -148,12 +160,26 @@ end
 --- Show help notification with keymaps and commands
 --- @return nil
 function M.show_help()
-	Snacks.notify(generate_help_text(), { title = "Keymaps", style = "compact", history = false, timeout = 5000 })
+	if not has_snacks() then
+		vim.notify("cli-integration.nvim: Snacks.nvim is required but not available", vim.log.levels.ERROR)
+		return
+	end
+
+	local help_text = generate_help_text()
+	if help_text == "" then
+		return
+	end
+
+	Snacks.notify(help_text, { title = "Keymaps", style = "compact", history = false, timeout = 5000 })
 end
 
 --- Show quick help notification on terminal open
 --- @return nil
 function M.show_quick_help()
+	if not has_snacks() then
+		return
+	end
+
 	local terminal = require("cli-integration.terminal")
 	local current_buf = vim.api.nvim_get_current_buf()
 

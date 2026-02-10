@@ -23,6 +23,11 @@ function M.setup_terminal_keymaps()
 	local opts = { buffer = 0, silent = true, noremap = true }
 	local current_buf = vim.api.nvim_get_current_buf()
 
+	-- Verify buffer is valid
+	if not vim.api.nvim_buf_is_valid(current_buf) then
+		return
+	end
+
 	-- Get integration for current terminal buffer
 	local integration = terminal.get_integration_for_buf(current_buf)
 
@@ -39,16 +44,23 @@ function M.setup_terminal_keymaps()
 		new_lines_amount = config.options.new_lines_amount or 2
 	end
 
-	if not keys then
+	if not keys or not keys.terminal_mode or not keys.normal_mode then
 		return
 	end
 
 	-- Get terminal data for current file and working dir
+	-- Use index for faster lookup if available
 	local term_data = nil
-	for _, data in pairs(terminal.terminals) do
-		if data.term_buf == current_buf then
-			term_data = data
-			break
+	local cli_cmd = terminal.buf_to_cli_cmd and terminal.buf_to_cli_cmd[current_buf]
+	if cli_cmd and terminal.terminals[cli_cmd] then
+		term_data = terminal.terminals[cli_cmd]
+	else
+		-- Fallback to linear search
+		for _, data in pairs(terminal.terminals) do
+			if data.term_buf == current_buf then
+				term_data = data
+				break
+			end
 		end
 	end
 
@@ -61,62 +73,82 @@ function M.setup_terminal_keymaps()
 	vim.keymap.set("t", "<M-l>", "<Right>", opts)
 
 	-- Normal mode keymaps
-	set_keymaps("t", keys.terminal_mode.normal_mode, [[<C-\><C-n>5(]], opts)
+	if keys.terminal_mode.normal_mode and type(keys.terminal_mode.normal_mode) == "table" then
+		set_keymaps("t", keys.terminal_mode.normal_mode, [[<C-\><C-n>]], opts)
+	end
 
 	-- Insert current file path
-	set_keymaps("t", keys.terminal_mode.insert_file_path, function()
-		if term_data and term_data.current_file then
-			terminal.insert_text("@" .. term_data.current_file .. " ", current_buf)
-		end
-	end, opts)
+	if keys.terminal_mode.insert_file_path and type(keys.terminal_mode.insert_file_path) == "table" then
+		set_keymaps("t", keys.terminal_mode.insert_file_path, function()
+			if term_data and term_data.current_file then
+				terminal.insert_text("@" .. term_data.current_file .. " ", current_buf)
+			end
+		end, opts)
+	end
 
 	-- Insert all open buffer paths
-	set_keymaps("t", keys.terminal_mode.insert_all_buffers, function()
-		local working_dir = term_data and term_data.working_dir or nil
-		local paths = buffers.get_open_buffers_paths(working_dir)
-		for _, path in ipairs(paths) do
-			terminal.insert_text("@" .. path .. "\n", current_buf)
-		end
-	end, opts)
+	if keys.terminal_mode.insert_all_buffers and type(keys.terminal_mode.insert_all_buffers) == "table" then
+		set_keymaps("t", keys.terminal_mode.insert_all_buffers, function()
+			local working_dir = term_data and term_data.working_dir or nil
+			local paths = buffers.get_open_buffers_paths(working_dir)
+			for _, path in ipairs(paths) do
+				terminal.insert_text("@" .. path .. "\n", current_buf)
+			end
+		end, opts)
+	end
 
 	-- New lines
-	set_keymaps("t", keys.terminal_mode.new_lines, function()
-		local new_lines = string.rep("\n", new_lines_amount)
-		terminal.insert_text(new_lines, current_buf)
-	end, opts)
+	if keys.terminal_mode.new_lines and type(keys.terminal_mode.new_lines) == "table" then
+		set_keymaps("t", keys.terminal_mode.new_lines, function()
+			local new_lines = string.rep("\n", new_lines_amount)
+			terminal.insert_text(new_lines, current_buf)
+		end, opts)
+	end
 
 	-- Submit commands
-	set_keymaps("t", keys.terminal_mode.submit, function()
-		vim.fn.feedkeys(vim.api.nvim_replace_termcodes("<Enter>", true, false, true), "n")
-	end, opts)
+	if keys.terminal_mode.submit and type(keys.terminal_mode.submit) == "table" then
+		set_keymaps("t", keys.terminal_mode.submit, function()
+			vim.fn.feedkeys(vim.api.nvim_replace_termcodes("<Enter>", true, false, true), "n")
+		end, opts)
+	end
 
 	-- Enter key
-	set_keymaps("t", keys.terminal_mode.enter, function()
-		vim.fn.feedkeys(vim.api.nvim_replace_termcodes("<Enter>", true, false, true), "n")
-	end, opts)
+	if keys.terminal_mode.enter and type(keys.terminal_mode.enter) == "table" then
+		set_keymaps("t", keys.terminal_mode.enter, function()
+			vim.fn.feedkeys(vim.api.nvim_replace_termcodes("<Enter>", true, false, true), "n")
+		end, opts)
+	end
 
 	-- Help keymaps
-	set_keymaps("t", keys.terminal_mode.help, help.show_help, opts)
+	if keys.terminal_mode.help and type(keys.terminal_mode.help) == "table" then
+		set_keymaps("t", keys.terminal_mode.help, help.show_help, opts)
+	end
 
 	-- Escape to hide (normal mode)
-	set_keymaps("n", keys.normal_mode.hide, function()
-		vim.cmd("q")
-	end, opts)
+	if keys.normal_mode.hide and type(keys.normal_mode.hide) == "table" then
+		set_keymaps("n", keys.normal_mode.hide, function()
+			vim.cmd("q")
+		end, opts)
+	end
 
 	-- Toggle window width for modes i, t, n, v
 	local toggle_opts = { buffer = 0, silent = true }
-	set_keymaps("i", keys.terminal_mode.toggle_width, function()
-		terminal.toggle_width(current_buf)
-	end, toggle_opts)
-	set_keymaps("t", keys.terminal_mode.toggle_width, function()
-		terminal.toggle_width(current_buf)
-	end, toggle_opts)
-	set_keymaps("n", keys.normal_mode.toggle_width, function()
-		terminal.toggle_width(current_buf)
-	end, toggle_opts)
-	set_keymaps("v", keys.normal_mode.toggle_width, function()
-		terminal.toggle_width(current_buf)
-	end, toggle_opts)
+	if keys.terminal_mode.toggle_width and type(keys.terminal_mode.toggle_width) == "table" then
+		set_keymaps("i", keys.terminal_mode.toggle_width, function()
+			terminal.toggle_width(current_buf)
+		end, toggle_opts)
+		set_keymaps("t", keys.terminal_mode.toggle_width, function()
+			terminal.toggle_width(current_buf)
+		end, toggle_opts)
+	end
+	if keys.normal_mode.toggle_width and type(keys.normal_mode.toggle_width) == "table" then
+		set_keymaps("n", keys.normal_mode.toggle_width, function()
+			terminal.toggle_width(current_buf)
+		end, toggle_opts)
+		set_keymaps("v", keys.normal_mode.toggle_width, function()
+			terminal.toggle_width(current_buf)
+		end, toggle_opts)
+	end
 end
 
 return M

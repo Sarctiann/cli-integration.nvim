@@ -5,6 +5,26 @@ local M = {}
 -- Each entry contains: { cli_term, term_buf, working_dir, current_file, is_expanded, integration }
 M.terminals = {}
 
+-- Index for fast lookup: term_buf -> cli_cmd
+M.buf_to_cli_cmd = {}
+
+--- Check if Snacks is available
+--- @return boolean
+local function has_snacks()
+	return type(Snacks) == "table" and type(Snacks.terminal) == "function" and type(Snacks.notify) == "function"
+end
+
+--- Clean up orphaned terminals (buffers that no longer exist)
+--- @return nil
+local function cleanup_orphaned_terminals()
+	for cli_cmd, term_data in pairs(M.terminals) do
+		if term_data.term_buf and not vim.api.nvim_buf_is_valid(term_data.term_buf) then
+			M.terminals[cli_cmd] = nil
+			M.buf_to_cli_cmd[term_data.term_buf] = nil
+		end
+	end
+end
+
 --- Insert text into the terminal
 --- @param text string The text to insert
 --- @param term_buf number|nil The terminal buffer (if nil, uses current terminal)
@@ -40,8 +60,19 @@ function M.get_integration_for_buf(term_buf)
 		return nil
 	end
 
+	-- Use index for O(1) lookup
+	local cli_cmd = M.buf_to_cli_cmd[term_buf]
+	if cli_cmd and M.terminals[cli_cmd] then
+		return M.terminals[cli_cmd].integration
+	end
+
+	-- Fallback to linear search (shouldn't happen if index is maintained correctly)
+	-- Also clean up orphaned terminals
+	cleanup_orphaned_terminals()
 	for _, term_data in pairs(M.terminals) do
 		if term_data.term_buf == term_buf then
+			-- Update index
+			M.buf_to_cli_cmd[term_buf] = term_data.integration.cli_cmd
 			return term_data.integration
 		end
 	end
@@ -107,12 +138,16 @@ Example:
     },
   })
 ]]
-	Snacks.notify(help_text, {
-		title = "Configuration Required",
-		style = "compact",
-		history = false,
-		timeout = 10000,
-	})
+	if has_snacks() then
+		Snacks.notify(help_text, {
+			title = "Configuration Required",
+			style = "compact",
+			history = false,
+			timeout = 10000,
+		})
+	else
+		vim.notify(help_text, vim.log.levels.WARN)
+	end
 end
 
 --- Open or toggle the CLI tool terminal
@@ -127,13 +162,27 @@ function M.open_terminal(integration, args, keep_open, working_dir)
 		return
 	end
 
+	if not has_snacks() then
+		vim.notify("cli-integration.nvim: Snacks.nvim is required but not available", vim.log.levels.ERROR)
+		return
+	end
+
+	-- Clean up orphaned terminals before opening
+	cleanup_orphaned_terminals()
+
 	local cli_cmd = integration.cli_cmd
 	local term_data = M.terminals[cli_cmd]
 
-	-- Toggle if terminal already exists
+	-- Toggle if terminal already exists and is valid
 	if term_data and term_data.cli_term and term_data.cli_term.toggle then
-		term_data.cli_term:toggle()
-		return
+		if term_data.term_buf and vim.api.nvim_buf_is_valid(term_data.term_buf) then
+			term_data.cli_term:toggle()
+			return
+		else
+			-- Terminal buffer is invalid, clean it up
+			M.terminals[cli_cmd] = nil
+			M.buf_to_cli_cmd[term_data.term_buf] = nil
+		end
 	end
 
 	-- Create new terminal
@@ -142,7 +191,7 @@ function M.open_terminal(integration, args, keep_open, working_dir)
 
 	local base_dir = working_dir or vim.fn.getcwd()
 	local current_file = vim.fn.expand("%")
-	if base_dir and base_dir ~= "" then
+	if base_dir and base_dir ~= "" and current_file_abs ~= "" then
 		current_file = vim.fs.relpath(base_dir, current_file_abs) or vim.fn.fnamemodify(current_file_abs, ":.")
 	end
 
@@ -155,7 +204,14 @@ function M.open_terminal(integration, args, keep_open, working_dir)
 			min_width = keep_open and nil or integration.window_width,
 			border = "rounded",
 			on_close = function()
+				-- Get term_buf from stored terminal data before cleaning up
+				local stored_data = M.terminals[cli_cmd]
+				local buf_to_clean = stored_data and stored_data.term_buf
+
 				M.terminals[cli_cmd] = nil
+				if buf_to_clean and M.buf_to_cli_cmd then
+					M.buf_to_cli_cmd[buf_to_clean] = nil
+				end
 			end,
 			resize = true,
 		},
@@ -166,6 +222,7 @@ function M.open_terminal(integration, args, keep_open, working_dir)
 
 	-- Verify terminal was created successfully
 	if not cli_term then
+		vim.notify("cli-integration.nvim: Failed to create terminal for " .. cli_cmd, vim.log.levels.ERROR)
 		return
 	end
 
@@ -173,6 +230,7 @@ function M.open_terminal(integration, args, keep_open, working_dir)
 
 	-- Verify buffer exists
 	if not term_buf then
+		vim.notify("cli-integration.nvim: Terminal buffer not available for " .. cli_cmd, vim.log.levels.ERROR)
 		return
 	end
 
@@ -186,8 +244,13 @@ function M.open_terminal(integration, args, keep_open, working_dir)
 		integration = integration,
 	}
 
+	-- Update index for fast lookup
+	M.buf_to_cli_cmd[term_buf] = cli_cmd
+
 	-- Attach file if new terminal
-	M.attach_file_when_ready(current_file, term_buf, cli_cmd)
+	if current_file and current_file ~= "" then
+		M.attach_file_when_ready(current_file, term_buf, cli_cmd)
+	end
 end
 
 --- Toggle terminal window width between default and maximum
@@ -199,12 +262,22 @@ function M.toggle_width(term_buf)
 		return
 	end
 
-	-- Find terminal data
-	local term_data = nil
-	for _, data in pairs(M.terminals) do
-		if data.term_buf == term_buf then
-			term_data = data
-			break
+	-- Use index for fast lookup
+	local cli_cmd = M.buf_to_cli_cmd[term_buf]
+	local term_data = cli_cmd and M.terminals[cli_cmd]
+
+	-- Fallback to linear search if index lookup fails
+	if not term_data then
+		cleanup_orphaned_terminals()
+		for _, data in pairs(M.terminals) do
+			if data.term_buf == term_buf then
+				term_data = data
+				-- Update index
+				if data.integration and data.integration.cli_cmd then
+					M.buf_to_cli_cmd[term_buf] = data.integration.cli_cmd
+				end
+				break
+			end
 		end
 	end
 
@@ -226,12 +299,16 @@ function M.toggle_width(term_buf)
 	end
 
 	local integration = term_data.integration
-	local window_width = integration.window_width
+	if not integration then
+		return
+	end
+
+	local window_width = integration.window_width or 64
 	local columns = vim.o.columns
 
 	-- Calculate maximum width (accounting for borders and margins)
-	-- Assuming 2 columns for border (1 on each side)
-	local max_width = columns - 2
+	-- Snacks uses rounded borders which typically take 2 columns total (1 on each side)
+	local max_width = math.max(window_width, columns - 2)
 
 	if term_data.is_expanded then
 		-- Return to default width
