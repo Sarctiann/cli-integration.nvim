@@ -6,7 +6,7 @@ local M = {}
 
 --- Get integration by index or cli_cmd
 --- @param identifier number|string|nil Integration index (1-based) or cli_cmd string
---- @return cli-integration.Integration|nil
+--- @return Cli-Integration.Integration|nil
 --- @return string|nil Error message if integration not found
 local function get_integration(identifier)
 	local integrations = config.options.integrations or {}

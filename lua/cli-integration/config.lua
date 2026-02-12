@@ -1,4 +1,4 @@
---- @class cli-integration.TerminalModeKeys
+--- @class Cli-Integration.TerminalModeKeys
 --- @field normal_mode string[] # Keys to enter normal mode
 --- @field insert_file_path string[] # Keys to insert current file path
 --- @field insert_all_buffers string[] # Keys to insert all open buffer paths
@@ -8,27 +8,27 @@
 --- @field help string[] # Keys to show help
 --- @field toggle_width string[] # Keys to toggle window width
 
---- @class cli-integration.NormalModeKeys
+--- @class Cli-Integration.NormalModeKeys
 --- @field hide string[] # Keys to hide terminal
 --- @field toggle_width string[] # Keys to toggle window width
 
---- @class cli-integration.TerminalKeys
---- @field terminal_mode cli-integration.TerminalModeKeys # Key mappings for terminal mode
---- @field normal_mode cli-integration.NormalModeKeys # Key mappings for normal mode
+--- @class Cli-Integration.TerminalKeys
+--- @field terminal_mode Cli-Integration.TerminalModeKeys # Key mappings for terminal mode
+--- @field normal_mode Cli-Integration.NormalModeKeys # Key mappings for normal mode
 
---- @class cli-integration.Integration
+--- @class Cli-Integration.Integration
 --- @field cli_cmd string # CLI command name to execute (required)
 --- @field show_help_on_open boolean|nil # Whether to show help notification when opening the terminal (default: true)
 --- @field new_lines_amount number|nil # Number of new lines to insert after command submission (default: 2)
 --- @field window_width number|nil # Default width for the terminal window (default: 64)
---- @field terminal_keys cli-integration.TerminalKeys|nil # Key mappings for the CLI terminal window (all values must be arrays)
+--- @field terminal_keys Cli-Integration.TerminalKeys|nil # Key mappings for the CLI terminal window (all values must be arrays)
 
---- @class cli-integration.Config
---- @field integrations cli-integration.Integration[] # Array of CLI integrations
+--- @class Cli-Integration.Config
+--- @field integrations Cli-Integration.Integration[] # Array of CLI integrations
 --- @field show_help_on_open boolean|nil # Default: whether to show help notification when opening the terminal (applied to all integrations)
 --- @field new_lines_amount number|nil # Default: number of new lines to insert after command submission (applied to all integrations)
 --- @field window_width number|nil # Default: width for the terminal window (applied to all integrations)
---- @field terminal_keys cli-integration.TerminalKeys|nil # Default: key mappings for the CLI terminal window (applied to all integrations)
+--- @field terminal_keys Cli-Integration.TerminalKeys|nil # Default: key mappings for the CLI terminal window (applied to all integrations)
 
 local M = {}
 
@@ -98,8 +98,8 @@ local function validate_terminal_keys(terminal_keys)
 	return validate_keys_table(terminal_keys)
 end
 
---- @param config cli-integration.Config
---- @return cli-integration.Config
+--- @param config Cli-Integration.Config
+--- @return Cli-Integration.Config
 function M.setup(config)
 	local user_config = config or {}
 

@@ -1,4 +1,4 @@
---- @module 'cli-integration'
+--- @module 'Cli-Integration'
 
 local config = require("cli-integration.config")
 local commands = require("cli-integration.commands")
@@ -7,7 +7,7 @@ local autocmds = require("cli-integration.autocmds")
 local M = {}
 
 --- Setup function for the plugin
---- @param user_config cli-integration.Config
+--- @param user_config Cli-Integration.Config
 --- @return nil
 function M.setup(user_config)
 	-- Setup configuration

@@ -53,7 +53,7 @@ end
 
 --- Get integration for a terminal buffer
 --- @param term_buf number|nil The terminal buffer
---- @return cli-integration.Integration|nil
+--- @return Cli-Integration.Integration|nil
 function M.get_integration_for_buf(term_buf)
 	term_buf = term_buf or M.get_current_terminal_buf()
 	if not term_buf then
@@ -151,7 +151,7 @@ Example:
 end
 
 --- Open or toggle the CLI tool terminal
---- @param integration cli-integration.Integration The integration configuration
+--- @param integration Cli-Integration.Integration The integration configuration
 --- @param args string|nil Command line arguments for CLI tool
 --- @param keep_open boolean|nil Whether to keep the terminal open after execution
 --- @param working_dir string|nil Working directory for the terminal

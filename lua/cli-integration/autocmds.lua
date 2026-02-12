@@ -5,7 +5,7 @@ local help = require("cli-integration.help")
 local M = {}
 
 --- Setup autocommands for CLI Integration
---- @param user_config cli-integration.Config
+--- @param user_config Cli-Integration.Config
 --- @return nil
 function M.setup(user_config)
 	local integrations = user_config.integrations or {}

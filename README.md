@@ -35,13 +35,13 @@ A Neovim plugin that seamlessly integrates any command-line tool into your Neovi
 ### [lazy.nvim](https://github.com/folke/lazy.nvim)
 
 ```lua
---- @module 'cli-integration'
+--- @module 'Cli-Integration'
 {
   "Sarctiann/cli-integration.nvim",
   dependencies = {
     "folke/snacks.nvim",
   },
-  --- @type cli-integration.Config
+  --- @type Cli-Integration.Config
   opts = {
     integrations = {
       { cli_cmd = "your-cli-tool" },  -- Required: specify your CLI command
@@ -55,13 +55,13 @@ A Neovim plugin that seamlessly integrates any command-line tool into your Neovi
 ### For local development
 
 ```lua
---- @module 'cli-integration'
+--- @module 'Cli-Integration'
 {
   dir = "~/.config/nvim/lua/custom_plugins/cli-integration.nvim",
   dependencies = {
     "folke/snacks.nvim",
   },
-  --- @type cli-integration.Config
+  --- @type Cli-Integration.Config
   opts = {
     integrations = {
       { cli_cmd = "your-cli-tool" },  -- Required: specify your CLI command
