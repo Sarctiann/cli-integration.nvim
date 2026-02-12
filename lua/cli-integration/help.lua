@@ -3,35 +3,6 @@ local config = require("cli-integration.config")
 
 local M = {}
 
---- Get Snacks module (lazy loading)
---- @return table|nil
-local function get_snacks()
-	-- First try global variable (snacks.nvim exposes Snacks globally)
-	if type(_G.Snacks) == "table" then
-		return _G.Snacks
-	end
-
-	-- Fallback to require
-	local snacks_ok, snacks_module = pcall(require, "snacks")
-	if snacks_ok and snacks_module then
-		return snacks_module
-	end
-
-	-- Try global again after require attempt (in case require triggered loading)
-	if type(_G.Snacks) == "table" then
-		return _G.Snacks
-	end
-
-	return nil
-end
-
---- Check if Snacks is available
---- @return boolean
-local function has_snacks()
-	local Snacks = get_snacks()
-	return Snacks ~= nil and type(Snacks) == "table" and type(Snacks.notify) == "function"
-end
-
 --- Format array of keys into a string with separators
 --- @param keys string[] Array of key combinations
 --- @return string Formatted string with keys joined by " | "
@@ -183,8 +154,7 @@ end
 --- Show help notification with keymaps and commands
 --- @return nil
 function M.show_help()
-	local Snacks = get_snacks()
-	if not has_snacks() or not Snacks then
+	if not _G.Snacks then
 		vim.notify("cli-integration.nvim: Snacks.nvim is required but not available", vim.log.levels.ERROR)
 		return
 	end
@@ -194,14 +164,13 @@ function M.show_help()
 		return
 	end
 
-	Snacks.notify(help_text, { title = "Keymaps", style = "compact", history = false, timeout = 5000 })
+	_G.Snacks.notify(help_text, { title = "Keymaps", style = "compact", history = false, timeout = 5000 })
 end
 
 --- Show quick help notification on terminal open
 --- @return nil
 function M.show_quick_help()
-	local Snacks = get_snacks()
-	if not has_snacks() or not Snacks then
+	if not _G.Snacks then
 		return
 	end
 
@@ -230,7 +199,7 @@ function M.show_quick_help()
 		table.insert(help_keys, "[" .. key .. "]")
 	end
 	local help_text = " Press: " .. table.concat(help_keys, " | ") .. " to Show Help "
-	Snacks.notify(help_text, { title = "", style = "compact", history = false, timeout = 3000 })
+	_G.Snacks.notify(help_text, { title = "", style = "compact", history = false, timeout = 3000 })
 end
 
 return M

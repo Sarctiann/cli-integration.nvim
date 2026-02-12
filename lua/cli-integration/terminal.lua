@@ -8,14 +8,6 @@ M.terminals = {}
 -- Index for fast lookup: term_buf -> cli_cmd
 M.buf_to_cli_cmd = {}
 
---- Check if Snacks is available
---- @return boolean
-local function has_snacks()
-	return type(_G.Snacks) == "table"
-		and type(_G.Snacks.terminal) == "function"
-		and type(_G.Snacks.notify) == "function"
-end
-
 --- Insert text into the terminal
 --- @param text string The text to insert
 --- @param term_buf number|nil The terminal buffer (if nil, uses current terminal)
@@ -127,7 +119,7 @@ Example:
     },
   })
 ]]
-	if has_snacks() and _G.Snacks then
+	if _G.Snacks then
 		_G.Snacks.notify(help_text, {
 			title = "Configuration Required",
 			style = "compact",
