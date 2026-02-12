@@ -38,7 +38,8 @@ function M.get_open_buffers_paths(working_dir)
 							-- Validate working_dir exists before using relpath
 							local stat = vim.uv.fs_stat(working_dir)
 							if stat and stat.type == "directory" then
-								file_path = vim.fs.relpath(working_dir, file_path) or vim.fn.fnamemodify(file_path, ":.")
+								file_path = vim.fs.relpath(working_dir, file_path)
+									or vim.fn.fnamemodify(file_path, ":.")
 							else
 								-- Fallback to relative path from current directory
 								file_path = vim.fn.fnamemodify(file_path, ":.")

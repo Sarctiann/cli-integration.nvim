@@ -4,8 +4,8 @@ local config = require("cli-integration.config")
 
 local M = {}
 
---- Get integration by index or cli_cmd
---- @param identifier number|string|nil Integration index (1-based) or cli_cmd string
+--- Get integration by index, name, or cli_cmd
+--- @param identifier number|string|nil Integration index (1-based), name string, or cli_cmd string
 --- @return Cli-Integration.Integration|nil
 --- @return string|nil Error message if integration not found
 local function get_integration(identifier)
@@ -25,22 +25,38 @@ local function get_integration(identifier)
 		end
 		return integrations[identifier], nil
 	elseif type(identifier) == "string" then
-		-- Find by cli_cmd
+		-- Convert underscores to spaces for name matching (for autocompletion compatibility)
+		local normalized_identifier = identifier:gsub("_", " ")
+
+		-- First try to find by name (with normalized identifier)
+		for _, integration in ipairs(integrations) do
+			if integration.name == normalized_identifier then
+				return integration, nil
+			end
+		end
+		-- Also try with original identifier (in case name has underscores)
+		for _, integration in ipairs(integrations) do
+			if integration.name == identifier then
+				return integration, nil
+			end
+		end
+		-- If not found by name, try to find by cli_cmd (backward compatibility)
 		for _, integration in ipairs(integrations) do
 			if integration.cli_cmd == identifier then
 				return integration, nil
 			end
 		end
-		return nil, "Integration with cli_cmd '" .. identifier .. "' not found"
+		return nil, "Integration with name or cli_cmd '" .. identifier .. "' not found"
 	end
 
 	return nil, "Invalid identifier type. Expected number or string."
 end
 
 --- Open CLI tool in the current file's directory
---- @param integration_identifier number|string|nil Integration index or cli_cmd (defaults to first integration)
+--- @param integration_identifier number|string|nil Integration index, name, or cli_cmd (defaults to first integration)
+--- @param args string|nil Command line arguments for CLI tool
 --- @return nil
-function M.open_cwd(integration_identifier)
+function M.open_cwd(integration_identifier, args)
 	local integration, err = get_integration(integration_identifier)
 	if not integration then
 		if err then
@@ -54,13 +70,14 @@ function M.open_cwd(integration_identifier)
 		working_dir = vim.fn.getcwd()
 	end
 
-	terminal.open_terminal(integration, nil, nil, working_dir)
+	terminal.open_terminal(integration, args, integration.keep_open, working_dir)
 end
 
 --- Open CLI tool in the project root (git root)
---- @param integration_identifier number|string|nil Integration index or cli_cmd (defaults to first integration)
+--- @param integration_identifier number|string|nil Integration index, name, or cli_cmd (defaults to first integration)
+--- @param args string|nil Command line arguments for CLI tool
 --- @return nil
-function M.open_git_root(integration_identifier)
+function M.open_git_root(integration_identifier, args)
 	local integration, err = get_integration(integration_identifier)
 	if not integration then
 		if err then
@@ -89,29 +106,7 @@ function M.open_git_root(integration_identifier)
 		)
 	end
 
-	terminal.open_terminal(integration, nil, nil, working_dir)
-end
-
---- Open CLI tool with custom arguments
---- @param args string Custom arguments for CLI tool
---- @param keep_open boolean|nil Whether to keep the terminal open
---- @param integration_identifier number|string|nil Integration index or cli_cmd (defaults to first integration)
---- @return nil
-function M.open_custom(args, keep_open, integration_identifier)
-	local integration, err = get_integration(integration_identifier)
-	if not integration then
-		if err then
-			vim.notify("cli-integration.nvim: " .. err, vim.log.levels.WARN)
-		end
-		return
-	end
-
-	if not args or args == "" then
-		vim.notify("cli-integration.nvim: Custom arguments cannot be empty", vim.log.levels.WARN)
-		return
-	end
-
-	terminal.open_terminal(integration, args, keep_open)
+	terminal.open_terminal(integration, args, integration.keep_open, working_dir)
 end
 
 return M

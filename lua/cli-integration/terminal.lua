@@ -11,18 +11,9 @@ M.buf_to_cli_cmd = {}
 --- Check if Snacks is available
 --- @return boolean
 local function has_snacks()
-	return type(Snacks) == "table" and type(Snacks.terminal) == "function" and type(Snacks.notify) == "function"
-end
-
---- Clean up orphaned terminals (buffers that no longer exist)
---- @return nil
-local function cleanup_orphaned_terminals()
-	for cli_cmd, term_data in pairs(M.terminals) do
-		if term_data.term_buf and not vim.api.nvim_buf_is_valid(term_data.term_buf) then
-			M.terminals[cli_cmd] = nil
-			M.buf_to_cli_cmd[term_data.term_buf] = nil
-		end
-	end
+	return type(_G.Snacks) == "table"
+		and type(_G.Snacks.terminal) == "function"
+		and type(_G.Snacks.notify) == "function"
 end
 
 --- Insert text into the terminal
@@ -33,7 +24,6 @@ function M.insert_text(text, term_buf)
 	term_buf = term_buf or M.get_current_terminal_buf()
 	if term_buf then
 		local job_id = vim.b.terminal_job_id or vim.api.nvim_buf_get_var(term_buf, "terminal_job_id")
-
 		if job_id and vim.fn.jobwait({ job_id }, 10)[1] == -1 then
 			vim.fn.chansend(job_id, text)
 		end
@@ -60,32 +50,20 @@ function M.get_integration_for_buf(term_buf)
 		return nil
 	end
 
-	-- Use index for O(1) lookup
 	local cli_cmd = M.buf_to_cli_cmd[term_buf]
 	if cli_cmd and M.terminals[cli_cmd] then
 		return M.terminals[cli_cmd].integration
 	end
 
-	-- Fallback to linear search (shouldn't happen if index is maintained correctly)
-	-- Also clean up orphaned terminals
-	cleanup_orphaned_terminals()
-	for _, term_data in pairs(M.terminals) do
-		if term_data.term_buf == term_buf then
-			-- Update index
-			M.buf_to_cli_cmd[term_buf] = term_data.integration.cli_cmd
-			return term_data.integration
-		end
-	end
 	return nil
 end
 
---- Attach current file to the terminal when CLI tool is ready
---- @param file_path string The file path to attach
+--- Attach text to the terminal when CLI tool is ready
+--- @param integration Cli-Integration.Integration The integration configuration
 --- @param term_buf number The terminal buffer
---- @param cli_cmd string The CLI command name
 --- @param tries number|nil Number of tries so far
 --- @return nil
-function M.attach_file_when_ready(file_path, term_buf, cli_cmd, tries)
+function M.attach_text_when_ready(integration, term_buf, tries)
 	vim.defer_fn(function()
 		tries = tries or 0
 		local max_tries = 12
@@ -98,24 +76,35 @@ function M.attach_file_when_ready(file_path, term_buf, cli_cmd, tries)
 			return
 		end
 
-		local buf_lines = vim.api.nvim_buf_get_lines(term_buf, 0, 5, false)
-		-- Check if any of the first 5 lines contains the CLI command name
+		-- Determine what flag to search for
+		local search_flag = integration.ready_text_flag or integration.cli_cmd or ""
+
+		-- Get text to insert from configuration
+		local text_to_insert = integration.start_with_text
+
+		-- If no text to insert, don't do anything
+		if not text_to_insert or text_to_insert == "" then
+			return
+		end
+
+		-- Search for the flag in the first 10 lines
+		local buf_lines = vim.api.nvim_buf_get_lines(term_buf, 0, 10, false)
 		local found = false
-		if cli_cmd and cli_cmd ~= "" then
+		if search_flag and search_flag ~= "" then
 			for i = 1, #buf_lines do
-				if buf_lines[i] and buf_lines[i]:match(cli_cmd) then
+				if buf_lines[i] and buf_lines[i]:match(search_flag) then
 					found = true
 					break
 				end
 			end
 		end
+
 		if found then
-			M.insert_text("@" .. file_path .. "\n\n", term_buf)
+			M.insert_text(text_to_insert, term_buf)
 			return
 		end
 
-		-- Recursively retry after 300ms
-		M.attach_file_when_ready(file_path, term_buf, cli_cmd, tries + 1)
+		M.attach_text_when_ready(integration, term_buf, tries + 1)
 	end, 300)
 end
 
@@ -138,8 +127,8 @@ Example:
     },
   })
 ]]
-	if has_snacks() then
-		Snacks.notify(help_text, {
+	if has_snacks() and _G.Snacks then
+		_G.Snacks.notify(help_text, {
 			title = "Configuration Required",
 			style = "compact",
 			history = false,
@@ -162,13 +151,10 @@ function M.open_terminal(integration, args, keep_open, working_dir)
 		return
 	end
 
-	if not has_snacks() then
+	if not _G.Snacks then
 		vim.notify("cli-integration.nvim: Snacks.nvim is required but not available", vim.log.levels.ERROR)
 		return
 	end
-
-	-- Clean up orphaned terminals before opening
-	cleanup_orphaned_terminals()
 
 	local cli_cmd = integration.cli_cmd
 	local term_data = M.terminals[cli_cmd]
@@ -181,36 +167,34 @@ function M.open_terminal(integration, args, keep_open, working_dir)
 		else
 			-- Terminal buffer is invalid, clean it up
 			M.terminals[cli_cmd] = nil
-			M.buf_to_cli_cmd[term_data.term_buf] = nil
+			if term_data.term_buf then
+				M.buf_to_cli_cmd[term_data.term_buf] = nil
+			end
 		end
 	end
 
 	-- Create new terminal
 	local cmd = args and " " .. args or ""
 	local current_file_abs = vim.fn.expand("%:p")
-
 	local base_dir = working_dir or vim.fn.getcwd()
 	local current_file = vim.fn.expand("%")
 	if base_dir and base_dir ~= "" and current_file_abs ~= "" then
 		current_file = vim.fs.relpath(base_dir, current_file_abs) or vim.fn.fnamemodify(current_file_abs, ":.")
 	end
 
-	local cli_term = Snacks.terminal(cli_cmd .. cmd, {
+	local cli_term = _G.Snacks.terminal(cli_cmd .. cmd, {
 		interactive = true,
 		cwd = base_dir,
 		win = {
 			title = " " .. cli_cmd .. " " .. (args and " ( " .. args .. " ) " or ""),
-			position = keep_open and "float" or "right",
-			min_width = keep_open and nil or integration.window_width,
+			position = integration.floating and "float" or "right",
+			min_width = integration.floating and nil or integration.window_width,
 			border = "rounded",
 			on_close = function()
-				-- Get term_buf from stored terminal data before cleaning up
 				local stored_data = M.terminals[cli_cmd]
-				local buf_to_clean = stored_data and stored_data.term_buf
-
 				M.terminals[cli_cmd] = nil
-				if buf_to_clean and M.buf_to_cli_cmd then
-					M.buf_to_cli_cmd[buf_to_clean] = nil
+				if stored_data and stored_data.term_buf then
+					M.buf_to_cli_cmd[stored_data.term_buf] = nil
 				end
 			end,
 			resize = true,
@@ -220,15 +204,12 @@ function M.open_terminal(integration, args, keep_open, working_dir)
 		auto_insert = not keep_open,
 	})
 
-	-- Verify terminal was created successfully
 	if not cli_term then
 		vim.notify("cli-integration.nvim: Failed to create terminal for " .. cli_cmd, vim.log.levels.ERROR)
 		return
 	end
 
 	local term_buf = cli_term.buf
-
-	-- Verify buffer exists
 	if not term_buf then
 		vim.notify("cli-integration.nvim: Terminal buffer not available for " .. cli_cmd, vim.log.levels.ERROR)
 		return
@@ -247,9 +228,9 @@ function M.open_terminal(integration, args, keep_open, working_dir)
 	-- Update index for fast lookup
 	M.buf_to_cli_cmd[term_buf] = cli_cmd
 
-	-- Attach file if new terminal
-	if current_file and current_file ~= "" then
-		M.attach_file_when_ready(current_file, term_buf, cli_cmd)
+	-- Attach text if new terminal (only if start_with_text is set)
+	if integration.start_with_text and integration.start_with_text ~= "" then
+		M.attach_text_when_ready(integration, term_buf)
 	end
 end
 
@@ -262,24 +243,8 @@ function M.toggle_width(term_buf)
 		return
 	end
 
-	-- Use index for fast lookup
 	local cli_cmd = M.buf_to_cli_cmd[term_buf]
 	local term_data = cli_cmd and M.terminals[cli_cmd]
-
-	-- Fallback to linear search if index lookup fails
-	if not term_data then
-		cleanup_orphaned_terminals()
-		for _, data in pairs(M.terminals) do
-			if data.term_buf == term_buf then
-				term_data = data
-				-- Update index
-				if data.integration and data.integration.cli_cmd then
-					M.buf_to_cli_cmd[term_buf] = data.integration.cli_cmd
-				end
-				break
-			end
-		end
-	end
 
 	if not term_data then
 		return
@@ -305,17 +270,12 @@ function M.toggle_width(term_buf)
 
 	local window_width = integration.window_width or 64
 	local columns = vim.o.columns
-
-	-- Calculate maximum width (accounting for borders and margins)
-	-- Snacks uses rounded borders which typically take 2 columns total (1 on each side)
 	local max_width = math.max(window_width, columns - 2)
 
 	if term_data.is_expanded then
-		-- Return to default width
 		vim.api.nvim_win_set_width(term_win, window_width)
 		term_data.is_expanded = false
 	else
-		-- Expand to maximum width
 		vim.api.nvim_win_set_width(term_win, max_width)
 		term_data.is_expanded = true
 	end

@@ -18,9 +18,15 @@
 
 --- @class Cli-Integration.Integration
 --- @field cli_cmd string # CLI command name to execute (required)
+--- @field name string # Name for the integration (required, used for autocompletion in commands)
 --- @field show_help_on_open boolean|nil # Whether to show help notification when opening the terminal (default: true)
 --- @field new_lines_amount number|nil # Number of new lines to insert after command submission (default: 2)
 --- @field window_width number|nil # Default width for the terminal window (default: 64)
+--- @field floating boolean|nil # Whether to open terminal in floating window (default: false)
+--- @field keep_open boolean|nil # Whether to keep the terminal open after execution (default: false)
+--- @field start_with_text string|nil # Text to insert when terminal is ready (if not set, no text is inserted)
+--- @field ready_text_flag string|nil # Text flag to search in terminal output to detect readiness (if not set, searches for cli_cmd)
+--- @field format_paths (fun(path: string): string)|nil # Function to format file paths when inserting (if not set, uses the raw path)
 --- @field terminal_keys Cli-Integration.TerminalKeys|nil # Key mappings for the CLI terminal window (all values must be arrays)
 
 --- @class Cli-Integration.Config
@@ -28,6 +34,7 @@
 --- @field show_help_on_open boolean|nil # Default: whether to show help notification when opening the terminal (applied to all integrations)
 --- @field new_lines_amount number|nil # Default: number of new lines to insert after command submission (applied to all integrations)
 --- @field window_width number|nil # Default: width for the terminal window (applied to all integrations)
+--- @field floating boolean|nil # Default: whether to open terminal in floating window (applied to all integrations)
 --- @field terminal_keys Cli-Integration.TerminalKeys|nil # Default: key mappings for the CLI terminal window (applied to all integrations)
 
 local M = {}
@@ -38,6 +45,7 @@ M.defaults = {
 	show_help_on_open = true,
 	new_lines_amount = 2,
 	window_width = 64,
+	floating = false,
 	terminal_keys = {
 		terminal_mode = {
 			normal_mode = { "<M-q>" },
@@ -145,6 +153,16 @@ function M.setup(config)
 				goto continue
 			end
 
+			-- Validate name is present and not empty
+			local name = integration.name
+			if not name or type(name) ~= "string" or name == "" then
+				vim.notify(
+					"cli-integration.nvim: Integration at index " .. i .. " must have a non-empty 'name'",
+					vim.log.levels.WARN
+				)
+				goto continue
+			end
+
 			-- Validate terminal_keys if provided
 			if integration.terminal_keys and not validate_terminal_keys(integration.terminal_keys) then
 				vim.notify(
@@ -159,6 +177,7 @@ function M.setup(config)
 				show_help_on_open = M.options.show_help_on_open,
 				new_lines_amount = M.options.new_lines_amount,
 				window_width = M.options.window_width,
+				floating = M.options.floating,
 				terminal_keys = M.options.terminal_keys,
 			}
 			-- Apply integration-specific config (which may override defaults)

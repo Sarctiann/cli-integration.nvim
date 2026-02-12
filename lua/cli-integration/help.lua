@@ -3,10 +3,33 @@ local config = require("cli-integration.config")
 
 local M = {}
 
+--- Get Snacks module (lazy loading)
+--- @return table|nil
+local function get_snacks()
+	-- First try global variable (snacks.nvim exposes Snacks globally)
+	if type(_G.Snacks) == "table" then
+		return _G.Snacks
+	end
+
+	-- Fallback to require
+	local snacks_ok, snacks_module = pcall(require, "snacks")
+	if snacks_ok and snacks_module then
+		return snacks_module
+	end
+
+	-- Try global again after require attempt (in case require triggered loading)
+	if type(_G.Snacks) == "table" then
+		return _G.Snacks
+	end
+
+	return nil
+end
+
 --- Check if Snacks is available
 --- @return boolean
 local function has_snacks()
-	return type(Snacks) == "table" and type(Snacks.notify) == "function"
+	local Snacks = get_snacks()
+	return Snacks ~= nil and type(Snacks) == "table" and type(Snacks.notify) == "function"
 end
 
 --- Format array of keys into a string with separators
@@ -160,7 +183,8 @@ end
 --- Show help notification with keymaps and commands
 --- @return nil
 function M.show_help()
-	if not has_snacks() then
+	local Snacks = get_snacks()
+	if not has_snacks() or not Snacks then
 		vim.notify("cli-integration.nvim: Snacks.nvim is required but not available", vim.log.levels.ERROR)
 		return
 	end
@@ -176,7 +200,8 @@ end
 --- Show quick help notification on terminal open
 --- @return nil
 function M.show_quick_help()
-	if not has_snacks() then
+	local Snacks = get_snacks()
+	if not has_snacks() or not Snacks then
 		return
 	end
 

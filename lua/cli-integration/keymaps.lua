@@ -7,7 +7,7 @@ local config = require("cli-integration.config")
 local M = {}
 
 --- Helper function to set multiple keymaps for the same action
---- @param mode string The vim mode (e.g., "t", "n", "i", "v")
+--- @param mode string|string[] The vim mode (e.g., "t", "n", "i", "v")
 --- @param keys string[] Array of key combinations
 --- @param callback function|string The function to call | or command to execute
 --- @param opts table Options for vim.keymap.set
@@ -81,7 +81,14 @@ function M.setup_terminal_keymaps()
 	if keys.terminal_mode.insert_file_path and type(keys.terminal_mode.insert_file_path) == "table" then
 		set_keymaps("t", keys.terminal_mode.insert_file_path, function()
 			if term_data and term_data.current_file then
-				terminal.insert_text("@" .. term_data.current_file .. " ", current_buf)
+				local path = term_data.current_file
+				-- Use format_paths function if available, otherwise use default format
+				local formatted_path = integration
+						and integration.format_paths
+						and type(integration.format_paths) == "function"
+						and integration.format_paths(path)
+					or path
+				terminal.insert_text(formatted_path .. " ", current_buf)
 			end
 		end, opts)
 	end
@@ -92,7 +99,13 @@ function M.setup_terminal_keymaps()
 			local working_dir = term_data and term_data.working_dir or nil
 			local paths = buffers.get_open_buffers_paths(working_dir)
 			for _, path in ipairs(paths) do
-				terminal.insert_text("@" .. path .. "\n", current_buf)
+				-- Use format_paths function if available, otherwise use default format
+				local formatted_path = integration
+						and integration.format_paths
+						and type(integration.format_paths) == "function"
+						and integration.format_paths(path)
+					or path
+				terminal.insert_text(formatted_path .. "\n", current_buf)
 			end
 		end, opts)
 	end
@@ -107,7 +120,7 @@ function M.setup_terminal_keymaps()
 
 	-- Submit commands
 	if keys.terminal_mode.submit and type(keys.terminal_mode.submit) == "table" then
-		set_keymaps("t", keys.terminal_mode.submit, function()
+		set_keymaps({ "n", "t" }, keys.terminal_mode.submit, function()
 			vim.fn.feedkeys(vim.api.nvim_replace_termcodes("<Enter>", true, false, true), "n")
 		end, opts)
 	end
