@@ -127,9 +127,13 @@ require("cli-integration").setup({
       normal_mode = { "<M-q>" },
       insert_file_path = { "<C-p>" },
       insert_all_buffers = { "<C-p><C-p>" },
-      new_lines = { "<CR>" },
-      submit = { "<C-s>" },
-      enter = { "<tab>" },
+
+      -- You might want to change these "enter" related keys
+      -- depending on your configuration or your terminal behavior
+      new_lines = { "<S-CR>" },
+      submit = { "<C-s>", "<C-CR>" },
+      enter = { "<CR>" },
+
       help = { "<M-?>", "??", "\\\\" },
       toggle_width = { "<C-f>" },
     },
@@ -187,19 +191,19 @@ require("cli-integration").setup({
 
 Each integration in the `integrations` array can have:
 
-| Option              | Type      | Default         | Description                                                                                                     |
-| ------------------- | --------- | --------------- | --------------------------------------------------------------------------------------------------------------- |
-| `name`              | `string`  | **Required**    | Name for the integration (used for autocompletion in commands)                                                  |
-| `cli_cmd`           | `string`  | **Required**    | CLI command name to execute (e.g., "cursor-agent")                                                              |
-| `show_help_on_open` | `boolean` | Inherits global | Override: Show help screen when terminal opens                                                                  |
-| `new_lines_amount`  | `number`  | Inherits global | Override: Number of new lines to insert after command submission                                                |
-| `window_width`      | `number`  | Inherits global | Override: Width for the terminal window                                                                         |
-| `floating`          | `boolean` | Inherits global | Override: Whether to open terminal in floating window                                                           |
-| `keep_open`         | `boolean` | `false`         | Whether to keep the terminal open after execution (not auto-closing)                                            |
-| `start_with_text`   | `string`  | `nil`           | Text to insert when terminal is ready (searches for `ready_text_flag` or `cli_cmd`)                             |
-| `ready_text_flag`   | `string`  | `nil`           | Text flag to search in terminal output (first 10 lines) to detect readiness. If not set, searches for `cli_cmd` |
-| `format_paths`      | `function` | `nil`         | Function to format file paths when inserting (receives path string, returns formatted string). If not set, uses `"@" .. path` |
-| `terminal_keys`     | `table`   | Inherits global | Override: Key mappings for the CLI terminal window                                                              |
+| Option              | Type       | Default         | Description                                                                                                                   |
+| ------------------- | ---------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `name`              | `string`   | **Required**    | Name for the integration (used for autocompletion in commands)                                                                |
+| `cli_cmd`           | `string`   | **Required**    | CLI command name to execute (e.g., "cursor-agent")                                                                            |
+| `show_help_on_open` | `boolean`  | Inherits global | Override: Show help screen when terminal opens                                                                                |
+| `new_lines_amount`  | `number`   | Inherits global | Override: Number of new lines to insert after command submission                                                              |
+| `window_width`      | `number`   | Inherits global | Override: Width for the terminal window                                                                                       |
+| `floating`          | `boolean`  | Inherits global | Override: Whether to open terminal in floating window                                                                         |
+| `keep_open`         | `boolean`  | `false`         | Whether to keep the terminal open after execution (not auto-closing)                                                          |
+| `start_with_text`   | `string`   | `nil`           | Text to insert when terminal is ready (searches for `ready_text_flag` or `cli_cmd`)                                           |
+| `ready_text_flag`   | `string`   | `nil`           | Text flag to search in terminal output (first 10 lines) to detect readiness. If not set, searches for `cli_cmd`               |
+| `format_paths`      | `function` | `nil`           | Function to format file paths when inserting (receives path string, returns formatted string). If not set, uses `"@" .. path` |
+| `terminal_keys`     | `table`    | Inherits global | Override: Key mappings for the CLI terminal window                                                                            |
 
 ### `terminal_keys` Structure
 
