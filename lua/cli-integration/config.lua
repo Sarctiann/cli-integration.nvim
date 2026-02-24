@@ -1,20 +1,20 @@
 --- @class Cli-Integration.TerminalModeKeys
---- @field normal_mode string[] # Keys to enter normal mode
---- @field insert_file_path string[] # Keys to insert current file path
---- @field insert_all_buffers string[] # Keys to insert all open buffer paths
---- @field new_lines string[] # Keys to insert new lines
---- @field submit string[] # Keys to submit command/message
---- @field enter string[] # Keys to send Enter key
---- @field help string[] # Keys to show help
---- @field toggle_width string[] # Keys to toggle window width
+--- @field normal_mode string[]|nil # Keys to enter normal mode
+--- @field insert_file_path string[]|nil # Keys to insert current file path
+--- @field insert_all_buffers string[]|nil # Keys to insert all open buffer paths
+--- @field new_lines string[]|nil # Keys to insert new lines
+--- @field submit string[]|nil # Keys to submit command/message
+--- @field enter string[]|nil # Keys to send Enter key
+--- @field help string[]|nil # Keys to show help
+--- @field toggle_width string[]|nil # Keys to toggle window width
 
 --- @class Cli-Integration.NormalModeKeys
---- @field hide string[] # Keys to hide terminal
---- @field toggle_width string[] # Keys to toggle window width
+--- @field hide string[]|nil # Keys to hide terminal
+--- @field toggle_width string[]|nil # Keys to toggle window width
 
 --- @class Cli-Integration.TerminalKeys
---- @field terminal_mode Cli-Integration.TerminalModeKeys # Key mappings for terminal mode
---- @field normal_mode Cli-Integration.NormalModeKeys # Key mappings for normal mode
+--- @field terminal_mode Cli-Integration.TerminalModeKeys|nil # Key mappings for terminal mode
+--- @field normal_mode Cli-Integration.NormalModeKeys|nil # Key mappings for normal mode
 
 --- @class Cli-Integration.Integration
 --- @field cli_cmd string # CLI command name to execute (required)
@@ -27,10 +27,11 @@
 --- @field start_with_text string|nil # Text to insert when terminal is ready (if not set, no text is inserted)
 --- @field ready_text_flag string|nil # Text flag to search in terminal output to detect readiness (if not set, searches for cli_cmd)
 --- @field format_paths (fun(path: string): string)|nil # Function to format file paths when inserting (if not set, uses the raw path)
+--- @field prepare_visual_text (fun(text: string): string)|nil # Function to transform visual selection text before inserting (if not set, uses text as-is)
 --- @field terminal_keys Cli-Integration.TerminalKeys|nil # Key mappings for the CLI terminal window (all values must be arrays)
 
 --- @class Cli-Integration.Config
---- @field integrations Cli-Integration.Integration[] # Array of CLI integrations
+--- @field integrations Cli-Integration.Integration[]|nil # Array of CLI integrations (optional, defaults to empty array)
 --- @field show_help_on_open boolean|nil # Default: whether to show help notification when opening the terminal (applied to all integrations)
 --- @field new_lines_amount number|nil # Default: number of new lines to insert after command submission (applied to all integrations)
 --- @field window_width number|nil # Default: width for the terminal window (applied to all integrations)

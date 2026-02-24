@@ -13,6 +13,41 @@ function M.setup(user_config)
 	-- Setup configuration
 	local configs = config.setup(user_config)
 
+	-- Helper function to get integration by identifier
+	--- @param identifier number|string|nil Integration index, name, or cli_cmd
+	--- @return Cli-Integration.Integration|nil
+	local function get_integration(identifier)
+		local integrations = configs.integrations or {}
+		if not integrations or #integrations == 0 then
+			return nil
+		end
+
+		if not identifier then
+			return integrations[1]
+		end
+
+		if type(identifier) == "number" then
+			if identifier >= 1 and identifier <= #integrations then
+				return integrations[identifier]
+			end
+			return nil
+		elseif type(identifier) == "string" then
+			local normalized_identifier = identifier:gsub("_", " ")
+			for _, integration in ipairs(integrations) do
+				if integration.name == normalized_identifier or integration.name == identifier then
+					return integration
+				end
+			end
+			for _, integration in ipairs(integrations) do
+				if integration.cli_cmd == identifier then
+					return integration
+				end
+			end
+		end
+
+		return nil
+	end
+
 	-- Create user command to open CLI tool
 	vim.api.nvim_create_user_command("CLIIntegration", function(opts)
 		-- Validate integrations before executing
@@ -45,12 +80,45 @@ function M.setup(user_config)
 			cli_args = table.concat(args_table, " ")
 		end
 
+		-- Determine which integration to use
+		local integration_identifier = integration_name
+		if action ~= "open_cwd" and action ~= "open_root" and action ~= "" then
+			-- Backward compatibility mode
+			integration_identifier = action:gsub("_", " ")
+		end
+
+		-- Get the integration to apply prepare_visual_text if needed
+		local integration = get_integration(integration_identifier)
+
+		-- Capture visual selection if range is provided
+		local visual_text = nil
+		if opts.range > 0 then
+			local start_line = opts.line1
+			local end_line = opts.line2
+			local lines = vim.api.nvim_buf_get_lines(0, start_line - 1, end_line, false)
+			if lines and #lines > 0 then
+				visual_text = table.concat(lines, "\n") .. "\n"
+				-- Apply prepare_visual_text function if available
+				if integration and integration.prepare_visual_text and type(integration.prepare_visual_text) == "function" then
+					local ok, result = pcall(integration.prepare_visual_text, visual_text)
+					if ok then
+						visual_text = result
+					else
+						vim.notify(
+							"cli-integration.nvim: Error in prepare_visual_text function: " .. tostring(result),
+							vim.log.levels.ERROR
+						)
+					end
+				end
+			end
+		end
+
 		-- Execute command with error handling
 		local ok, err = pcall(function()
 			if action == "open_cwd" or action == "" or not action then
-				commands.open_cwd(integration_name, cli_args)
+				commands.open_cwd(integration_name, cli_args, visual_text)
 			elseif action == "open_root" then
-				commands.open_git_root(integration_name, cli_args)
+				commands.open_git_root(integration_name, cli_args, visual_text)
 			else
 				-- Backward compatibility: if first arg is not a known action, treat it as integration name
 				-- Convert underscores back to spaces (for autocompletion compatibility)
@@ -64,7 +132,7 @@ function M.setup(user_config)
 					end
 					backward_cli_args = table.concat(args_table, " ")
 				end
-				commands.open_cwd(name, backward_cli_args)
+				commands.open_cwd(name, backward_cli_args, visual_text)
 			end
 		end)
 
@@ -73,6 +141,7 @@ function M.setup(user_config)
 		end
 	end, {
 		nargs = "*",
+		range = true,
 		complete = function(_, cmd_line, cursor_pos)
 			-- Parse the command line to determine which argument we're completing
 			-- cmd_line contains the full command line up to cursor_pos

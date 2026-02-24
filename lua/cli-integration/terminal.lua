@@ -54,8 +54,9 @@ end
 --- @param integration Cli-Integration.Integration The integration configuration
 --- @param term_buf number The terminal buffer
 --- @param tries number|nil Number of tries so far
+--- @param visual_text string|nil Optional text from visual selection (overrides start_with_text)
 --- @return nil
-function M.attach_text_when_ready(integration, term_buf, tries)
+function M.attach_text_when_ready(integration, term_buf, tries, visual_text)
 	vim.defer_fn(function()
 		tries = tries or 0
 		local max_tries = 12
@@ -71,8 +72,8 @@ function M.attach_text_when_ready(integration, term_buf, tries)
 		-- Determine what flag to search for
 		local search_flag = integration.ready_text_flag or integration.cli_cmd or ""
 
-		-- Get text to insert from configuration
-		local text_to_insert = integration.start_with_text
+		-- Get text to insert: prioritize visual_text over start_with_text
+		local text_to_insert = visual_text or integration.start_with_text
 
 		-- If no text to insert, don't do anything
 		if not text_to_insert or text_to_insert == "" then
@@ -96,7 +97,7 @@ function M.attach_text_when_ready(integration, term_buf, tries)
 			return
 		end
 
-		M.attach_text_when_ready(integration, term_buf, tries + 1)
+		M.attach_text_when_ready(integration, term_buf, tries + 1, visual_text)
 	end, 300)
 end
 
@@ -136,8 +137,9 @@ end
 --- @param args string|nil Command line arguments for CLI tool
 --- @param keep_open boolean|nil Whether to keep the terminal open after execution
 --- @param working_dir string|nil Working directory for the terminal
+--- @param visual_text string|nil Optional text from visual selection (overrides start_with_text)
 --- @return nil
-function M.open_terminal(integration, args, keep_open, working_dir)
+function M.open_terminal(integration, args, keep_open, working_dir, visual_text)
 	if not integration or not integration.cli_cmd or integration.cli_cmd == "" then
 		show_config_help()
 		return
@@ -220,9 +222,9 @@ function M.open_terminal(integration, args, keep_open, working_dir)
 	-- Update index for fast lookup
 	M.buf_to_cli_cmd[term_buf] = cli_cmd
 
-	-- Attach text if new terminal (only if start_with_text is set)
-	if integration.start_with_text and integration.start_with_text ~= "" then
-		M.attach_text_when_ready(integration, term_buf)
+	-- Attach text if new terminal (only if visual_text or start_with_text is set)
+	if visual_text or (integration.start_with_text and integration.start_with_text ~= "") then
+		M.attach_text_when_ready(integration, term_buf, nil, visual_text)
 	end
 end
 

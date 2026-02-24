@@ -55,8 +55,9 @@ end
 --- Open CLI tool in the current file's directory
 --- @param integration_identifier number|string|nil Integration index, name, or cli_cmd (defaults to first integration)
 --- @param args string|nil Command line arguments for CLI tool
+--- @param visual_text string|nil Optional text from visual selection
 --- @return nil
-function M.open_cwd(integration_identifier, args)
+function M.open_cwd(integration_identifier, args, visual_text)
 	local integration, err = get_integration(integration_identifier)
 	if not integration then
 		if err then
@@ -70,14 +71,15 @@ function M.open_cwd(integration_identifier, args)
 		working_dir = vim.fn.getcwd()
 	end
 
-	terminal.open_terminal(integration, args, integration.keep_open, working_dir)
+	terminal.open_terminal(integration, args, integration.keep_open, working_dir, visual_text)
 end
 
 --- Open CLI tool in the project root (git root)
 --- @param integration_identifier number|string|nil Integration index, name, or cli_cmd (defaults to first integration)
 --- @param args string|nil Command line arguments for CLI tool
+--- @param visual_text string|nil Optional text from visual selection
 --- @return nil
-function M.open_git_root(integration_identifier, args)
+function M.open_git_root(integration_identifier, args, visual_text)
 	local integration, err = get_integration(integration_identifier)
 	if not integration then
 		if err then
@@ -106,7 +108,7 @@ function M.open_git_root(integration_identifier, args)
 		)
 	end
 
-	terminal.open_terminal(integration, args, integration.keep_open, working_dir)
+	terminal.open_terminal(integration, args, integration.keep_open, working_dir, visual_text)
 end
 
 return M

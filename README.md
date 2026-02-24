@@ -203,6 +203,7 @@ Each integration in the `integrations` array can have:
 | `start_with_text`   | `string`   | `nil`           | Text to insert when terminal is ready (searches for `ready_text_flag` or `cli_cmd`)                                           |
 | `ready_text_flag`   | `string`   | `nil`           | Text flag to search in terminal output (first 10 lines) to detect readiness. If not set, searches for `cli_cmd`               |
 | `format_paths`      | `function` | `nil`           | Function to format file paths when inserting (receives path string, returns formatted string). If not set, uses `"@" .. path` |
+| `prepare_visual_text` | `function` | `nil`         | Function to transform visual selection text before inserting (receives text string, returns formatted string). If not set, uses text as-is |
 | `terminal_keys`     | `table`    | Inherits global | Override: Key mappings for the CLI terminal window                                                                            |
 
 ### `terminal_keys` Structure
@@ -301,6 +302,33 @@ require("cli-integration").setup({
 
 - `start_with_text`: Text that will be automatically inserted into the terminal when it's ready. If not set, no text is inserted.
 - `ready_text_flag`: A string pattern to search for in the first 10 lines of terminal output to detect when the CLI tool is ready. If not set, the plugin searches for `cli_cmd` instead.
+
+#### Visual Selection Support
+
+You can send selected text to the terminal when opening it:
+
+```lua
+require("cli-integration").setup({
+  integrations = {
+    {
+      name = "MyTool",
+      cli_cmd = "my-tool",
+      -- Optional: Transform visual selection before inserting
+      prepare_visual_text = function(text)
+        -- Example: Wrap in code block
+        return "```\n" .. text .. "```\n"
+      end,
+    },
+  },
+})
+```
+
+**Usage:**
+1. Select text in visual mode (V, v, or Ctrl-v)
+2. Run `:'<,'>CLIIntegration` (or `:'<,'>CLIIntegration open_cwd`, etc.)
+3. The selected text will be inserted into the terminal when ready
+
+**Note:** When using visual selection, the `start_with_text` option is ignored, and the selected text is used instead.
 
 #### Multiple Integrations with Per-Integration Overrides
 
@@ -519,6 +547,38 @@ require("cli-integration").setup({
 - This function is used when:
   - Inserting the current file path (`<C-p>`)
   - Inserting all open buffer paths (`<C-p><C-p>`)
+
+### Custom Visual Selection Processing Example
+
+```lua
+require("cli-integration").setup({
+  integrations = {
+    {
+      name = "MyTool",
+      cli_cmd = "my-tool",
+      -- Custom function to transform visual selection before inserting
+      prepare_visual_text = function(text)
+        -- Example: Wrap text in a code block
+        return "```\n" .. text .. "```\n"
+        -- Example: Add a prefix to each line
+        -- local lines = vim.split(text, "\n")
+        -- for i, line in ipairs(lines) do
+        --   lines[i] = "> " .. line
+        -- end
+        -- return table.concat(lines, "\n") .. "\n"
+      end,
+    },
+  },
+})
+```
+
+**About `prepare_visual_text`:**
+
+- The function receives a single parameter: the selected text (string)
+- It should return a formatted string that will be inserted into the terminal
+- If not provided, the visual selection is inserted as-is
+- This function is only used when opening the terminal with a visual selection (e.g., `:'<,'>CLIIntegration`)
+- The `start_with_text` option is ignored when a visual selection is provided
 
 ## 💡 Tips
 
