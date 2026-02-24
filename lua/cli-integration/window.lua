@@ -19,7 +19,6 @@ function M.create_terminal(cmd, opts)
 	opts = opts or {}
 	local win_opts = opts.win or {}
 	local cwd = opts.cwd or vim.fn.getcwd()
-	local interactive = opts.interactive ~= false
 	local auto_close = opts.auto_close ~= false
 	local start_insert = opts.start_insert ~= false
 
@@ -29,9 +28,9 @@ function M.create_terminal(cmd, opts)
 		return nil
 	end
 
-	-- Set buffer options
-	vim.api.nvim_buf_set_option(buf, "bufhidden", "hide")
-	vim.api.nvim_buf_set_option(buf, "buflisted", false)
+	-- Set buffer options (using vim.bo to avoid deprecation warnings)
+	vim.bo[buf].bufhidden = "hide"
+	vim.bo[buf].buflisted = false
 
 	-- Create window based on position
 	local position = win_opts.position or "right"
@@ -42,11 +41,13 @@ function M.create_terminal(cmd, opts)
 		return nil
 	end
 
-	-- Set window options
-	vim.api.nvim_win_set_option(win, "number", false)
-	vim.api.nvim_win_set_option(win, "relativenumber", false)
-	vim.api.nvim_win_set_option(win, "signcolumn", "no")
-	vim.api.nvim_win_set_option(win, "spell", false)
+	-- Set window options (using vim.wo to avoid deprecation warnings)
+	vim.wo[win].number = false
+	vim.wo[win].relativenumber = false
+	vim.wo[win].signcolumn = "no"
+	vim.wo[win].spell = false
+	-- Set winhighlight to match theme panels (like neo-tree, Snacks.terminal)
+	vim.wo[win].winhighlight = "Normal:NormalFloat,FloatBorder:FloatBorder"
 
 	-- Start terminal in the buffer
 	local job_id
@@ -82,6 +83,13 @@ function M.create_terminal(cmd, opts)
 		vim.api.nvim_buf_delete(buf, { force = true })
 		return nil
 	end
+
+	-- Set up terminal buffer keymaps for window navigation (C-h/j/k/l)
+	local opts_keymap = { buffer = buf, noremap = true, silent = true }
+	vim.keymap.set("t", "<C-h>", [[<C-\><C-n><C-w>h]], opts_keymap)
+	vim.keymap.set("t", "<C-j>", [[<C-\><C-n><C-w>j]], opts_keymap)
+	vim.keymap.set("t", "<C-k>", [[<C-\><C-n><C-w>k]], opts_keymap)
+	vim.keymap.set("t", "<C-l>", [[<C-\><C-n><C-w>l]], opts_keymap)
 
 	-- Enter insert mode if requested
 	if start_insert then
@@ -170,15 +178,16 @@ function M.create_split_window(buf, direction, win_opts)
 	if direction == "right" then
 		local width = win_opts.min_width or win_opts.width or 64
 		vim.api.nvim_win_set_width(win, width)
+		-- Prevent window from being resized automatically
+		vim.wo[win].winfixwidth = true
 	elseif direction == "bottom" then
 		local height = win_opts.height or 15
 		vim.api.nvim_win_set_height(win, height)
+		vim.wo[win].winfixheight = true
 	end
 
-	-- Set window title if supported (Neovim 0.9+)
-	if win_opts.title and vim.fn.has("nvim-0.9") == 1 then
-		vim.api.nvim_win_set_option(win, "winbar", win_opts.title)
-	end
+	-- Set winhighlight to match theme panels
+	vim.wo[win].winhighlight = "Normal:NormalFloat,FloatBorder:FloatBorder"
 
 	return win
 end
