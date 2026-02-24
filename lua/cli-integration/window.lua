@@ -60,8 +60,8 @@ function M.create_terminal(cmd, opts)
 
 		-- Start the terminal (use jobstart for Neovim >= 0.11, termopen for older versions)
 		-- vim.fn.termopen is deprecated in Neovim >= 0.11
-		local termopen_fn = vim.fn.has("nvim-0.11") == 1 and vim.fn.jobstart or vim.fn.termopen
-		job_id = termopen_fn(cmd, {
+		local use_jobstart = vim.fn.has("nvim-0.11") == 1
+		local job_opts = {
 			on_exit = function(_, exit_code, _)
 				if auto_close and exit_code == 0 then
 					vim.schedule(function()
@@ -74,7 +74,16 @@ function M.create_terminal(cmd, opts)
 					vim.schedule(win_opts.on_close)
 				end
 			end,
-		})
+		}
+
+		if use_jobstart then
+			-- jobstart requires pty = true to work as a terminal
+			job_opts.pty = true
+			job_id = vim.fn.jobstart(cmd, job_opts)
+		else
+			-- termopen doesn't need pty option
+			job_id = vim.fn.termopen(cmd, job_opts)
+		end
 
 		-- Restore original directory
 		vim.cmd("lcd " .. vim.fn.fnameescape(original_cwd))
@@ -168,8 +177,6 @@ function M.create_float_window(buf, win_opts)
 
 	return vim.api.nvim_open_win(buf, true, opts)
 end
-
-
 
 --- Create a split window
 --- @param buf number Buffer number
