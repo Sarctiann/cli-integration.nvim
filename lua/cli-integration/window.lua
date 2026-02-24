@@ -58,8 +58,10 @@ function M.create_terminal(cmd, opts)
 			vim.cmd("lcd " .. vim.fn.fnameescape(cwd))
 		end
 
-		-- Start the terminal
-		job_id = vim.fn.termopen(cmd, {
+		-- Start the terminal (use jobstart for Neovim >= 0.11, termopen for older versions)
+		-- vim.fn.termopen is deprecated in Neovim >= 0.11
+		local termopen_fn = vim.fn.has("nvim-0.11") == 1 and vim.fn.jobstart or vim.fn.termopen
+		job_id = termopen_fn(cmd, {
 			on_exit = function(_, exit_code, _)
 				if auto_close and exit_code == 0 then
 					vim.schedule(function()
