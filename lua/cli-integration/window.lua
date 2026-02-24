@@ -77,11 +77,12 @@ function M.create_terminal(cmd, opts)
 		}
 
 		if use_jobstart then
-			-- jobstart requires pty = true to work as a terminal
-			job_opts.pty = true
+			-- jobstart requires term = true to create a terminal buffer
+			job_opts.term = true
 			job_id = vim.fn.jobstart(cmd, job_opts)
 		else
-			-- termopen doesn't need pty option
+			-- termopen is the traditional way for older versions
+			---@diagnostic disable-next-line: deprecated
 			job_id = vim.fn.termopen(cmd, job_opts)
 		end
 
@@ -197,7 +198,37 @@ function M.create_split_window(buf, direction, win_opts)
 
 	-- Set window width/height
 	if direction == "right" then
-		local width = win_opts.min_width or win_opts.width or 64
+		-- Support percentage (0-100) - values <= 100 are treated as percentage
+		-- Values > 100 are treated as absolute character width (for very wide terminals)
+		local width_config = win_opts.min_width or win_opts.width or 34
+		local width
+		local editor_width = vim.o.columns
+
+		if width_config <= 100 then
+			-- Percentage mode: treat as percentage (e.g., 34 = 34%, 0.34 = 0.34%)
+			local percentage = width_config <= 1 and width_config or (width_config / 100)
+
+			-- Validate percentage range (10% - 90%)
+			if percentage < 0.10 then
+				vim.notify(
+					"[cli-integration] window_width must be between 10% and 90%. Using minimum 10%.",
+					vim.log.levels.WARN
+				)
+				percentage = 0.10
+			elseif percentage > 0.90 then
+				vim.notify(
+					"[cli-integration] window_width must be between 10% and 90%. Using maximum 90%.",
+					vim.log.levels.WARN
+				)
+				percentage = 0.90
+			end
+
+			width = math.floor(editor_width * percentage)
+		else
+			-- Absolute mode: use the value directly (for very wide terminals)
+			width = width_config
+		end
+
 		vim.api.nvim_win_set_width(win, width)
 		-- Prevent window from being resized automatically
 		vim.wo[win].winfixwidth = true

@@ -109,7 +109,7 @@ require("cli-integration").setup({
   -- Global defaults (applied to all integrations unless overridden):
   show_help_on_open = true,
   new_lines_amount = 2,
-  window_width = 64,
+  window_width = 34,  -- Percentage (0-100) or absolute width (>100)
   floating = false,  -- Whether to open terminal in floating window
   terminal_keys = {
     terminal_mode = {
@@ -144,19 +144,19 @@ The plugin supports **global defaults** and **per-integration overrides**:
 ```lua
 require("cli-integration").setup({
   -- Global defaults (applied to all integrations)
-  window_width = 64,
+  window_width = 34,  -- 34% of editor width
   show_help_on_open = true,
 
   integrations = {
     {
       name = "CursorAgent",
       cli_cmd = "cursor-agent",
-      -- Uses global defaults: window_width = 64, show_help_on_open = true
+      -- Uses global defaults: window_width = 34%, show_help_on_open = true
     },
     {
       name = "Claude",
       cli_cmd = "claude",
-      window_width = 80,  -- Overrides global default for this integration
+      window_width = 50,  -- Overrides global default: 50% of editor width
       -- Still uses global show_help_on_open = true
     },
   },
@@ -172,7 +172,7 @@ require("cli-integration").setup({
 | `integrations`      | `table[]` | `{}`      | **Required**: Array of integration configurations                             |
 | `show_help_on_open` | `boolean` | `true`    | Default: Show help screen when terminal opens                                 |
 | `new_lines_amount`  | `number`  | `2`       | Default: Number of new lines to insert after command submission               |
-| `window_width`      | `number`  | `64`      | Default: Width for the terminal window                                        |
+| `window_width`      | `number`  | `34`      | Default: Width for terminal window (percentage 0-100, or absolute >100)       |
 | `floating`          | `boolean` | `false`   | Default: Whether to open terminal in floating window                          |
 | `terminal_keys`     | `table`   | See below | Default: Key mappings for the CLI terminal window (all values must be arrays) |
 
@@ -186,13 +186,32 @@ Each integration in the `integrations` array can have:
 | `cli_cmd`           | `string`   | **Required**    | CLI command name to execute (e.g., "cursor-agent")                                                                            |
 | `show_help_on_open` | `boolean`  | Inherits global | Override: Show help screen when terminal opens                                                                                |
 | `new_lines_amount`  | `number`   | Inherits global | Override: Number of new lines to insert after command submission                                                              |
-| `window_width`      | `number`   | Inherits global | Override: Width for the terminal window                                                                                       |
+| `window_width`      | `number`   | Inherits global | Override: Width for terminal window (percentage 0-100, or absolute >100)                                                      |
 | `floating`          | `boolean`  | Inherits global | Override: Whether to open terminal in floating window                                                                         |
 | `keep_open`         | `boolean`  | `false`         | Whether to keep the terminal open after execution (not auto-closing)                                                          |
 | `start_with_text`   | `string\|function`   | `nil`           | Text to insert when terminal is ready, or function that receives `visual_text` (string\|nil) and returns text to insert. Searches for `ready_text_flag` or `cli_cmd` to detect readiness |
 | `ready_text_flag`   | `string`   | `nil`           | Text flag to search in terminal output (first 10 lines) to detect readiness. If not set, searches for `cli_cmd`               |
 | `format_paths`      | `function` | `nil`           | Function to format file paths when inserting (receives path string, returns formatted string). If not set, uses `"@" .. path` |
 | `terminal_keys`     | `table`    | Inherits global | Override: Key mappings for the CLI terminal window                                                                            |
+
+#### Window Width Configuration
+
+The `window_width` option supports two modes:
+
+- **Percentage mode** (values 0-100): The window width is calculated as a percentage of the editor width
+  - `34` = 34% of editor width (default)
+  - `50` = 50% of editor width
+  - `0.5` = 0.5% of editor width (for very small values)
+
+- **Absolute mode** (values > 100): The window width is set to an exact number of characters
+  - `150` = 150 characters wide (useful for very wide terminals)
+
+Examples:
+```lua
+window_width = 34,   -- 34% of editor width (default)
+window_width = 50,   -- 50% of editor width
+window_width = 150,  -- 150 characters (absolute)
+```
 
 ### `terminal_keys` Structure
 
@@ -258,7 +277,7 @@ require("cli-integration").setup({
 ```lua
 require("cli-integration").setup({
   -- Global defaults applied to all integrations
-  window_width = 64,
+  window_width = 34,  -- 34% of editor width
   show_help_on_open = true,
   floating = false,  -- All terminals open on the right side
 
@@ -334,7 +353,7 @@ require("cli-integration").setup({
 ```lua
 require("cli-integration").setup({
   -- Global defaults
-  window_width = 64,
+  window_width = 34,  -- 34% of editor width
   show_help_on_open = true,
   floating = false,  -- All terminals open on the right side by default
 
@@ -347,14 +366,14 @@ require("cli-integration").setup({
     {
       name = "Claude",
       cli_cmd = "claude",
-      window_width = 80,  -- Override global default
+      window_width = 50,  -- Override: 50% of editor width
       show_help_on_open = false,  -- Override global default
       floating = true,  -- This one opens in a floating window
     },
     {
       name = "MyCustomTool",
       cli_cmd = "my-custom-tool",
-      window_width = 100,
+      window_width = 150,  -- Absolute width: 150 characters (>100 = absolute)
       keep_open = true,  -- Keep terminal open after execution
       start_with_text = "Hello!\n",  -- Insert this text when terminal is ready
       ready_text_flag = "Ready>",  -- Search for this flag in first 10 lines
@@ -466,7 +485,7 @@ Once the CLI tool terminal is open, you have access to special keymaps:
 require("cli-integration").setup({
   integrations = {
     { name = "CursorAgent", cli_cmd = "cursor-agent" },
-    { name = "Claude", cli_cmd = "claude", window_width = 80 },
+    { name = "Claude", cli_cmd = "claude", window_width = 50 },  -- 50% width
   },
 })
 ```
