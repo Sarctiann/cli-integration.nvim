@@ -1,5 +1,6 @@
 --- Terminal management module
 local M = {}
+local window = require("cli-integration.window")
 
 -- Terminals storage: indexed by cli_cmd
 -- Each entry contains: { cli_term, term_buf, working_dir, current_file, is_expanded, integration }
@@ -155,16 +156,7 @@ Example:
     },
   })
 ]]
-	if _G.Snacks then
-		_G.Snacks.notify(help_text, {
-			title = "Configuration Required",
-			style = "compact",
-			history = false,
-			timeout = 10000,
-		})
-	else
-		vim.notify(help_text, vim.log.levels.WARN)
-	end
+	vim.notify(help_text, vim.log.levels.WARN)
 end
 
 --- Open or toggle the CLI tool terminal
@@ -177,11 +169,6 @@ end
 function M.open_terminal(integration, args, keep_open, working_dir, visual_text)
 	if not integration or not integration.cli_cmd or integration.cli_cmd == "" then
 		show_config_help()
-		return
-	end
-
-	if not _G.Snacks then
-		vim.notify("cli-integration.nvim: Snacks.nvim is required but not available", vim.log.levels.ERROR)
 		return
 	end
 
@@ -211,7 +198,7 @@ function M.open_terminal(integration, args, keep_open, working_dir, visual_text)
 		current_file = vim.fs.relpath(base_dir, current_file_abs) or vim.fn.fnamemodify(current_file_abs, ":.")
 	end
 
-	local cli_term = _G.Snacks.terminal(cli_cmd .. cmd, {
+	local cli_term = window.create_terminal(cli_cmd .. cmd, {
 		interactive = true,
 		cwd = base_dir,
 		win = {
