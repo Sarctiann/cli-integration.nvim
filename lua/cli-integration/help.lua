@@ -154,26 +154,18 @@ end
 --- Show help notification with keymaps and commands
 --- @return nil
 function M.show_help()
-	if not _G.Snacks then
-		vim.notify("cli-integration.nvim: Snacks.nvim is required but not available", vim.log.levels.ERROR)
-		return
-	end
-
 	local help_text = generate_help_text()
 	if help_text == "" then
 		return
 	end
 
-	_G.Snacks.notify(help_text, { title = "Keymaps", style = "compact", history = false, timeout = 5000 })
+	-- Show help in a notification
+	vim.notify("Keymaps\n" .. help_text, vim.log.levels.INFO)
 end
 
 --- Show quick help notification on terminal open
 --- @return nil
 function M.show_quick_help()
-	if not _G.Snacks then
-		return
-	end
-
 	local terminal = require("cli-integration.terminal")
 	local current_buf = vim.api.nvim_get_current_buf()
 
@@ -199,7 +191,7 @@ function M.show_quick_help()
 		table.insert(help_keys, "[" .. key .. "]")
 	end
 	local help_text = " Press: " .. table.concat(help_keys, " | ") .. " to Show Help "
-	_G.Snacks.notify(help_text, { title = "", style = "compact", history = false, timeout = 3000 })
+	vim.notify(help_text, vim.log.levels.INFO)
 end
 
 return M

@@ -29,10 +29,6 @@ A Neovim plugin that seamlessly integrates any command-line tool into your Neovi
 
 - Neovim >= 0.9.0
 - CLI tool(s) installed and available in your `$PATH` (configured via `integrations[].cli_cmd`)
-- [snacks.nvim](https://github.com/folke/snacks.nvim) (for terminal and notifications)
-
-> **NOTE**: This plugin depends on [Snacks.nvim](https://github.com/folke/snacks.nvim)
-> for terminal management and notifications.
 
 ## 📦 Installation
 
@@ -42,9 +38,6 @@ A Neovim plugin that seamlessly integrates any command-line tool into your Neovi
 --- @module 'Cli-Integration'
 {
   "Sarctiann/cli-integration.nvim",
-  dependencies = {
-    "folke/snacks.nvim",
-  },
   --- @type Cli-Integration.Config
   opts = {
     integrations = {
@@ -62,9 +55,6 @@ A Neovim plugin that seamlessly integrates any command-line tool into your Neovi
 --- @module 'Cli-Integration'
 {
   dir = "~/.config/nvim/lua/custom_plugins/cli-integration.nvim",
-  dependencies = {
-    "folke/snacks.nvim",
-  },
   --- @type Cli-Integration.Config
   opts = {
     integrations = {
@@ -81,7 +71,6 @@ A Neovim plugin that seamlessly integrates any command-line tool into your Neovi
 ```lua
 use {
   "Sarctiann/cli-integration.nvim",
-  requires = { "folke/snacks.nvim" },
   config = function()
     require("cli-integration").setup({
       integrations = {
@@ -388,7 +377,7 @@ require("cli-integration").setup({
 ### Important Notes
 
 - **⚠️ The main commands are `:CLIIntegration open_cwd` and `:CLIIntegration open_root`.
-  Each integration will open its own terminal (`win` and `buf`) or toggle to it if it's already open** This is handled by [Snacks.nvim](https://github.com/folke/snacks.nvim)'s `terminal()`.
+  Each integration will open its own terminal (`win` and `buf`) or toggle to it if it's already open**.
 - **Multiple Integrations**: You can run multiple CLI tools simultaneously. Each integration maintains its own terminal instance and configuration.
 - **Integration Names**: Each integration must have a unique `name` (used for autocompletion). Commands use the first integration by default if no name is specified.
 - **Configuration Required**: If `integrations` is empty or missing `name` or `cli_cmd`, opening the terminal will display a helpful message
@@ -642,7 +631,6 @@ MIT License - see [LICENSE](./LICENSE) file for details
 
 ## 🙏 Acknowledgments
 
-- [snacks.nvim](https://github.com/folke/snacks.nvim) - For terminal and notification utilities
 - The Neovim community for inspiration and support
 
 ---
