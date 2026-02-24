@@ -72,49 +72,6 @@ function M.attach_text_when_ready(integration, term_buf, tries, visual_text)
 		-- Determine what flag to search for
 		local search_flag = integration.ready_text_flag or integration.cli_cmd or ""
 
-		-- Get text to insert: evaluate start_with_text if it's a function
-		---@type string|nil
-		local text_to_insert = nil
-
-		local start_with_text = integration.start_with_text
-		if start_with_text ~= nil then
-			if type(start_with_text) == "function" then
-				-- Call the function with visual_text as parameter
-				local ok, result = pcall(start_with_text, visual_text)
-				if ok and type(result) == "string" then
-					text_to_insert = result
-				elseif ok then
-					vim.notify(
-						"cli-integration.nvim: start_with_text function must return a string, got " .. type(result),
-						vim.log.levels.ERROR
-					)
-					return
-				else
-					vim.notify(
-						"cli-integration.nvim: Error in start_with_text function: " .. tostring(result),
-						vim.log.levels.ERROR
-					)
-					return
-				end
-			elseif type(start_with_text) == "string" then
-				-- If start_with_text is a string, use it only if there's no visual_text
-				text_to_insert = visual_text or start_with_text
-			else
-				vim.notify(
-					"cli-integration.nvim: start_with_text must be a string or function, got " .. type(start_with_text),
-					vim.log.levels.WARN
-				)
-			end
-		elseif visual_text then
-			-- If no start_with_text but there's visual_text, use it
-			text_to_insert = visual_text
-		end
-
-		-- If no text to insert, don't do anything
-		if not text_to_insert or text_to_insert == "" then
-			return
-		end
-
 		-- Search for the flag in the first 10 lines
 		local buf_lines = vim.api.nvim_buf_get_lines(term_buf, 0, 10, false)
 		local found = false
@@ -128,10 +85,53 @@ function M.attach_text_when_ready(integration, term_buf, tries, visual_text)
 		end
 
 		if found then
-			M.insert_text(text_to_insert, term_buf)
+			-- Terminal is ready, now evaluate start_with_text (only once, when ready)
+			---@type string|nil
+			local text_to_insert = nil
+
+			local start_with_text = integration.start_with_text
+			if start_with_text ~= nil then
+				if type(start_with_text) == "function" then
+					-- Call the function with visual_text as parameter
+					local ok, result = pcall(start_with_text, visual_text)
+					if ok and type(result) == "string" then
+						text_to_insert = result
+					elseif ok then
+						vim.notify(
+							"cli-integration.nvim: start_with_text function must return a string, got " .. type(result),
+							vim.log.levels.ERROR
+						)
+						return
+					else
+						vim.notify(
+							"cli-integration.nvim: Error in start_with_text function: " .. tostring(result),
+							vim.log.levels.ERROR
+						)
+						return
+					end
+				elseif type(start_with_text) == "string" then
+					-- If start_with_text is a string, use it only if there's no visual_text
+					text_to_insert = visual_text or start_with_text
+				else
+					vim.notify(
+						"cli-integration.nvim: start_with_text must be a string or function, got "
+							.. type(start_with_text),
+						vim.log.levels.WARN
+					)
+				end
+			elseif visual_text then
+				-- If no start_with_text but there's visual_text, use it
+				text_to_insert = visual_text
+			end
+
+			-- Insert text if available
+			if text_to_insert and text_to_insert ~= "" then
+				M.insert_text(text_to_insert, term_buf)
+			end
 			return
 		end
 
+		-- Terminal not ready yet, retry
 		M.attach_text_when_ready(integration, term_buf, tries + 1, visual_text)
 	end, 300)
 end
@@ -259,7 +259,10 @@ function M.open_terminal(integration, args, keep_open, working_dir, visual_text)
 
 	-- Attach text if new terminal (only if visual_text or start_with_text is set)
 	local start_with_text = integration.start_with_text
-	if visual_text or (start_with_text ~= nil and (type(start_with_text) == "string" or type(start_with_text) == "function")) then
+	if
+		visual_text
+		or (start_with_text ~= nil and (type(start_with_text) == "string" or type(start_with_text) == "function"))
+	then
 		M.attach_text_when_ready(integration, term_buf, nil, visual_text)
 	end
 end
