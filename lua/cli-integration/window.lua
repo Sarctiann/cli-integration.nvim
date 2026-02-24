@@ -115,6 +115,60 @@ function M.create_terminal(cmd, opts)
 		desc = "Auto-enter insert mode in terminal",
 	})
 
+	-- Prevent buffer switching in the terminal window
+	-- This prevents Shift-h/Shift-l (bufferline navigation) or clicking on bufferline
+	-- from changing the buffer in the terminal window
+	-- Instead, find a normal file window and change the buffer there
+	vim.api.nvim_create_autocmd("BufWinEnter", {
+		callback = function(args)
+			-- Check if this is our terminal window
+			local current_win = vim.api.nvim_get_current_win()
+			if current_win == win and args.buf ~= buf then
+				-- Someone is trying to load a different buffer in our terminal window
+				local target_buf = args.buf
+
+				vim.schedule(function()
+					if not vim.api.nvim_win_is_valid(current_win) or not vim.api.nvim_buf_is_valid(buf) then
+						return
+					end
+
+					-- Restore the terminal buffer in this window
+					vim.api.nvim_win_set_buf(current_win, buf)
+
+					-- Find a suitable window (normal file buffer, not terminal/special)
+					local target_win = nil
+					for _, w in ipairs(vim.api.nvim_list_wins()) do
+						if w ~= current_win then
+							local b = vim.api.nvim_win_get_buf(w)
+							local buftype = vim.bo[b].buftype
+							-- Look for normal file buffers (empty buftype means normal file)
+							if buftype == "" then
+								target_win = w
+								break
+							end
+						end
+					end
+
+					-- If we found a suitable window, switch to it and change the buffer
+					if target_win and vim.api.nvim_win_is_valid(target_win) then
+						vim.api.nvim_set_current_win(target_win)
+						if vim.api.nvim_buf_is_valid(target_buf) then
+							vim.api.nvim_win_set_buf(target_win, target_buf)
+						end
+						-- Exit insert mode and enter normal mode
+						vim.cmd("stopinsert")
+					else
+						-- No suitable window found, stay in terminal
+						if vim.api.nvim_win_is_valid(current_win) then
+							vim.api.nvim_set_current_win(current_win)
+						end
+					end
+				end)
+			end
+		end,
+		desc = "Redirect buffer switching to normal file window",
+	})
+
 	-- Enter insert mode if requested
 	if start_insert then
 		vim.cmd("startinsert")
