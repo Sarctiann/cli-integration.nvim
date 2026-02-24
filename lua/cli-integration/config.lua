@@ -24,10 +24,9 @@
 --- @field window_width number|nil # Default width for the terminal window (default: 64)
 --- @field floating boolean|nil # Whether to open terminal in floating window (default: false)
 --- @field keep_open boolean|nil # Whether to keep the terminal open after execution (default: false)
---- @field start_with_text string|nil # Text to insert when terminal is ready (if not set, no text is inserted)
+--- @field start_with_text string|(fun(visual_text: string|nil): string)|nil # Text to insert when terminal is ready, or function that receives visual_text and returns text to insert (if not set, no text is inserted)
 --- @field ready_text_flag string|nil # Text flag to search in terminal output to detect readiness (if not set, searches for cli_cmd)
 --- @field format_paths (fun(path: string): string)|nil # Function to format file paths when inserting (if not set, uses the raw path)
---- @field prepare_visual_text (fun(text: string): string)|nil # Function to transform visual selection text before inserting (if not set, uses text as-is)
 --- @field terminal_keys Cli-Integration.TerminalKeys|nil # Key mappings for the CLI terminal window (all values must be arrays)
 
 --- @class Cli-Integration.Config

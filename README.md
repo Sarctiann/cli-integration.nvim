@@ -200,10 +200,9 @@ Each integration in the `integrations` array can have:
 | `window_width`      | `number`   | Inherits global | Override: Width for the terminal window                                                                                       |
 | `floating`          | `boolean`  | Inherits global | Override: Whether to open terminal in floating window                                                                         |
 | `keep_open`         | `boolean`  | `false`         | Whether to keep the terminal open after execution (not auto-closing)                                                          |
-| `start_with_text`   | `string`   | `nil`           | Text to insert when terminal is ready (searches for `ready_text_flag` or `cli_cmd`)                                           |
+| `start_with_text`   | `string\|function`   | `nil`           | Text to insert when terminal is ready, or function that receives `visual_text` (string\|nil) and returns text to insert. Searches for `ready_text_flag` or `cli_cmd` to detect readiness |
 | `ready_text_flag`   | `string`   | `nil`           | Text flag to search in terminal output (first 10 lines) to detect readiness. If not set, searches for `cli_cmd`               |
 | `format_paths`      | `function` | `nil`           | Function to format file paths when inserting (receives path string, returns formatted string). If not set, uses `"@" .. path` |
-| `prepare_visual_text` | `function` | `nil`         | Function to transform visual selection text before inserting (receives text string, returns formatted string). If not set, uses text as-is |
 | `terminal_keys`     | `table`    | Inherits global | Override: Key mappings for the CLI terminal window                                                                            |
 
 ### `terminal_keys` Structure
@@ -300,12 +299,15 @@ require("cli-integration").setup({
 
 **About `start_with_text` and `ready_text_flag`:**
 
-- `start_with_text`: Text that will be automatically inserted into the terminal when it's ready. If not set, no text is inserted.
+- `start_with_text`: Can be a string or a function:
+  - **String**: Text that will be automatically inserted into the terminal when it's ready (only if no visual selection is provided)
+  - **Function**: Receives `visual_text` (string|nil) as parameter and returns the text to insert. This allows you to handle both visual selections and default text in a single function
+  - If not set, no text is inserted (unless visual selection is provided)
 - `ready_text_flag`: A string pattern to search for in the first 10 lines of terminal output to detect when the CLI tool is ready. If not set, the plugin searches for `cli_cmd` instead.
 
 #### Visual Selection Support
 
-You can send selected text to the terminal when opening it:
+You can send selected text to the terminal when opening it. Use `start_with_text` as a function to handle visual selections:
 
 ```lua
 require("cli-integration").setup({
@@ -313,10 +315,15 @@ require("cli-integration").setup({
     {
       name = "MyTool",
       cli_cmd = "my-tool",
-      -- Optional: Transform visual selection before inserting
-      prepare_visual_text = function(text)
-        -- Example: Wrap in code block
-        return "```\n" .. text .. "```\n"
+      -- Function receives visual_text (string|nil) and returns text to insert
+      start_with_text = function(visual_text)
+        if visual_text then
+          -- Transform visual selection (e.g., wrap in code block)
+          return "```\n" .. visual_text .. "```\n"
+        else
+          -- Default text when no visual selection
+          return "Hello!\n"
+        end
       end,
     },
   },
@@ -326,9 +333,12 @@ require("cli-integration").setup({
 **Usage:**
 1. Select text in visual mode (V, v, or Ctrl-v)
 2. Run `:'<,'>CLIIntegration` (or `:'<,'>CLIIntegration open_cwd`, etc.)
-3. The selected text will be inserted into the terminal when ready
+3. The selected text will be passed to `start_with_text` function (if it's a function) or used directly
 
-**Note:** When using visual selection, the `start_with_text` option is ignored, and the selected text is used instead.
+**Note:**
+- When `start_with_text` is a **function**, it receives the visual selection as the `visual_text` parameter
+- When `start_with_text` is a **string**, the visual selection is used instead of the string
+- When `start_with_text` is **not set**, the visual selection is inserted as-is
 
 #### Multiple Integrations with Per-Integration Overrides
 
@@ -548,7 +558,7 @@ require("cli-integration").setup({
   - Inserting the current file path (`<C-p>`)
   - Inserting all open buffer paths (`<C-p><C-p>`)
 
-### Custom Visual Selection Processing Example
+### Custom Text Processing with `start_with_text` Function
 
 ```lua
 require("cli-integration").setup({
@@ -556,29 +566,36 @@ require("cli-integration").setup({
     {
       name = "MyTool",
       cli_cmd = "my-tool",
-      -- Custom function to transform visual selection before inserting
-      prepare_visual_text = function(text)
-        -- Example: Wrap text in a code block
-        return "```\n" .. text .. "```\n"
-        -- Example: Add a prefix to each line
-        -- local lines = vim.split(text, "\n")
-        -- for i, line in ipairs(lines) do
-        --   lines[i] = "> " .. line
-        -- end
-        -- return table.concat(lines, "\n") .. "\n"
+      -- Function to handle both visual selection and default text
+      start_with_text = function(visual_text)
+        if visual_text then
+          -- Transform visual selection before inserting
+          -- Example 1: Wrap text in a code block
+          return "```\n" .. visual_text .. "```\n"
+
+          -- Example 2: Add a prefix to each line
+          -- local lines = vim.split(visual_text, "\n")
+          -- for i, line in ipairs(lines) do
+          --   lines[i] = "> " .. line
+          -- end
+          -- return table.concat(lines, "\n") .. "\n"
+        else
+          -- Default text when no visual selection
+          return "init\n"
+        end
       end,
     },
   },
 })
 ```
 
-**About `prepare_visual_text`:**
+**About `start_with_text` as a function:**
 
-- The function receives a single parameter: the selected text (string)
-- It should return a formatted string that will be inserted into the terminal
-- If not provided, the visual selection is inserted as-is
-- This function is only used when opening the terminal with a visual selection (e.g., `:'<,'>CLIIntegration`)
-- The `start_with_text` option is ignored when a visual selection is provided
+- The function receives a single parameter: `visual_text` (string|nil) - the selected text when opening with visual selection, or `nil` otherwise
+- It should return a string that will be inserted into the terminal when it's ready
+- This allows you to handle both visual selections and default initialization text in a single function
+- When opening the terminal with a visual selection (e.g., `:'<,'>CLIIntegration`), `visual_text` will contain the selected text
+- When opening normally, `visual_text` will be `nil`
 
 ## 💡 Tips
 
