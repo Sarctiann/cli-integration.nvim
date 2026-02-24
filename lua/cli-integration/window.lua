@@ -93,6 +93,18 @@ function M.create_terminal(cmd, opts)
 	vim.keymap.set("t", "<C-k>", [[<C-\><C-n><C-w>k]], opts_keymap)
 	vim.keymap.set("t", "<C-l>", [[<C-\><C-n><C-w>l]], opts_keymap)
 
+	-- Auto-enter insert mode when focusing the terminal window
+	vim.api.nvim_create_autocmd({ "BufEnter", "WinEnter" }, {
+		buffer = buf,
+		callback = function()
+			-- Only enter insert mode if we're in a terminal buffer
+			if vim.bo.buftype == "terminal" then
+				vim.cmd("startinsert")
+			end
+		end,
+		desc = "Auto-enter insert mode in terminal",
+	})
+
 	-- Enter insert mode if requested
 	if start_insert then
 		vim.cmd("startinsert")
