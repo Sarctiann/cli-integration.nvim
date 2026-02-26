@@ -49,19 +49,53 @@ function M.create_terminal(cmd, opts)
 	-- Set winhighlight to match theme panels (like neo-tree, Snacks.terminal)
 	vim.wo[win].winhighlight = "Normal:NormalFloat,FloatBorder:FloatBorder"
 
-	-- Start terminal in the buffer
+	-- Create terminal object first (before starting the job)
+	local terminal = {
+		buf = buf,
+		win = win,
+		job_id = nil,  -- Will be set after jobstart
+		cmd = cmd,
+		opts = opts,
+		on_close = win_opts.on_close,
+	}
+
+	-- Add toggle method
+	terminal.toggle = function()
+		M.toggle_terminal(terminal)
+	end
+
+	-- Calculate effective terminal size (accounting for padding)
+	-- Padding creates visual space around the terminal
+	local padding = win_opts.padding or 0
+	local win_width = vim.api.nvim_win_get_width(win)
+	local win_height = vim.api.nvim_win_get_height(win)
+	local effective_width = win_width - (padding * 2)  -- padding on left and right
+	local effective_height = win_height  -- no vertical padding for now
+
+	-- Start terminal AFTER window is fully created and visible
+	-- This is crucial for TUI applications to detect the correct window size
 	local job_id
-	vim.api.nvim_win_call(win, function()
+	vim.api.nvim_buf_call(buf, function()
 		-- Change to the specified directory
 		local original_cwd = vim.fn.getcwd()
 		if cwd and cwd ~= "" then
 			vim.cmd("lcd " .. vim.fn.fnameescape(cwd))
 		end
 
+		-- Prepare environment variables
+		-- Set COLUMNS and LINES to the effective size (minus padding)
+		-- This makes the TUI application think it has less space than the actual window
+		local env = vim.tbl_extend("force", opts.env or {}, {
+			COLUMNS = tostring(effective_width),
+			LINES = tostring(effective_height),
+		})
+
 		-- Start the terminal (use jobstart for Neovim >= 0.11, termopen for older versions)
-		-- vim.fn.termopen is deprecated in Neovim >= 0.11
 		local use_jobstart = vim.fn.has("nvim-0.11") == 1
 		local job_opts = {
+			cwd = cwd,
+			env = env,
+			term = true,  -- Always set term = true for jobstart
 			on_exit = function(_, exit_code, _)
 				if auto_close and exit_code == 0 then
 					vim.schedule(function()
@@ -77,11 +111,10 @@ function M.create_terminal(cmd, opts)
 		}
 
 		if use_jobstart then
-			-- jobstart requires term = true to create a terminal buffer
-			job_opts.term = true
 			job_id = vim.fn.jobstart(cmd, job_opts)
 		else
 			-- termopen is the traditional way for older versions
+			job_opts.term = nil  -- termopen doesn't use this option
 			---@diagnostic disable-next-line: deprecated
 			job_id = vim.fn.termopen(cmd, job_opts)
 		end
@@ -90,11 +123,23 @@ function M.create_terminal(cmd, opts)
 		vim.cmd("lcd " .. vim.fn.fnameescape(original_cwd))
 	end)
 
+	-- Apply visual padding by setting window options
+	if padding > 0 then
+		-- Set left margin (foldcolumn can be used for left padding)
+		vim.wo[win].foldcolumn = tostring(padding)
+		-- Set right margin using virtualedit or by adjusting the window
+		-- Note: Neovim doesn't have a direct "right margin" option for terminal windows
+		-- The COLUMNS env var handles the logical width limitation
+	end
+
 	if not job_id or job_id <= 0 then
 		vim.api.nvim_win_close(win, true)
 		vim.api.nvim_buf_delete(buf, { force = true })
 		return nil
 	end
+
+	-- Update terminal object with job_id
+	terminal.job_id = job_id
 
 	-- Set up terminal buffer keymaps for window navigation (C-h/j/k/l)
 	local opts_keymap = { buffer = buf, noremap = true, silent = true }
@@ -174,21 +219,6 @@ function M.create_terminal(cmd, opts)
 		vim.cmd("startinsert")
 	end
 
-	-- Create terminal object
-	local terminal = {
-		buf = buf,
-		win = win,
-		job_id = job_id,
-		cmd = cmd,
-		opts = opts,
-		on_close = win_opts.on_close,
-	}
-
-	-- Add toggle method
-	terminal.toggle = function()
-		M.toggle_terminal(terminal)
-	end
-
 	return terminal
 end
 
@@ -218,6 +248,7 @@ function M.create_float_window(buf, win_opts)
 	local row = math.floor((vim.o.lines - height) / 2)
 	local col = math.floor((vim.o.columns - width) / 2)
 
+	---@type vim.api.keyset.win_config
 	local opts = {
 		relative = "editor",
 		width = width,
@@ -230,7 +261,10 @@ function M.create_float_window(buf, win_opts)
 		title_pos = "center",
 	}
 
-	return vim.api.nvim_open_win(buf, true, opts)
+	local win = vim.api.nvim_open_win(buf, true, opts)
+	vim.cmd("startinsert")
+
+	return win
 end
 
 --- Create a split window

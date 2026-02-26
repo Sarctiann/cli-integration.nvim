@@ -205,6 +205,7 @@ function M.open_terminal(integration, args, keep_open, working_dir, visual_text)
 			title = " " .. cli_cmd .. " " .. (args and " ( " .. args .. " ) " or ""),
 			position = integration.floating and "float" or "right",
 			min_width = integration.floating and nil or integration.window_width,
+			padding = integration.window_padding or 0,
 			border = "rounded",
 			on_close = function()
 				local stored_data = M.terminals[cli_cmd]
@@ -288,12 +289,32 @@ function M.toggle_width(term_buf)
 		return
 	end
 
-	local window_width = integration.window_width or 64
-	local columns = vim.o.columns
-	local max_width = math.max(window_width, columns - 2)
+	local width_config = integration.window_width or 34
+	local editor_width = vim.o.columns
+	local default_width
+
+	-- Calculate default width using the same logic as create_split_window
+	if width_config <= 100 then
+		-- Percentage mode: treat as percentage (e.g., 34 = 34%, 0.34 = 0.34%)
+		local percentage = width_config <= 1 and width_config or (width_config / 100)
+
+		-- Validate percentage range (10% - 90%)
+		if percentage < 0.10 then
+			percentage = 0.10
+		elseif percentage > 0.90 then
+			percentage = 0.90
+		end
+
+		default_width = math.floor(editor_width * percentage)
+	else
+		-- Absolute mode: use the value directly (for very wide terminals)
+		default_width = width_config
+	end
+
+	local max_width = editor_width - 2
 
 	if term_data.is_expanded then
-		vim.api.nvim_win_set_width(term_win, window_width)
+		vim.api.nvim_win_set_width(term_win, default_width)
 		term_data.is_expanded = false
 	else
 		vim.api.nvim_win_set_width(term_win, max_width)

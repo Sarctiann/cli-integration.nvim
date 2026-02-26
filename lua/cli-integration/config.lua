@@ -22,6 +22,7 @@
 --- @field show_help_on_open boolean|nil # Whether to show help notification when opening the terminal (default: true)
 --- @field new_lines_amount number|nil # Number of new lines to insert after command submission (default: 2)
 --- @field window_width number|nil # Default width for the terminal window (default: 34, percentage 0-100 or absolute value >100)
+--- @field window_padding number|nil # Horizontal padding in columns (default: 0, adds empty space on left and right)
 --- @field floating boolean|nil # Whether to open terminal in floating window (default: false)
 --- @field keep_open boolean|nil # Whether to keep the terminal open after execution (default: false)
 --- @field start_with_text string|(fun(visual_text: string|nil): string)|nil # Text to insert when terminal is ready, or function that receives visual_text and returns text to insert (if not set, no text is inserted)
@@ -34,6 +35,7 @@
 --- @field show_help_on_open boolean|nil # Default: whether to show help notification when opening the terminal (applied to all integrations)
 --- @field new_lines_amount number|nil # Default: number of new lines to insert after command submission (applied to all integrations)
 --- @field window_width number|nil # Default: width for the terminal window (percentage 0-100 or absolute value >100, applied to all integrations)
+--- @field window_padding number|nil # Default: horizontal padding in columns (applied to all integrations)
 --- @field floating boolean|nil # Default: whether to open terminal in floating window (applied to all integrations)
 --- @field terminal_keys Cli-Integration.TerminalKeys|nil # Default: key mappings for the CLI terminal window (applied to all integrations)
 
@@ -45,6 +47,7 @@ M.defaults = {
 	show_help_on_open = true,
 	new_lines_amount = 2,
 	window_width = 34, -- 34% of editor width
+	window_padding = 0, -- No padding by default
 	floating = false,
 	terminal_keys = {
 		terminal_mode = {
@@ -177,6 +180,7 @@ function M.setup(config)
 				show_help_on_open = M.options.show_help_on_open,
 				new_lines_amount = M.options.new_lines_amount,
 				window_width = M.options.window_width,
+				window_padding = M.options.window_padding,
 				floating = M.options.floating,
 				terminal_keys = M.options.terminal_keys,
 			}
