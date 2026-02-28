@@ -60,7 +60,7 @@ end
 function M.attach_text_when_ready(integration, term_buf, tries, visual_text)
 	vim.defer_fn(function()
 		tries = tries or 0
-		local max_tries = 12
+		local max_tries = 20
 
 		if tries >= max_tries or not term_buf then
 			return
@@ -74,7 +74,7 @@ function M.attach_text_when_ready(integration, term_buf, tries, visual_text)
 		local search_flag = integration.ready_text_flag or integration.cli_cmd or ""
 
 		-- Search for the flag in the first 10 lines
-		local buf_lines = vim.api.nvim_buf_get_lines(term_buf, 0, 10, false)
+		local buf_lines = vim.api.nvim_buf_get_lines(term_buf, 0, 15, false)
 		local found = false
 		if search_flag and search_flag ~= "" then
 			for i = 1, #buf_lines do
