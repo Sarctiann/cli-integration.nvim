@@ -7,10 +7,12 @@
 --- @field enter string[]|nil # Keys to send Enter key
 --- @field help string[]|nil # Keys to show help
 --- @field toggle_width string[]|nil # Keys to toggle window width
+--- @field close string[]|nil # Keys to close the terminal window
 
 --- @class Cli-Integration.NormalModeKeys
 --- @field hide string[]|nil # Keys to hide terminal
 --- @field toggle_width string[]|nil # Keys to toggle window width
+--- @field close string[]|nil # Keys to close the terminal window
 
 --- @class Cli-Integration.TerminalKeys
 --- @field terminal_mode Cli-Integration.TerminalModeKeys|nil # Key mappings for terminal mode
@@ -59,10 +61,12 @@ M.defaults = {
       enter = { "<CR>" },
 			help = { "<M-?>", "??", "\\\\" },
 			toggle_width = { "<C-f>" },
+			close = { "<C-d>", "<C-c>" },
 		},
 		normal_mode = {
-			hide = { "<Esc>" },
+			hide = { "<Esc>", "q" },
 			toggle_width = { "<C-f>" },
+			close = { "<C-d>" },
 		},
 	},
 }

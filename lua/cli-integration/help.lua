@@ -91,9 +91,7 @@ local function generate_help_text()
 		{ keys = keys.terminal_mode.new_lines, description = "New Line" },
 		{ keys = keys.terminal_mode.help, description = "Show Help" },
 		{ separator = true },
-		{ key_str = "<C-c>", description = "Clear/Stop/Close" },
-		{ key_str = "<C-d>", description = "Close" },
-		{ key_str = "<C-r>", description = "Review Changes" },
+		{ keys = keys.terminal_mode.close, description = "Close Window" },
 	}
 	local term_key_width = get_max_key_width(term_entries)
 	for _, entry in ipairs(term_entries) do
@@ -113,7 +111,8 @@ local function generate_help_text()
 	-- Normal Mode section
 	table.insert(lines, "Norm Mode:")
 	local norm_entries = {
-		{ keys = keys.normal_mode.hide, description = "Hide" },
+		{ keys = keys.normal_mode.hide, description = "Hide Window" },
+		{ keys = keys.normal_mode.close, description = "Close Window" },
 		{ keys = keys.normal_mode.toggle_width, description = "Toggle Window Width" },
 		{ key_str = "<...>", description = "(all other normal mode keys)" },
 	}

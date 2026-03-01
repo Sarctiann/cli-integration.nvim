@@ -180,19 +180,19 @@ require("cli-integration").setup({
 
 Each integration in the `integrations` array can have:
 
-| Option              | Type       | Default         | Description                                                                                                                   |
-| ------------------- | ---------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `name`              | `string`   | **Required**    | Name for the integration (used for autocompletion in commands)                                                                |
-| `cli_cmd`           | `string`   | **Required**    | CLI command name to execute (e.g., "cursor-agent")                                                                            |
-| `show_help_on_open` | `boolean`  | Inherits global | Override: Show help screen when terminal opens                                                                                |
-| `new_lines_amount`  | `number`   | Inherits global | Override: Number of new lines to insert after command submission                                                              |
-| `window_width`      | `number`   | Inherits global | Override: Width for terminal window (percentage 0-100, or absolute >100)                                                      |
-| `floating`          | `boolean`  | Inherits global | Override: Whether to open terminal in floating window                                                                         |
-| `keep_open`         | `boolean`  | `false`         | Whether to keep the terminal open after execution (not auto-closing)                                                          |
-| `start_with_text`   | `string\|function`   | `nil`           | Text to insert when terminal is ready, or function that receives `visual_text` (string\|nil) and returns text to insert. Searches for `ready_text_flag` or `cli_cmd` to detect readiness |
-| `ready_text_flag`   | `string`   | `nil`           | Text flag to search in terminal output (first 10 lines) to detect readiness. If not set, searches for `cli_cmd`               |
-| `format_paths`      | `function` | `nil`           | Function to format file paths when inserting (receives path string, returns formatted string). If not set, uses `"@" .. path` |
-| `terminal_keys`     | `table`    | Inherits global | Override: Key mappings for the CLI terminal window                                                                            |
+| Option              | Type               | Default         | Description                                                                                                                                                                              |
+| ------------------- | ------------------ | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`              | `string`           | **Required**    | Name for the integration (used for autocompletion in commands)                                                                                                                           |
+| `cli_cmd`           | `string`           | **Required**    | CLI command name to execute (e.g., "cursor-agent")                                                                                                                                       |
+| `show_help_on_open` | `boolean`          | Inherits global | Override: Show help screen when terminal opens                                                                                                                                           |
+| `new_lines_amount`  | `number`           | Inherits global | Override: Number of new lines to insert after command submission                                                                                                                         |
+| `window_width`      | `number`           | Inherits global | Override: Width for terminal window (percentage 0-100, or absolute >100)                                                                                                                 |
+| `floating`          | `boolean`          | Inherits global | Override: Whether to open terminal in floating window                                                                                                                                    |
+| `keep_open`         | `boolean`          | `false`         | Whether to keep the terminal open after execution (not auto-closing)                                                                                                                     |
+| `start_with_text`   | `string\|function` | `nil`           | Text to insert when terminal is ready, or function that receives `visual_text` (string\|nil) and returns text to insert. Searches for `ready_text_flag` or `cli_cmd` to detect readiness |
+| `ready_text_flag`   | `string`           | `nil`           | Text flag to search in terminal output (first 10 lines) to detect readiness. If not set, searches for `cli_cmd`                                                                          |
+| `format_paths`      | `function`         | `nil`           | Function to format file paths when inserting (receives path string, returns formatted string). If not set, uses `"@" .. path`                                                            |
+| `terminal_keys`     | `table`            | Inherits global | Override: Key mappings for the CLI terminal window                                                                                                                                       |
 
 #### Window Width Configuration
 
@@ -207,6 +207,7 @@ The `window_width` option supports two modes:
   - `150` = 150 characters wide (useful for very wide terminals)
 
 Examples:
+
 ```lua
 window_width = 34,   -- 34% of editor width (default)
 window_width = 50,   -- 50% of editor width
@@ -317,7 +318,7 @@ require("cli-integration").setup({
 
 You can send selected text to the terminal when opening it. Use `start_with_text` as a function to handle visual selections:
 
-```lua
+````lua
 require("cli-integration").setup({
   integrations = {
     {
@@ -336,14 +337,16 @@ require("cli-integration").setup({
     },
   },
 })
-```
+````
 
 **Usage:**
+
 1. Select text in visual mode (V, v, or Ctrl-v)
 2. Run `:'<,'>CLIIntegration` (or `:'<,'>CLIIntegration open_cwd`, etc.)
 3. The selected text will be passed to `start_with_text` function (if it's a function) or used directly
 
 **Note:**
+
 - When `start_with_text` is a **function**, it receives the visual selection as the `visual_text` parameter
 - When `start_with_text` is a **string**, the visual selection is used instead of the string
 - When `start_with_text` is **not set**, the visual selection is inserted as-is
@@ -450,22 +453,22 @@ Once the CLI tool terminal is open, you have access to special keymaps:
 
 | Keymap                  | Description                           |
 | ----------------------- | ------------------------------------- |
-| `<C-s>` or `<CR><CR>`   | Submit command/message                |
-| `<M-q>` or `<Esc><Esc>` | Enter normal mode                     |
+| `<C-s>` or `<C-CR>`     | Submit command/message                |
+| `<M-q>`                 | Enter normal mode                     |
 | `<C-p>`                 | Attach current file path              |
 | `<C-p><C-p>`            | Attach all open buffer paths          |
 | `<C-f>`                 | Toggle window width (expand/collapse) |
 | `<M-?>` or `??` or `\\` | Show help                             |
-| `<C-c>`                 | Clear/Stop/Close                      |
-| `<C-d>`                 | Close terminal                        |
-| `<C-r>`                 | Review changes                        |
-| `<CR>`                  | New line                              |
+| `<C-d>` or `<C-c>`      | Close terminal window                 |
+| `<S-CR>`                | Insert new line                       |
+| `<CR>`                  | Send Enter key                        |
 
 #### Normal Mode (in terminal)
 
 | Keymap                                   | Description                           |
 | ---------------------------------------- | ------------------------------------- |
-| `q` or `<Esc>`                           | Hide terminal                         |
+| `q` or `<Esc>`                           | Hide terminal window                  |
+| `<C-d>`                                  | Close terminal window                 |
 | `<C-f>`                                  | Toggle window width (expand/collapse) |
 | All other normal mode keys work as usual |                                       |
 
@@ -568,7 +571,7 @@ require("cli-integration").setup({
 
 ### Custom Text Processing with `start_with_text` Function
 
-```lua
+````lua
 require("cli-integration").setup({
   integrations = {
     {
@@ -595,7 +598,7 @@ require("cli-integration").setup({
     },
   },
 })
-```
+````
 
 **About `start_with_text` as a function:**
 

@@ -202,11 +202,10 @@ function M.open_terminal(integration, args, keep_open, working_dir, visual_text)
 		interactive = true,
 		cwd = base_dir,
 		win = {
-			title = " " .. cli_cmd .. " " .. (args and " ( " .. args .. " ) " or ""),
+			title = " " .. integration.name .. " " .. (args and " ( " .. args .. " ) " or ""),
 			position = integration.floating and "float" or "right",
 			min_width = integration.floating and nil or integration.window_width,
 			padding = integration.window_padding or 0,
-			border = "rounded",
 			on_close = function()
 				local stored_data = M.terminals[cli_cmd]
 				M.terminals[cli_cmd] = nil
@@ -217,8 +216,6 @@ function M.open_terminal(integration, args, keep_open, working_dir, visual_text)
 			resize = true,
 		},
 		auto_close = not keep_open,
-		start_insert = not keep_open,
-		auto_insert = not keep_open,
 	})
 
 	if not cli_term then
@@ -311,15 +308,23 @@ function M.toggle_width(term_buf)
 		default_width = width_config
 	end
 
-	local max_width = editor_width - 2
+	local is_expanded = not term_data.is_expanded
 
-	if term_data.is_expanded then
-		vim.api.nvim_win_set_width(term_win, default_width)
-		term_data.is_expanded = false
+	-- Handle sidebar mode if applicable
+	if window.sidebars[term_win] then
+		window.update_sidebar_geometry(term_win, is_expanded, true)
 	else
-		vim.api.nvim_win_set_width(term_win, max_width)
-		term_data.is_expanded = true
+		-- Normal split window logic
+		local width
+		if is_expanded then
+			width = editor_width - 2
+		else
+			width = default_width
+		end
+		vim.api.nvim_win_set_width(term_win, width)
 	end
+
+	term_data.is_expanded = is_expanded
 end
 
 return M
