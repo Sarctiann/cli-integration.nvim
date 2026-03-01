@@ -328,4 +328,102 @@ function M.toggle_width(term_buf)
 	term_data.is_expanded = is_expanded
 end
 
+--- Hide terminal window (keeps process alive)
+--- @param term_buf number|nil The terminal buffer (if nil, uses current terminal)
+--- @return nil
+function M.hide_terminal(term_buf)
+	term_buf = term_buf or M.get_current_terminal_buf()
+	if not term_buf then
+		return
+	end
+
+	local cli_cmd = M.buf_to_cli_cmd[term_buf]
+	local term_data = cli_cmd and M.terminals[cli_cmd]
+
+	if not term_data or not term_data.cli_term then
+		return
+	end
+
+	-- Get the terminal window
+	local term_win = nil
+	for _, win in ipairs(vim.api.nvim_list_wins()) do
+		if vim.api.nvim_win_get_buf(win) == term_buf then
+			term_win = win
+			break
+		end
+	end
+
+	if term_win and vim.api.nvim_win_is_valid(term_win) then
+		vim.api.nvim_win_close(term_win, false)
+	end
+end
+
+--- Close terminal window and kill the process
+--- @param term_buf number|nil The terminal buffer (if nil, uses current terminal)
+--- @return nil
+function M.close_terminal(term_buf)
+	term_buf = term_buf or M.get_current_terminal_buf()
+	if not term_buf then
+		return
+	end
+
+	local cli_cmd = M.buf_to_cli_cmd[term_buf]
+	local term_data = cli_cmd and M.terminals[cli_cmd]
+
+	if not term_data or not term_data.cli_term then
+		-- If we don't have term_data, just try to close the window and delete the buffer
+		local term_win = nil
+		for _, win in ipairs(vim.api.nvim_list_wins()) do
+			if vim.api.nvim_win_get_buf(win) == term_buf then
+				term_win = win
+				break
+			end
+		end
+
+		if term_win and vim.api.nvim_win_is_valid(term_win) then
+			vim.api.nvim_win_close(term_win, true)
+		end
+
+		if vim.api.nvim_buf_is_valid(term_buf) then
+			-- Try to get job_id and stop it
+			local ok, job_id = pcall(vim.api.nvim_buf_get_var, term_buf, "terminal_job_id")
+			if ok and job_id then
+				vim.fn.jobstop(job_id)
+			end
+			vim.api.nvim_buf_delete(term_buf, { force = true })
+		end
+		return
+	end
+
+	-- Get job_id from the terminal
+	local job_id = term_data.cli_term.job_id
+
+	-- Close the window first
+	local term_win = nil
+	for _, win in ipairs(vim.api.nvim_list_wins()) do
+		if vim.api.nvim_win_get_buf(win) == term_buf then
+			term_win = win
+			break
+		end
+	end
+
+	if term_win and vim.api.nvim_win_is_valid(term_win) then
+		vim.api.nvim_win_close(term_win, true)
+	end
+
+	-- Stop the job/process
+	if job_id and job_id > 0 then
+		vim.fn.jobstop(job_id)
+	end
+
+	-- Delete the buffer
+	if vim.api.nvim_buf_is_valid(term_buf) then
+		vim.api.nvim_buf_delete(term_buf, { force = true })
+	end
+
+	-- Clean up terminal data (the on_close callback should handle this, but just in case)
+	M.terminals[cli_cmd] = nil
+	M.buf_to_cli_cmd[term_buf] = nil
+end
+
 return M

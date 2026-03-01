@@ -7,12 +7,13 @@
 --- @field enter string[]|nil # Keys to send Enter key
 --- @field help string[]|nil # Keys to show help
 --- @field toggle_width string[]|nil # Keys to toggle window width
---- @field close string[]|nil # Keys to close the terminal window
+--- @field hide string[]|nil # Keys to hide terminal (keeps process alive)
+--- @field close string[]|nil # Keys to close the terminal window and kill process
 
 --- @class Cli-Integration.NormalModeKeys
---- @field hide string[]|nil # Keys to hide terminal
+--- @field hide string[]|nil # Keys to hide terminal (keeps process alive)
 --- @field toggle_width string[]|nil # Keys to toggle window width
---- @field close string[]|nil # Keys to close the terminal window
+--- @field close string[]|nil # Keys to close the terminal window and kill process
 
 --- @class Cli-Integration.TerminalKeys
 --- @field terminal_mode Cli-Integration.TerminalModeKeys|nil # Key mappings for terminal mode
@@ -59,17 +60,18 @@ M.defaults = {
 			normal_mode = { "<M-q>" },
 			insert_file_path = { "<C-p>" },
 			insert_all_buffers = { "<C-p><C-p>" },
-      new_lines = { "<S-CR>" },
-      submit = { "<C-s>", "<C-CR>" },
-      enter = { "<CR>" },
+			new_lines = { "<S-CR>" },
+			submit = { "<C-s>", "<C-CR>" },
+			enter = { "<CR>" },
 			help = { "<M-?>", "??", "\\\\" },
 			toggle_width = { "<C-f>" },
-			close = { "<C-q>" },
+			hide = { "<C-q>" },
+			close = { "<C-S-q>" },
 		},
 		normal_mode = {
-			hide = { "<Esc>", "q" },
-			toggle_width = { "<C-f>" },
-			close = { "<C-d>" },
+      toggle_width = { "<C-f>" },
+			hide = { "<C-q>" },
+			close = { "<C-S-q>" },
 		},
 	},
 }

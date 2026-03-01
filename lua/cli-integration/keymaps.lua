@@ -137,21 +137,31 @@ function M.setup_terminal_keymaps()
 		set_keymaps("t", keys.terminal_mode.help, help.show_help, opts)
 	end
 
-	-- Close terminal window
-	if keys.terminal_mode.close and type(keys.terminal_mode.close) == "table" then
-		set_keymaps("t", keys.terminal_mode.close, function()
-			vim.cmd("q")
+	-- Hide terminal window in terminal mode (keeps process alive)
+	if keys.terminal_mode.hide and type(keys.terminal_mode.hide) == "table" then
+		set_keymaps("t", keys.terminal_mode.hide, function()
+			terminal.hide_terminal(current_buf)
 		end, opts)
 	end
 
-	-- Hide/Close in normal mode
-	local hide_keys = keys.normal_mode.hide or {}
-	local close_keys = keys.normal_mode.close or {}
-	local all_normal_close_keys = vim.list_extend(vim.deepcopy(hide_keys), close_keys)
+	-- Close terminal window and kill process in terminal mode
+	if keys.terminal_mode.close and type(keys.terminal_mode.close) == "table" then
+		set_keymaps("t", keys.terminal_mode.close, function()
+			terminal.close_terminal(current_buf)
+		end, opts)
+	end
 
-	if #all_normal_close_keys > 0 then
-		set_keymaps("n", all_normal_close_keys, function()
-			vim.cmd("q")
+	-- Hide terminal window in normal mode (keeps process alive)
+	if keys.normal_mode.hide and type(keys.normal_mode.hide) == "table" then
+		set_keymaps("n", keys.normal_mode.hide, function()
+			terminal.hide_terminal(current_buf)
+		end, opts)
+	end
+
+	-- Close terminal window and kill process in normal mode
+	if keys.normal_mode.close and type(keys.normal_mode.close) == "table" then
+		set_keymaps("n", keys.normal_mode.close, function()
+			terminal.close_terminal(current_buf)
 		end, opts)
 	end
 

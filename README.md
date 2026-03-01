@@ -127,10 +127,13 @@ require("cli-integration").setup({
 
       help = { "<M-?>", "??", "\\\\" },
       toggle_width = { "<C-f>" },
+      hide = { "<C-q>" },  -- Hide terminal (keeps process alive)
+      close = { "<C-S-q>" },  -- Close terminal and kill process
     },
     normal_mode = {
-      hide = { "<Esc>" },
+      hide = { "<C-q>" },  -- Hide terminal (keeps process alive)
       toggle_width = { "<C-f>" },
+      close = { "<C-S-q>" },  -- Close terminal and kill process
     },
   },
 })
@@ -262,23 +265,26 @@ multiple key combinations for the same action.
 
 #### Terminal Mode Keys
 
-| Key                  | Default                     | Description                         |
-| -------------------- | --------------------------- | ----------------------------------- |
-| `normal_mode`        | `{ "<M-q>" }`               | Enter normal mode                   |
-| `insert_file_path`   | `{ "<C-p>" }`               | Insert current file path            |
-| `insert_all_buffers` | `{ "<C-p><C-p>" }`          | Insert all open buffer paths        |
-| `new_lines`          | `{ "<CR>" }`                | Insert new lines                    |
-| `submit`             | `{ "<C-s>" }`               | Submit command/message              |
-| `enter`              | `{ "<tab>" }`               | Enter key                           |
-| `help`               | `{ "<M-?>", "??", "\\\\" }` | Show help (multiple keys supported) |
-| `toggle_width`       | `{ "<C-f>" }`               | Toggle window width                 |
+| Key                  | Default                     | Description                                      |
+| -------------------- | --------------------------- | ------------------------------------------------ |
+| `normal_mode`        | `{ "<M-q>" }`               | Enter normal mode                                |
+| `insert_file_path`   | `{ "<C-p>" }`               | Insert current file path                         |
+| `insert_all_buffers` | `{ "<C-p><C-p>" }`          | Insert all open buffer paths                     |
+| `new_lines`          | `{ "<S-CR>" }`              | Insert new lines                                 |
+| `submit`             | `{ "<C-s>", "<C-CR>" }`     | Submit command/message                           |
+| `enter`              | `{ "<CR>" }`                | Enter key                                        |
+| `help`               | `{ "<M-?>", "??", "\\\\" }` | Show help (multiple keys supported)              |
+| `toggle_width`       | `{ "<C-f>" }`               | Toggle window width                              |
+| `hide`               | `{ "<C-q>" }`               | Hide terminal (keeps process alive)              |
+| `close`              | `{ "<C-S-q>" }`             | Close terminal and kill process                  |
 
 #### Normal Mode Keys
 
-| Key            | Default       | Description         |
-| -------------- | ------------- | ------------------- |
-| `hide`         | `{ "<Esc>" }` | Hide terminal       |
-| `toggle_width` | `{ "<C-f>" }` | Toggle window width |
+| Key            | Default         | Description                                      |
+| -------------- | --------------- | ------------------------------------------------ |
+| `hide`         | `{ "<C-q>" }`   | Hide terminal (keeps process alive)              |
+| `toggle_width` | `{ "<C-f>" }`   | Toggle window width                              |
+| `close`        | `{ "<C-S-q>" }` | Close terminal and kill process                  |
 
 #### Example: Custom Key Configuration
 
@@ -288,11 +294,14 @@ require("cli-integration").setup({
   terminal_keys = {
     terminal_mode = {
       submit = { "<C-s>", "<leader><CR>" },  -- Multiple keys for submit
-      help = { "??", "F1" },              -- Custom help keys
-      toggle_width = { "<C-f>", "<C-w>" }, -- Multiple toggle options
+      help = { "??", "F1" },                 -- Custom help keys
+      toggle_width = { "<C-f>", "<C-w>" },   -- Multiple toggle options
+      hide = { "<C-q>", "<Esc>" },           -- Multiple hide options
+      close = { "<C-S-q>", "<leader>q" },    -- Multiple close options
     },
     normal_mode = {
-      hide = { "<Esc>", "q" },            -- Multiple hide options
+      hide = { "<C-q>", "q" },               -- Multiple hide options
+      close = { "<C-S-q>", "<leader>q" },    -- Multiple close options
     },
   },
   integrations = {
@@ -423,10 +432,12 @@ require("cli-integration").setup({
       terminal_keys = {  -- Override global terminal_keys
         terminal_mode = {
           submit = { "<C-s>" },
+          hide = { "<Esc>" },  -- Custom hide key for this integration
           -- ... other keys inherit from global defaults
         },
         normal_mode = {
-          hide = { "<Esc>" },
+          hide = { "<Esc>", "q" },  -- Custom hide keys for this integration
+          close = { "<leader>q" },  -- Custom close key for this integration
         },
       },
     },
@@ -491,26 +502,27 @@ Once the CLI tool terminal is open, you have access to special keymaps:
 
 #### Terminal Mode
 
-| Keymap                  | Description                           |
-| ----------------------- | ------------------------------------- |
-| `<C-s>` or `<C-CR>`     | Submit command/message                |
-| `<M-q>`                 | Enter normal mode                     |
-| `<C-p>`                 | Attach current file path              |
-| `<C-p><C-p>`            | Attach all open buffer paths          |
-| `<C-f>`                 | Toggle window width (expand/collapse) |
-| `<M-?>` or `??` or `\\` | Show help                             |
-| `<C-d>` or `<C-c>`      | Close terminal window                 |
-| `<S-CR>`                | Insert new line                       |
-| `<CR>`                  | Send Enter key                        |
+| Keymap                  | Description                                      |
+| ----------------------- | ------------------------------------------------ |
+| `<C-s>` or `<C-CR>`     | Submit command/message                           |
+| `<M-q>`                 | Enter normal mode                                |
+| `<C-p>`                 | Attach current file path                         |
+| `<C-p><C-p>`            | Attach all open buffer paths                     |
+| `<C-f>`                 | Toggle window width (expand/collapse)            |
+| `<M-?>` or `??` or `\\` | Show help                                        |
+| `<C-q>`                 | Hide terminal window (keeps process alive)       |
+| `<C-S-q>`               | Close terminal window and kill process           |
+| `<S-CR>`                | Insert new line                                  |
+| `<CR>`                  | Send Enter key                                   |
 
 #### Normal Mode (in terminal)
 
-| Keymap                                   | Description                           |
-| ---------------------------------------- | ------------------------------------- |
-| `q` or `<Esc>`                           | Hide terminal window                  |
-| `<C-d>`                                  | Close terminal window                 |
-| `<C-f>`                                  | Toggle window width (expand/collapse) |
-| All other normal mode keys work as usual |                                       |
+| Keymap                                   | Description                                      |
+| ---------------------------------------- | ------------------------------------------------ |
+| `<C-q>`                                  | Hide terminal window (keeps process alive)       |
+| `<C-S-q>`                                | Close terminal window and kill process           |
+| `<C-f>`                                  | Toggle window width (expand/collapse)            |
+| All other normal mode keys work as usual |                                                  |
 
 ## 🚀 Quick Start
 
