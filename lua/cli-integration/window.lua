@@ -10,11 +10,14 @@
 local M = {}
 
 -- Store active sidebar window pairs for resizing and focus management
--- Format: [float_win] = { split_win = number, split_buf = number, terminal_buf = number, width_config = number }
+-- Format: [float_win] = { split_win = number, split_buf = number, terminal_buf = number, width_config = number, padding = number }
 M.sidebars = {}
 
 -- Track the last focused floating window to handle navigation correctly
 M.last_focused_float = nil
+
+-- Track if resize autocmd is setup
+M.resized_autocmd_setup = false
 
 --- Internal helper to attach focus redirection autocmds to a sidebar split
 --- @param split_buf number The buffer in the split window
@@ -147,8 +150,13 @@ function M.create_terminal(cmd, opts)
 		vim.cmd("lcd " .. vim.fn.fnameescape(original_cwd))
 	end)
 
+	-- Apply padding (visual spacing on left and right)
 	if padding > 0 then
+		-- Left padding using foldcolumn
 		vim.wo[win].foldcolumn = tostring(padding)
+		-- Right padding using rightleft + foldcolumn trick or signcolumn
+		-- Note: For floating windows, we also need to adjust the window width
+		-- to create visual right padding (handled in create_sidebar_layout)
 	end
 
 	if not job_id or job_id <= 0 then
@@ -261,17 +269,48 @@ function M.create_float_window(buf, win_opts)
 end
 
 --- Internal helper to create the split window for a sidebar
-local function create_reserve_split(width)
+--- @param width number The width of the split window
+--- @param float_win number|nil The associated floating window (for QuitPre protection)
+--- @return number split_win The split window handle
+--- @return number split_buf The split buffer handle
+local function create_reserve_split(width, float_win)
 	vim.cmd("botright vsplit")
 	local split_win = vim.api.nvim_get_current_win()
 	local split_buf = vim.api.nvim_create_buf(false, true)
 	vim.api.nvim_win_set_buf(split_win, split_buf)
 	vim.api.nvim_win_set_width(split_win, width)
+
+	-- Configure split window
 	vim.wo[split_win].winfixwidth = true
 	vim.wo[split_win].number = false
 	vim.wo[split_win].relativenumber = false
 	vim.wo[split_win].statuscolumn = ""
 	vim.wo[split_win].signcolumn = "no"
+
+	-- Configure split buffer to prevent manual interaction
+	vim.bo[split_buf].bufhidden = "wipe"
+	vim.bo[split_buf].buflisted = false
+	vim.bo[split_buf].buftype = "nofile"
+
+	-- Protect split from manual closure - close float instead
+	if float_win then
+		vim.api.nvim_create_autocmd("QuitPre", {
+			buffer = split_buf,
+			callback = function()
+				-- If user tries to close the split, close the float instead
+				if vim.api.nvim_win_is_valid(float_win) then
+					vim.schedule(function()
+						if vim.api.nvim_win_is_valid(float_win) then
+							vim.api.nvim_win_close(float_win, false)
+						end
+					end)
+					return true -- Cancel the quit of the split
+				end
+			end,
+			desc = "Redirect split close to float close",
+		})
+	end
+
 	return split_win, split_buf
 end
 
@@ -281,20 +320,28 @@ end
 --- @return number|nil The floating window handle
 function M.create_sidebar_layout(buf, win_opts)
 	local width_config = win_opts.min_width or win_opts.width or 34
-	local width = calculate_width(width_config)
+	local padding = win_opts.padding or 0
+	local configured_width = calculate_width(width_config)
 
-	-- 1. Create split
-	local split_win, split_buf = create_reserve_split(width)
+	-- Calculate actual widths:
+	-- - Float width: configured width minus padding on both sides
+	-- - Split width: same as float width (they should be aligned)
+	local float_width = configured_width - (padding * 2)
+	local split_width = float_width
 
-	-- 2. Create float
+	-- 1. Create split (reserve space) - same width as float for alignment
+	-- Note: We pass nil for float_win initially, will update protection after float is created
+	local split_win, split_buf = create_reserve_split(split_width, nil)
+
+	-- 2. Create float with padding adjustment
 	local float_opts = {
 		relative = "editor",
-		width = width,
+		width = float_width,
 		height = 10, -- Placeholder
 		row = 0,
-		col = vim.o.columns - width,
+		col = vim.o.columns - split_width, -- Aligned with split
 		style = "minimal",
-		border = win_opts.border or "rounded",
+		border = win_opts.border or "none",
 		title = win_opts.title or "",
 		title_pos = "center",
 		zindex = 45,
@@ -302,13 +349,32 @@ function M.create_sidebar_layout(buf, win_opts)
 
 	local float_win = vim.api.nvim_open_win(buf, true, float_opts)
 
-	-- 3. Link data
+	-- Now update the split's QuitPre autocmd with the actual float_win
+	if padding > 0 then
+		vim.api.nvim_create_autocmd("QuitPre", {
+			buffer = split_buf,
+			callback = function()
+				if vim.api.nvim_win_is_valid(float_win) then
+					vim.schedule(function()
+						if vim.api.nvim_win_is_valid(float_win) then
+							vim.api.nvim_win_close(float_win, false)
+						end
+					end)
+					return true
+				end
+			end,
+			desc = "Redirect split close to float close",
+		})
+	end
+
+	-- 3. Link data (store padding for resize operations)
 	M.sidebars[float_win] = {
 		split_win = split_win,
 		split_buf = split_buf,
 		terminal_buf = buf,
 		width_config = width_config,
 		win_opts = win_opts,
+		padding = padding,
 	}
 
 	-- 4. Initial geometry
@@ -338,10 +404,18 @@ function M.create_sidebar_layout(buf, win_opts)
 
 	-- 7. Resizing setup (handles editor resize AND manual split resize)
 	if not M.resized_autocmd_setup then
+		local group = vim.api.nvim_create_augroup("CliIntegrationResize", { clear = true })
 		vim.api.nvim_create_autocmd({ "VimResized", "WinResized" }, {
+			group = group,
 			callback = function()
 				M.resize_sidebars()
+				-- Cleanup autocmd if no sidebars remain
+				if vim.tbl_count(M.sidebars) == 0 then
+					pcall(vim.api.nvim_del_augroup_by_name, "CliIntegrationResize")
+					M.resized_autocmd_setup = false
+				end
 			end,
+			desc = "Resize CLI integration sidebars on window/editor resize",
 		})
 		M.resized_autocmd_setup = true
 	end
@@ -361,6 +435,7 @@ function M.update_sidebar_geometry(float_win, is_expanded, should_focus)
 	end
 
 	local width, height, col, border, border_offset
+	local padding = data.padding or 0
 
 	if is_expanded then
 		-- Force rounded borders when maximized
@@ -370,6 +445,7 @@ function M.update_sidebar_geometry(float_win, is_expanded, should_focus)
 		if vim.api.nvim_win_is_valid(data.split_win) then
 			vim.api.nvim_win_close(data.split_win, true)
 		end
+		-- When expanded, use full width minus border offset
 		width = vim.o.columns - border_offset
 		col = 1
 		-- Max height calculation with borders
@@ -379,27 +455,32 @@ function M.update_sidebar_geometry(float_win, is_expanded, should_focus)
 		border = data.win_opts.border or "none"
 		border_offset = (border == "none" or border == "") and 0 or 2
 
-		-- Use current split window width if valid, otherwise fallback to config
+		-- Calculate widths using the same logic as create_sidebar_layout:
+		-- - configured_width: the width from config
+		-- - float_width: configured_width minus padding on both sides
+		-- - split_width: same as float_width (aligned)
+		local configured_width
 		if vim.api.nvim_win_is_valid(data.split_win) then
+			-- If split exists, use its current width as the float width
 			width = vim.api.nvim_win_get_width(data.split_win)
+			col = vim.o.columns - width
 		else
-			width = calculate_width(data.width_config)
-		end
-		col = vim.o.columns - width
+			-- Recalculate from config
+			configured_width = calculate_width(data.width_config)
+			width = configured_width - (padding * 2)
+			col = vim.o.columns - width
 
-		if not vim.api.nvim_win_is_valid(data.split_win) then
-			local split_win, split_buf = create_reserve_split(width)
+			-- Recreate split with same width as float
+			local split_win, split_buf = create_reserve_split(width, float_win)
 			data.split_win = split_win
 			data.split_buf = split_buf
 			attach_sidebar_focus_logic(split_buf, split_win, float_win)
-		else
-			-- If the split was resized, ensures width is updated (though it's already used above)
-			vim.api.nvim_win_set_width(data.split_win, width)
 		end
 
 		local split_row, _ = unpack(vim.api.nvim_win_get_position(data.split_win))
 		local split_height = vim.api.nvim_win_get_height(data.split_win)
-		-- Height = space from top (split_row) + split content area - border_offset - 1
+		-- Height = space from top (split_row) + split content area - border_offset
+		-- This ensures the float covers the entire split area vertically
 		height = split_row + split_height - border_offset
 	end
 

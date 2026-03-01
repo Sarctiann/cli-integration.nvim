@@ -206,6 +206,7 @@ function M.open_terminal(integration, args, keep_open, working_dir, visual_text)
 			position = integration.floating and "float" or "right",
 			min_width = integration.floating and nil or integration.window_width,
 			padding = integration.window_padding or 0,
+			border = integration.border,
 			on_close = function()
 				local stored_data = M.terminals[cli_cmd]
 				M.terminals[cli_cmd] = nil

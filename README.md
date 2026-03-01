@@ -110,6 +110,8 @@ require("cli-integration").setup({
   show_help_on_open = true,
   new_lines_amount = 2,
   window_width = 34,  -- Percentage (0-100) or absolute width (>100)
+  window_padding = 0,  -- Horizontal padding in columns (0 = no padding)
+  border = "none",  -- Border style (none/single/double/rounded/solid/shadow)
   floating = false,  -- Whether to open terminal in floating window
   terminal_keys = {
     terminal_mode = {
@@ -173,6 +175,8 @@ require("cli-integration").setup({
 | `show_help_on_open` | `boolean` | `true`    | Default: Show help screen when terminal opens                                 |
 | `new_lines_amount`  | `number`  | `2`       | Default: Number of new lines to insert after command submission               |
 | `window_width`      | `number`  | `34`      | Default: Width for terminal window (percentage 0-100, or absolute >100)       |
+| `window_padding`    | `number`  | `0`       | Default: Horizontal padding in columns (adds empty space on left and right)   |
+| `border`            | `string`  | `"none"`  | Default: Border style ("none", "single", "double", "rounded", "solid", "shadow") |
 | `floating`          | `boolean` | `false`   | Default: Whether to open terminal in floating window                          |
 | `terminal_keys`     | `table`   | See below | Default: Key mappings for the CLI terminal window (all values must be arrays) |
 
@@ -187,6 +191,8 @@ Each integration in the `integrations` array can have:
 | `show_help_on_open` | `boolean`          | Inherits global | Override: Show help screen when terminal opens                                                                                                                                           |
 | `new_lines_amount`  | `number`           | Inherits global | Override: Number of new lines to insert after command submission                                                                                                                         |
 | `window_width`      | `number`           | Inherits global | Override: Width for terminal window (percentage 0-100, or absolute >100)                                                                                                                 |
+| `window_padding`    | `number`           | Inherits global | Override: Horizontal padding in columns (adds empty space on left and right)                                                                                                             |
+| `border`            | `string`           | Inherits global | Override: Border style ("none", "single", "double", "rounded", "solid", "shadow"). Default is "none" for sidebar, "rounded" when expanded or floating                                    |
 | `floating`          | `boolean`          | Inherits global | Override: Whether to open terminal in floating window                                                                                                                                    |
 | `keep_open`         | `boolean`          | `false`         | Whether to keep the terminal open after execution (not auto-closing)                                                                                                                     |
 | `start_with_text`   | `string\|function` | `nil`           | Text to insert when terminal is ready, or function that receives `visual_text` (string\|nil) and returns text to insert. Searches for `ready_text_flag` or `cli_cmd` to detect readiness |
@@ -212,6 +218,40 @@ Examples:
 window_width = 34,   -- 34% of editor width (default)
 window_width = 50,   -- 50% of editor width
 window_width = 150,  -- 150 characters (absolute)
+```
+
+#### Window Padding Configuration
+
+The `window_padding` option adds visual spacing on the left and right sides of the terminal content:
+
+- **Value**: Number of columns (characters) to use as padding
+- **Default**: `0` (no padding)
+- **Recommended**: `1` for a cleaner look with TUI applications
+
+How it works:
+- The terminal window width is reduced by `padding * 2` (left + right)
+- Left padding is created using `foldcolumn`
+- Right padding is created by limiting the terminal's `COLUMNS` environment variable
+
+Example:
+```lua
+window_padding = 1,  -- Adds 1 character padding on each side
+```
+
+#### Border Configuration
+
+The `border` option controls the border style of the terminal window:
+
+- **Values**: `"none"`, `"single"`, `"double"`, `"rounded"`, `"solid"`, `"shadow"`
+- **Default**: `"none"` for sidebar mode, `"rounded"` for floating windows and when expanded
+- **Note**: When you toggle the window width to maximum (Ctrl+f), the border automatically changes to `"rounded"`
+
+Examples:
+```lua
+border = "none",     -- No border (default for sidebar)
+border = "rounded",  -- Rounded corners (default for floating)
+border = "single",   -- Single line border
+border = "double",   -- Double line border
 ```
 
 ### `terminal_keys` Structure
