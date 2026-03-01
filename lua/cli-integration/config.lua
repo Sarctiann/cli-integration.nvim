@@ -64,7 +64,7 @@ M.defaults = {
       enter = { "<CR>" },
 			help = { "<M-?>", "??", "\\\\" },
 			toggle_width = { "<C-f>" },
-			close = { "<C-d>", "<C-c>" },
+			close = { "<C-q>" },
 		},
 		normal_mode = {
 			hide = { "<Esc>", "q" },

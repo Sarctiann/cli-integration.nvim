@@ -185,50 +185,55 @@ function M.create_terminal(cmd, opts)
 		end,
 	})
 
-	-- Prevent buffer switching in the terminal window
-	-- This redirects buffer changes (from bufferline, etc.) to a normal window
+	-- Helper function to find a suitable normal window
+	local function find_normal_window()
+		for _, w in ipairs(vim.api.nvim_list_wins()) do
+			if w ~= win and vim.api.nvim_win_is_valid(w) then
+				local b = vim.api.nvim_win_get_buf(w)
+				local buftype = vim.bo[b].buftype
+				-- Look for normal file buffers
+				if buftype == "" then
+					-- Check if this is not the split buffer
+					local is_split = false
+					for _, sidebar_data in pairs(M.sidebars) do
+						if sidebar_data.split_win == w then
+							is_split = true
+							break
+						end
+					end
+					if not is_split then
+						return w
+					end
+				end
+			end
+		end
+		return nil
+	end
+
+	-- Prevent buffer switching: redirect to normal window
 	vim.api.nvim_create_autocmd("BufWinEnter", {
 		callback = function(args)
 			local current_win = vim.api.nvim_get_current_win()
-			if current_win == win and args.buf ~= buf then
-				local target_buf = args.buf
-
+			-- If a different buffer is trying to enter the terminal window
+			if current_win == win and args.buf ~= buf and vim.api.nvim_buf_is_valid(buf) then
 				vim.schedule(function()
-					if not vim.api.nvim_win_is_valid(current_win) or not vim.api.nvim_buf_is_valid(buf) then
+					if not vim.api.nvim_win_is_valid(win) or not vim.api.nvim_buf_is_valid(buf) then
 						return
 					end
 
-					-- Restore terminal buffer in this window
-					vim.api.nvim_win_set_buf(current_win, buf)
+					-- Restore terminal buffer
+					pcall(vim.api.nvim_win_set_buf, win, buf)
 
-					-- Find a suitable window (normal file buffer)
-					local target_win = nil
-					for _, w in ipairs(vim.api.nvim_list_wins()) do
-						if w ~= current_win then
-							local b = vim.api.nvim_win_get_buf(w)
-							if vim.bo[b].buftype == "" then
-								target_win = w
-								break
-							end
-						end
-					end
-
-					-- Redirect buffer to the found window
-					if target_win and vim.api.nvim_win_is_valid(target_win) then
+					-- Find a normal window and switch to it
+					local target_win = find_normal_window()
+					if target_win and vim.api.nvim_buf_is_valid(args.buf) then
 						vim.api.nvim_set_current_win(target_win)
-						if vim.api.nvim_buf_is_valid(target_buf) then
-							vim.api.nvim_win_set_buf(target_win, target_buf)
-						end
-						vim.cmd("stopinsert")
-					else
-						if vim.api.nvim_win_is_valid(current_win) then
-							vim.api.nvim_set_current_win(current_win)
-						end
+						pcall(vim.api.nvim_win_set_buf, target_win, args.buf)
 					end
 				end)
 			end
 		end,
-		desc = "Redirect buffer switching to normal file window",
+		desc = "Prevent buffer switching in terminal window",
 	})
 
 	return terminal
