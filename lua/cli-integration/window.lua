@@ -71,8 +71,34 @@ local function create_proxy_split(width, float_win)
 	vim.api.nvim_create_autocmd("WinEnter", {
 		buffer = split_buf,
 		callback = function()
-			if vim.api.nvim_get_current_win() == split_win and vim.api.nvim_win_is_valid(float_win) then
-				vim.api.nvim_set_current_win(float_win)
+			local current_win = vim.api.nvim_get_current_win()
+			local target_float = float_win
+
+			-- If float_win was not provided or is invalid, try to find it in M.sidebars
+			if not target_float or target_float == 0 or not vim.api.nvim_win_is_valid(target_float) then
+				for fw, data in pairs(M.sidebars) do
+					if data.split_win == current_win then
+						target_float = fw
+						break
+					end
+				end
+			end
+
+			if target_float and vim.api.nvim_win_is_valid(target_float) then
+				local prev_win = vim.fn.win_getid(vim.fn.winnr("#"))
+				if prev_win == target_float then
+					-- We came from the float, move left to avoid getting stuck
+					-- Check if there's a window to the left
+					if vim.fn.winnr("h") ~= vim.fn.winnr() then
+						vim.cmd("wincmd h")
+					else
+						-- Nowhere to go, return to float
+						vim.api.nvim_set_current_win(target_float)
+					end
+				else
+					-- We came from elsewhere, go to float
+					vim.api.nvim_set_current_win(target_float)
+				end
 			end
 		end,
 		desc = "Redirect split navigation to float window",
@@ -82,10 +108,23 @@ local function create_proxy_split(width, float_win)
 	vim.api.nvim_create_autocmd("QuitPre", {
 		buffer = split_buf,
 		callback = function()
-			if vim.api.nvim_win_is_valid(float_win) then
+			local current_win = vim.api.nvim_get_current_win()
+			local target_float = float_win
+
+			-- Dynamic lookup if float_win is not set
+			if not target_float or target_float == 0 or not vim.api.nvim_win_is_valid(target_float) then
+				for fw, data in pairs(M.sidebars) do
+					if data.split_win == current_win then
+						target_float = fw
+						break
+					end
+				end
+			end
+
+			if target_float and vim.api.nvim_win_is_valid(target_float) then
 				vim.schedule(function()
-					if vim.api.nvim_win_is_valid(float_win) then
-						vim.api.nvim_win_close(float_win, false)
+					if vim.api.nvim_win_is_valid(target_float) then
+						vim.api.nvim_win_close(target_float, false)
 					end
 				end)
 				return true -- Cancel the quit of the split
@@ -307,6 +346,18 @@ function M.create_float_window(buf, win_opts)
 	}
 
 	local win = vim.api.nvim_open_win(buf, true, float_opts)
+
+	-- Exit insert mode when focus is lost
+	vim.api.nvim_create_autocmd("WinLeave", {
+		buffer = buf,
+		callback = function()
+			vim.schedule(function()
+				vim.cmd("stopinsert")
+			end)
+		end,
+		desc = "Exit insert mode when leaving terminal window",
+	})
+
 	vim.cmd("startinsert")
 	return win
 end
@@ -376,7 +427,18 @@ function M.create_sidebar_layout(buf, win_opts)
 		desc = "Cleanup sidebar on float close",
 	})
 
-	-- Step 6: Setup resize handling (bidirectional sync)
+	-- Step 6: Exit insert mode when focus is lost
+	vim.api.nvim_create_autocmd("WinLeave", {
+		buffer = buf,
+		callback = function()
+			vim.schedule(function()
+				vim.cmd("stopinsert")
+			end)
+		end,
+		desc = "Exit insert mode when leaving sidebar terminal",
+	})
+
+	-- Step 7: Setup resize handling (bidirectional sync)
 	if not M.resized_autocmd_setup then
 		local group = vim.api.nvim_create_augroup("CliIntegrationResize", { clear = true })
 		vim.api.nvim_create_autocmd({ "VimResized", "WinResized" }, {

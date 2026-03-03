@@ -58,12 +58,16 @@
 - `M.is_terminal_visible(terminal)`: Checks if terminal window is valid and visible
 **Critical Implementation Details**:
 - **Buffer Lock (lines 236-282)**: `BufWinEnter` autocmd prevents any buffer except terminal buffer from loading in terminal window. If detected, restores terminal buffer and redirects new buffer to normal window.
-- **Proxy Split (lines 44-98)**:
+- **Proxy Split (lines 44-110)**:
   - Creates empty scratch buffer (buftype=nofile, modifiable=false)
-  - `WinEnter` autocmd redirects focus to float window
-  - `QuitPre` autocmd redirects close command to float window
+  - **Focus Redirection**: `WinEnter` autocmd redirects focus to float window using dynamic lookup in `M.sidebars`.
+  - **Navigation Skip**: If moving from float to split (e.g., `<C-h>`), `WinEnter` detects `prev_win == float_win` and automatically executes `wincmd h` to skip the split. If no window exists to the left, it returns focus to the float.
+  - **Close Redirection**: `QuitPre` autocmd redirects close command to float window using dynamic lookup.
   - Never loads any buffer content
-- **Fullwidth Toggle (lines 413-447)**:
+- **Insert Mode Management**:
+  - **Auto-enter**: Automatically enters insert mode on `BufEnter`/`WinEnter` (lines 225-234).
+  - **Auto-exit**: `WinLeave` autocmd on terminal buffer calls `vim.schedule(function() vim.cmd("stopinsert") end)` to ensure user arrives at destination window in Normal mode (even after mouse clicks on bufferline).
+- **Fullwidth Toggle (lines 425-460)**:
   - `is_expanded=true`: Closes split, expands float to full width with rounded border
   - `is_expanded=false`: Recreates split, syncs dimensions from split width
 - **Bidirectional Sync (lines 471-497)**: Detects manual split resize by comparing widths, updates float accordingly
@@ -318,6 +322,9 @@ terminal_keys = {
 8. **Text Insertion**: Visual select text, :CLIIntegration open_cwd → text appears in terminal when ready
 9. **Path Insertion**: Press <C-p> in terminal → current file path inserted
 10. **All Buffers**: Press <C-p><C-p> → all open buffer paths inserted
+11. **Focus Mode Exit**: Click on bufferline or another window while in terminal insert mode → focus changes and mode is Normal
+12. **Sidebar Left Navigation**: Press <C-h> in sidebar → skips proxy split and focuses code window (if exists)
+13. **Sidebar Return**: Click on proxy split → focus redirects to sidebar via dynamic lookup
 
 ### Must Never Happen
 1. Terminal window shows non-terminal buffer
