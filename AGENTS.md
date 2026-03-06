@@ -83,14 +83,14 @@
 **Key Functions**:
 - `M.open_terminal(integration, args, keep_open, working_dir, visual_text)`: Creates or toggles terminal
 - `M.insert_text(text, term_buf)`: Sends text to terminal via chansend
-- `M.attach_text_when_ready(integration, term_buf, tries, visual_text)`: Polls terminal output for ready flag, then inserts text
+- `M.attach_text_when_ready(integration, term_buf, tries, visual_text)`: Polls terminal output for ready flag based on `cli_ready_flags`, then inserts text
 - `M.toggle_width(term_buf)`: Toggles between default and fullwidth
 - `M.hide_terminal(term_buf)`: Hides window, keeps process alive
 - `M.close_terminal(term_buf)`: Closes window and kills process
 - `M.get_current_terminal_buf()`: Returns current buffer if it's a terminal
 - `M.get_integration_for_buf(term_buf)`: Returns integration config for buffer
 **Critical Details**:
-- Ready detection: Searches first 15 lines for `ready_text_flag` or `cli_cmd` (max 20 tries, 300ms intervals)
+- Ready detection: Searches range defined by `cli_ready_flags` for `search_for` or `cli_cmd` (max 30 tries, 500ms intervals)
 - `start_with_text`: Can be string or function(visual_text) → string
 - Visual text priority: visual_text overrides start_with_text string
 - Toggle behavior: If terminal exists and valid, toggles visibility; otherwise creates new
@@ -179,7 +179,7 @@
   floating = boolean,              -- Default: false (true = centered float, false = sidebar)
   keep_open = boolean,             -- Default: false (true = keep after exit code 0)
   start_with_text = string|function(visual_text), -- Optional: text to insert when ready
-  ready_text_flag = string,        -- Optional: text to search for readiness (default: cli_cmd)
+  cli_ready_flags = { search_for = string, from_line = number, lines_amt = number }, -- Optional: config for readiness (default: cli_cmd, 1, 5)
   format_paths = function(path),   -- Optional: format file paths before insertion
   terminal_keys = {                -- Optional: override global keys
     terminal_mode = { ... },

@@ -198,8 +198,8 @@ Each integration in the `integrations` array can have:
 | `border`            | `string`           | Inherits global | Override: Border style ("none", "single", "double", "rounded", "solid", "shadow"). Default is "none" for sidebar, "rounded" when expanded or floating                                    |
 | `floating`          | `boolean`          | Inherits global | Override: Whether to open terminal in floating window                                                                                                                                    |
 | `keep_open`         | `boolean`          | `false`         | Whether to keep the terminal open after execution (not auto-closing)                                                                                                                     |
-| `start_with_text`   | `string\|function` | `nil`           | Text to insert when terminal is ready, or function that receives `visual_text` (string\|nil) and returns text to insert. Searches for `ready_text_flag` or `cli_cmd` to detect readiness |
-| `ready_text_flag`   | `string`           | `nil`           | Text flag to search in terminal output (first 10 lines) to detect readiness. If not set, searches for `cli_cmd`                                                                          |
+| `start_with_text`   | `string\|function` | `nil`           | Text to insert when terminal is ready, or function that receives `visual_text` (string\|nil) and returns text to insert. Searches for `cli_ready_flags.search_for` or `cli_cmd` to detect readiness |
+| `cli_ready_flags`   | `table`            | See below       | Configuration for detecting readiness (search string, starting line, and number of lines to inspect)                                                                                     |
 | `format_paths`      | `function`         | `nil`           | Function to format file paths when inserting (receives path string, returns formatted string). If not set, uses `"@" .. path`                                                            |
 | `terminal_keys`     | `table`            | Inherits global | Override: Key mappings for the CLI terminal window                                                                                                                                       |
 
@@ -349,19 +349,26 @@ require("cli-integration").setup({
       floating = true,  -- Open in floating window
       keep_open = true,  -- Don't auto-close after execution
       start_with_text = "init\n",  -- Insert this text when terminal is ready
-      ready_text_flag = "Ready>",  -- Look for this flag in first 10 lines
+      cli_ready_flags = {
+        search_for = "Ready>",  -- Look for this flag
+        from_line = 1,          -- Starting from line 1
+        lines_amt = 10,         -- Check 10 lines
+      },
     },
   },
 })
 ```
 
-**About `start_with_text` and `ready_text_flag`:**
+**About `start_with_text` and `cli_ready_flags`:**
 
 - `start_with_text`: Can be a string or a function:
   - **String**: Text that will be automatically inserted into the terminal when it's ready (only if no visual selection is provided)
   - **Function**: Receives `visual_text` (string|nil) as parameter and returns the text to insert. This allows you to handle both visual selections and default text in a single function
   - If not set, no text is inserted (unless visual selection is provided)
-- `ready_text_flag`: A string pattern to search for in the first 10 lines of terminal output to detect when the CLI tool is ready. If not set, the plugin searches for `cli_cmd` instead.
+- `cli_ready_flags`: A table configuration to detect when the CLI tool is ready:
+  - `search_for`: A string pattern to search for in terminal output. If not set or empty, the plugin searches for `cli_cmd` instead.
+  - `from_line`: The line number to start searching from (1-based, default: 1).
+  - `lines_amt`: The number of lines to inspect (default: 5).
 
 #### Visual Selection Support
 
@@ -428,7 +435,7 @@ require("cli-integration").setup({
       window_width = 150,  -- Absolute width: 150 characters (>100 = absolute)
       keep_open = true,  -- Keep terminal open after execution
       start_with_text = "Hello!\n",  -- Insert this text when terminal is ready
-      ready_text_flag = "Ready>",  -- Search for this flag in first 10 lines
+      cli_ready_flags = { search_for = "Ready>", from_line = 1, lines_amt = 10 },
       terminal_keys = {  -- Override global terminal_keys
         terminal_mode = {
           submit = { "<C-s>" },
@@ -584,7 +591,11 @@ require("cli-integration").setup({
       name = "MyTool",
       cli_cmd = "my-tool",
       start_with_text = "Hello, world!\n",  -- Insert this when ready
-      ready_text_flag = "Ready>",  -- Look for this in first 10 lines
+      cli_ready_flags = {
+        search_for = "Ready>",  -- Look for this flag
+        from_line = 1,          -- Starting from line 1
+        lines_amt = 10,         -- Check 10 lines
+      },
     },
   },
 })
@@ -671,7 +682,7 @@ require("cli-integration").setup({
 - **Pass CLI Arguments**: Add arguments after the integration name (e.g., `:CLIIntegration open_cwd MyTool --verbose`)
 - **Floating vs Side Panel**: Use `floating = true` for floating windows, `false` for side panels (right side)
 - **Custom Initialization**: Use `start_with_text` to automatically insert text when terminal is ready
-- **Readiness Detection**: Configure `ready_text_flag` to customize how the plugin detects when your CLI tool is ready
+- **Readiness Detection**: Configure `cli_ready_flags` to customize how the plugin detects when your CLI tool is ready
 - **Keep Terminal Open**: Set `keep_open = true` to prevent auto-closing after execution
 - **Help Anytime**: Press `??` in terminal mode to see all available keymaps (shows config for current integration)
 - **Multiple Tools**: Configure multiple CLI tools and switch between them. Each maintains its own terminal and settings.

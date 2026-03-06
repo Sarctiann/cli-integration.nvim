@@ -70,11 +70,19 @@ function M.attach_text_when_ready(integration, term_buf, tries, visual_text)
 			return
 		end
 
-		-- Determine what flag to search for
-		local search_flag = integration.ready_text_flag or integration.cli_cmd or ""
+		-- Determine what flag to search for and where
+		local ready_flags = integration.cli_ready_flags or {}
+		local search_flag = (ready_flags.search_for and ready_flags.search_for ~= "") and ready_flags.search_for
+			or integration.cli_cmd
+			or ""
+		local from_line = ready_flags.from_line or 1
+		local lines_amt = ready_flags.lines_amt or 5
 
-		-- Search for the flag in the first 10 lines
-		local buf_lines = vim.api.nvim_buf_get_lines(term_buf, 0, 20, false)
+		-- Search for the flag in the specified line range
+		local start_line = math.max(0, from_line - 1)
+		local end_line = start_line + lines_amt
+		local buf_lines = vim.api.nvim_buf_get_lines(term_buf, start_line, end_line, false)
+
 		local found = false
 		if search_flag and search_flag ~= "" then
 			for i = 1, #buf_lines do

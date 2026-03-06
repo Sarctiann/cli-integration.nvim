@@ -19,6 +19,11 @@
 --- @field terminal_mode Cli-Integration.TerminalModeKeys|nil # Key mappings for terminal mode
 --- @field normal_mode Cli-Integration.NormalModeKeys|nil # Key mappings for normal mode
 
+--- @class Cli-Integration.CliReadyFlags
+--- @field search_for string # Text to search for to detect readiness
+--- @field from_line number # Starting line to inspect (1-based)
+--- @field lines_amt number # Number of lines to inspect
+
 --- @class Cli-Integration.Integration
 --- @field cli_cmd string # CLI command name to execute (required)
 --- @field name string # Name for the integration (required, used for autocompletion in commands)
@@ -30,7 +35,7 @@
 --- @field floating boolean|nil # Whether to open terminal in floating window (default: false)
 --- @field keep_open boolean|nil # Whether to keep the terminal open after execution (default: false)
 --- @field start_with_text string|(fun(visual_text: string|nil): string)|nil # Text to insert when terminal is ready, or function that receives visual_text and returns text to insert (if not set, no text is inserted)
---- @field ready_text_flag string|nil # Text flag to search in terminal output to detect readiness (if not set, searches for cli_cmd)
+--- @field cli_ready_flags Cli-Integration.CliReadyFlags|nil # Configuration for detecting when the CLI tool is ready
 --- @field format_paths (fun(path: string): string)|nil # Function to format file paths when inserting (if not set, uses the raw path)
 --- @field terminal_keys Cli-Integration.TerminalKeys|nil # Key mappings for the CLI terminal window (all values must be arrays)
 
@@ -192,6 +197,11 @@ function M.setup(config)
 				window_padding = M.options.window_padding,
 				border = M.options.border,
 				floating = M.options.floating,
+				cli_ready_flags = {
+					search_for = "",
+					from_line = 1,
+					lines_amt = 5,
+				},
 				terminal_keys = M.options.terminal_keys,
 			}
 			-- Apply integration-specific config (which may override defaults)
