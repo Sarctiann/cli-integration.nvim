@@ -3,8 +3,12 @@
 local config = require("cli-integration.config")
 local commands = require("cli-integration.commands")
 local autocmds = require("cli-integration.autocmds")
+local hooks = require("cli-integration.hooks")
 
 local M = {}
+
+-- Expose hooks for easy access via require("cli-integration").hooks
+M.hooks = hooks
 
 --- Setup function for the plugin
 --- @param user_config Cli-Integration.Config

@@ -21,8 +21,8 @@
 
 --- @class Cli-Integration.CliReadyFlags
 --- @field search_for string # Text to search for to detect readiness
---- @field from_line number # Starting line to inspect (1-based)
---- @field lines_amt number # Number of lines to inspect
+--- @field from_line number|nil # Starting line to inspect (1-based)
+--- @field lines_amt number|nil # Number of lines to inspect
 
 --- @class Cli-Integration.Integration
 --- @field cli_cmd string # CLI command name to execute (required)
@@ -34,7 +34,7 @@
 --- @field border string|nil # Border style for terminal window: "none", "single", "double", "rounded", "solid", "shadow" (default: "none" for sidebar, "rounded" for floating and when expanded)
 --- @field floating boolean|nil # Whether to open terminal in floating window (default: false)
 --- @field keep_open boolean|nil # Whether to keep the terminal open after execution (default: false)
---- @field start_with_text string|(fun(visual_text: string|nil): string)|nil # Text to insert when terminal is ready, or function that receives visual_text and returns text to insert (if not set, no text is inserted)
+--- @field start_with_text string|(fun(visual_text: string|nil, integration: Cli-Integration.Integration|nil): string)|nil # Text to insert when terminal is ready, or function that receives visual_text and returns text to insert (if not set, no text is inserted)
 --- @field cli_ready_flags Cli-Integration.CliReadyFlags|nil # Configuration for detecting when the CLI tool is ready
 --- @field format_paths (fun(path: string): string)|nil # Function to format file paths when inserting (if not set, uses the raw path)
 --- @field terminal_keys Cli-Integration.TerminalKeys|nil # Key mappings for the CLI terminal window (all values must be arrays)

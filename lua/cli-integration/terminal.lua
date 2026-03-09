@@ -101,8 +101,8 @@ function M.attach_text_when_ready(integration, term_buf, tries, visual_text)
 			local start_with_text = integration.start_with_text
 			if start_with_text ~= nil then
 				if type(start_with_text) == "function" then
-					-- Call the function with visual_text as parameter
-					local ok, result = pcall(start_with_text, visual_text)
+					-- Call the function with visual_text and integration as parameters
+					local ok, result = pcall(start_with_text, visual_text, integration)
 					if ok and type(result) == "string" then
 						text_to_insert = result
 					elseif ok then
