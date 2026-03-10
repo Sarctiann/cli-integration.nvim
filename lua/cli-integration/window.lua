@@ -24,6 +24,9 @@ M.sidebars = {}
 --- Track if resize autocmd is setup
 M.resized_autocmd_setup = false
 
+--- Suppress stopinsert scheduling during proxy split recreation to preserve insert mode
+M._suppress_stopinsert = false
+
 --- Calculate width based on config (percentage or absolute)
 --- @param width_config number Width configuration (1-100 for percentage, >100 for absolute)
 --- @return number Calculated width in columns
@@ -286,38 +289,62 @@ function M.create_terminal(cmd, opts)
 					-- Restore the terminal buffer
 					pcall(vim.api.nvim_win_set_buf, win, buf)
 
-					-- Find a normal window for the new buffer
+					-- Find a window to redirect the new buffer to.
+					-- Priority: normal file window > any non-terminal/nofile window > new split.
 					local target_win = nil
+					local fallback_win = nil
 					for _, w in ipairs(vim.api.nvim_list_wins()) do
 						if w ~= win and vim.api.nvim_win_is_valid(w) then
 							local b = vim.api.nvim_win_get_buf(w)
-							local buftype = vim.bo[b].buftype
-							-- Look for normal file buffers, not split proxies
-							if buftype == "" then
-								local is_split = false
-								for _, sidebar_data in pairs(M.sidebars) do
-									if sidebar_data.split_win == w then
-										is_split = true
-										break
-									end
+							local bt = vim.bo[b].buftype
+							local is_split = false
+							for _, sd in pairs(M.sidebars) do
+								if sd.split_win == w then
+									is_split = true
+									break
 								end
-								if not is_split then
+							end
+							if not is_split then
+								if bt == "" then
 									target_win = w
 									break
+								elseif not fallback_win and bt ~= "terminal" and bt ~= "nofile" then
+									fallback_win = w
 								end
 							end
 						end
 					end
 
-					-- Switch to the target window and load the buffer there
-					if target_win and vim.api.nvim_buf_is_valid(args.buf) then
-						vim.api.nvim_set_current_win(target_win)
-						pcall(vim.api.nvim_win_set_buf, target_win, args.buf)
+					local dest = target_win or fallback_win
+					if not dest then
+						-- Last resort: open a new split to host the buffer
+						vim.cmd("vsplit")
+						dest = vim.api.nvim_get_current_win()
+					end
+
+					if dest and vim.api.nvim_buf_is_valid(args.buf) then
+						vim.api.nvim_set_current_win(dest)
+						pcall(vim.api.nvim_win_set_buf, dest, args.buf)
 					end
 				end)
 			end
 		end,
 		desc = "Lock terminal window to terminal buffer only",
+	})
+
+	-- Secondary guard: if somehow a wrong buffer ends up in the terminal window
+	-- on WinEnter, restore the terminal buffer immediately.
+	vim.api.nvim_create_autocmd("WinEnter", {
+		callback = function()
+			if vim.api.nvim_get_current_win() == win
+				and vim.api.nvim_get_current_buf() ~= buf
+				and vim.api.nvim_buf_is_valid(buf)
+				and vim.api.nvim_win_is_valid(win)
+			then
+				pcall(vim.api.nvim_win_set_buf, win, buf)
+			end
+		end,
+		desc = "Secondary guard: restore terminal buffer on WinEnter",
 	})
 
 	return terminal
@@ -351,6 +378,7 @@ function M.create_float_window(buf, win_opts)
 	vim.api.nvim_create_autocmd("WinLeave", {
 		buffer = buf,
 		callback = function()
+			if M._suppress_stopinsert then return end
 			vim.schedule(function()
 				vim.cmd("stopinsert")
 			end)
@@ -431,6 +459,7 @@ function M.create_sidebar_layout(buf, win_opts)
 	vim.api.nvim_create_autocmd("WinLeave", {
 		buffer = buf,
 		callback = function()
+			if M._suppress_stopinsert then return end
 			vim.schedule(function()
 				vim.cmd("stopinsert")
 			end)
@@ -473,6 +502,8 @@ function M.update_sidebar_geometry(float_win, is_expanded, should_focus)
 	local width, height, col, border, border_offset
 	local padding = data.padding or 0
 
+	local term_buf = data.terminal_buf
+
 	if is_expanded then
 		-- Fullwidth mode: hide split, expand float to full editor width
 		border = "rounded"
@@ -482,6 +513,12 @@ function M.update_sidebar_geometry(float_win, is_expanded, should_focus)
 		if vim.api.nvim_win_is_valid(data.split_win) then
 			vim.api.nvim_win_close(data.split_win, true)
 		end
+
+		-- Disable window-navigation keymaps (no other windows to navigate to)
+		pcall(vim.keymap.del, "t", "<C-h>", { buffer = term_buf })
+		pcall(vim.keymap.del, "t", "<C-j>", { buffer = term_buf })
+		pcall(vim.keymap.del, "t", "<C-k>", { buffer = term_buf })
+		pcall(vim.keymap.del, "t", "<C-l>", { buffer = term_buf })
 
 		width = vim.o.columns - border_offset
 		col = 1
@@ -496,10 +533,22 @@ function M.update_sidebar_geometry(float_win, is_expanded, should_focus)
 		if not vim.api.nvim_win_is_valid(data.split_win) then
 			local configured_width = calculate_width(data.width_config)
 			local split_width = configured_width - (padding * 2)
+			-- Suppress stopinsert while the split is being created: botright vsplit
+			-- fires WinLeave on the float, which would otherwise schedule stopinsert
+			-- and leave the terminal in normal mode after the toggle.
+			M._suppress_stopinsert = true
 			local split_win, split_buf = create_proxy_split(split_width, float_win)
+			M._suppress_stopinsert = false
 			data.split_win = split_win
 			data.split_buf = split_buf
 		end
+
+		-- Re-enable window-navigation keymaps
+		local nav_opts = { buffer = term_buf, noremap = true, silent = true }
+		vim.keymap.set("t", "<C-h>", [[<C-\><C-n><C-w>h]], nav_opts)
+		vim.keymap.set("t", "<C-j>", [[<C-\><C-n><C-w>j]], nav_opts)
+		vim.keymap.set("t", "<C-k>", [[<C-\><C-n><C-w>k]], nav_opts)
+		vim.keymap.set("t", "<C-l>", [[<C-\><C-n><C-w>l]], nav_opts)
 
 		-- Sync width from split (handles manual resize)
 		width = vim.api.nvim_win_get_width(data.split_win)
@@ -526,7 +575,14 @@ function M.update_sidebar_geometry(float_win, is_expanded, should_focus)
 	local current_win = vim.api.nvim_get_current_win()
 	if (should_focus or current_win == float_win) and vim.api.nvim_win_is_valid(float_win) then
 		vim.api.nvim_set_current_win(float_win)
-		vim.cmd("startinsert")
+		-- Schedule startinsert so it runs after any pending stopinsert (e.g. from
+		-- WinLeave fired during create_proxy_split). vim.schedule is FIFO, so this
+		-- enqueues after the stopinsert already in the queue and wins.
+		vim.schedule(function()
+			if vim.api.nvim_win_is_valid(float_win) then
+				vim.cmd("startinsert")
+			end
+		end)
 	end
 end
 
