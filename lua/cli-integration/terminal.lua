@@ -206,6 +206,14 @@ function M.open_terminal(integration, args, keep_open, working_dir, visual_text)
 		current_file = vim.fs.relpath(base_dir, current_file_abs) or vim.fn.fnamemodify(current_file_abs, ":.")
 	end
 
+	-- Run pre-launch hook if configured
+	if integration.on_open then
+		local ok, err = pcall(integration.on_open, integration, base_dir)
+		if not ok then
+			vim.notify("cli-integration.nvim: on_open hook failed for '" .. cli_cmd .. "': " .. tostring(err), vim.log.levels.WARN)
+		end
+	end
+
 	local cli_term = window.create_terminal(cli_cmd .. cmd, {
 		interactive = true,
 		cwd = base_dir,
@@ -220,6 +228,13 @@ function M.open_terminal(integration, args, keep_open, working_dir, visual_text)
 				M.terminals[cli_cmd] = nil
 				if stored_data and stored_data.term_buf then
 					M.buf_to_cli_cmd[stored_data.term_buf] = nil
+				end
+				-- Run post-exit hook if configured
+				if integration.on_close then
+					local ok, err = pcall(integration.on_close, integration, base_dir)
+					if not ok then
+						vim.notify("cli-integration.nvim: on_close hook failed for '" .. cli_cmd .. "': " .. tostring(err), vim.log.levels.WARN)
+					end
 				end
 			end,
 			resize = true,

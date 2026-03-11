@@ -297,58 +297,70 @@ function M.create_terminal(cmd, opts)
 	})
 
 	-- CRITICAL: Prevent buffer switching in this window
-	-- This ensures the terminal window ONLY shows the terminal buffer
+	-- This ensures the terminal window ONLY shows the terminal buffer.
+	-- NOTE: `win` can become stale after a toggle (create_sidebar_layout creates a new float ID),
+	-- so we also check M.sidebars dynamically for the current window.
 	vim.api.nvim_create_autocmd("BufWinEnter", {
 		callback = function(args)
-			-- If a different buffer tries to load in the terminal window
-			if args.buf ~= buf and vim.api.nvim_get_current_win() == win then
-				vim.schedule(function()
-					if not vim.api.nvim_win_is_valid(win) or not vim.api.nvim_buf_is_valid(buf) then
-						return
-					end
+			if args.buf == buf then
+				return
+			end
 
-					-- Restore the terminal buffer
-					pcall(vim.api.nvim_win_set_buf, win, buf)
+			local current_win = vim.api.nvim_get_current_win()
+			local sidebar_data = M.sidebars[current_win]
+			local is_our_win = current_win == win
+				or (sidebar_data ~= nil and sidebar_data.terminal_buf == buf)
 
-					-- Find a window to redirect the new buffer to.
-					-- Priority: normal file window > any non-terminal/nofile window > new split.
-					local target_win = nil
-					local fallback_win = nil
-					for _, w in ipairs(vim.api.nvim_list_wins()) do
-						if w ~= win and vim.api.nvim_win_is_valid(w) then
-							local b = vim.api.nvim_win_get_buf(w)
-							local bt = vim.bo[b].buftype
-							local is_split = false
-							for _, sd in pairs(M.sidebars) do
-								if sd.split_win == w then
-									is_split = true
-									break
-								end
+			if not is_our_win then
+				return
+			end
+
+			vim.schedule(function()
+				if not vim.api.nvim_win_is_valid(current_win) or not vim.api.nvim_buf_is_valid(buf) then
+					return
+				end
+
+				-- Restore the terminal buffer
+				pcall(vim.api.nvim_win_set_buf, current_win, buf)
+
+				-- Find a window to redirect the new buffer to.
+				-- Priority: normal file window > any non-terminal/nofile window > new split.
+				local target_win = nil
+				local fallback_win = nil
+				for _, w in ipairs(vim.api.nvim_list_wins()) do
+					if w ~= current_win and vim.api.nvim_win_is_valid(w) then
+						local b = vim.api.nvim_win_get_buf(w)
+						local bt = vim.bo[b].buftype
+						local is_split = false
+						for _, sd in pairs(M.sidebars) do
+							if sd.split_win == w then
+								is_split = true
+								break
 							end
-							if not is_split then
-								if bt == "" then
-									target_win = w
-									break
-								elseif not fallback_win and bt ~= "terminal" and bt ~= "nofile" then
-									fallback_win = w
-								end
+						end
+						if not is_split then
+							if bt == "" then
+								target_win = w
+								break
+							elseif not fallback_win and bt ~= "terminal" and bt ~= "nofile" then
+								fallback_win = w
 							end
 						end
 					end
+				end
 
-					local dest = target_win or fallback_win
-					if not dest then
-						-- Last resort: open a new split to host the buffer
-						vim.cmd("vsplit")
-						dest = vim.api.nvim_get_current_win()
-					end
+				local dest = target_win or fallback_win
+				if not dest then
+					-- Last resort: open a new split to host the buffer
+					vim.cmd("vsplit")
+					dest = vim.api.nvim_get_current_win()
+				end
 
-					if dest and vim.api.nvim_buf_is_valid(args.buf) then
-						vim.api.nvim_set_current_win(dest)
-						pcall(vim.api.nvim_win_set_buf, dest, args.buf)
-					end
-				end)
-			end
+				if dest and vim.api.nvim_buf_is_valid(args.buf) then
+					vim.api.nvim_set_current_win(dest)
+					pcall(vim.api.nvim_win_set_buf, dest, args.buf)
+				end
+			end)
 		end,
 		desc = "Lock terminal window to terminal buffer only",
 	})
@@ -357,13 +369,18 @@ function M.create_terminal(cmd, opts)
 	-- on WinEnter, restore the terminal buffer immediately.
 	vim.api.nvim_create_autocmd("WinEnter", {
 		callback = function()
+			local current_win = vim.api.nvim_get_current_win()
+			local sidebar_data = M.sidebars[current_win]
+			local is_our_win = current_win == win
+				or (sidebar_data ~= nil and sidebar_data.terminal_buf == buf)
+
 			if
-				vim.api.nvim_get_current_win() == win
+				is_our_win
 				and vim.api.nvim_get_current_buf() ~= buf
 				and vim.api.nvim_buf_is_valid(buf)
-				and vim.api.nvim_win_is_valid(win)
+				and vim.api.nvim_win_is_valid(current_win)
 			then
-				pcall(vim.api.nvim_win_set_buf, win, buf)
+				pcall(vim.api.nvim_win_set_buf, current_win, buf)
 			end
 		end,
 		desc = "Secondary guard: restore terminal buffer on WinEnter",
