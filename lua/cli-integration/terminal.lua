@@ -210,7 +210,7 @@ function M.open_terminal(integration, args, keep_open, working_dir, visual_text)
 		interactive = true,
 		cwd = base_dir,
 		win = {
-			title = " " .. integration.name .. " " .. (args and " ( " .. args .. " ) " or ""),
+			title = " " .. integration.name .. " ",
 			position = integration.floating and "float" or "right",
 			min_width = integration.floating and nil or integration.window_width,
 			padding = integration.window_padding or 0,

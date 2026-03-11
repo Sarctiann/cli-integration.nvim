@@ -222,10 +222,31 @@ function M.create_terminal(cmd, opts)
 			on_exit = function(_, exit_code, _)
 				if auto_close and exit_code == 0 then
 					vim.schedule(function()
+						local title = (win_opts.title ~= "" and win_opts.title) or "cli"
+						local msg = "... bye bye" .. title .. " "
+						local notif_buf = vim.api.nvim_create_buf(false, true)
+						vim.api.nvim_buf_set_lines(notif_buf, 0, -1, false, { msg })
+						local width = #msg
+						local notif_win = vim.api.nvim_open_win(notif_buf, false, {
+							relative = "editor",
+							width = width,
+							height = 1,
+							row = vim.o.lines - 4,
+							col = vim.o.columns - width - 2,
+							style = "minimal",
+							border = "rounded",
+							focusable = false,
+						})
+						vim.defer_fn(function()
+							pcall(vim.api.nvim_win_close, notif_win, true)
+							pcall(vim.api.nvim_buf_delete, notif_buf, { force = true })
+						end, 1000)
+					end)
+					vim.defer_fn(function()
 						if vim.api.nvim_buf_is_valid(buf) then
 							vim.api.nvim_buf_delete(buf, { force = true })
 						end
-					end)
+					end, 1000)
 				end
 				if win_opts.on_close then
 					vim.schedule(win_opts.on_close)
@@ -336,7 +357,8 @@ function M.create_terminal(cmd, opts)
 	-- on WinEnter, restore the terminal buffer immediately.
 	vim.api.nvim_create_autocmd("WinEnter", {
 		callback = function()
-			if vim.api.nvim_get_current_win() == win
+			if
+				vim.api.nvim_get_current_win() == win
 				and vim.api.nvim_get_current_buf() ~= buf
 				and vim.api.nvim_buf_is_valid(buf)
 				and vim.api.nvim_win_is_valid(win)
@@ -378,7 +400,9 @@ function M.create_float_window(buf, win_opts)
 	vim.api.nvim_create_autocmd("WinLeave", {
 		buffer = buf,
 		callback = function()
-			if M._suppress_stopinsert then return end
+			if M._suppress_stopinsert then
+				return
+			end
 			vim.schedule(function()
 				vim.cmd("stopinsert")
 			end)
@@ -459,7 +483,9 @@ function M.create_sidebar_layout(buf, win_opts)
 	vim.api.nvim_create_autocmd("WinLeave", {
 		buffer = buf,
 		callback = function()
-			if M._suppress_stopinsert then return end
+			if M._suppress_stopinsert then
+				return
+			end
 			vim.schedule(function()
 				vim.cmd("stopinsert")
 			end)
