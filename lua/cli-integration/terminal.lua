@@ -167,37 +167,15 @@ Example:
 	vim.notify(help_text, vim.log.levels.WARN)
 end
 
---- Open or toggle the CLI tool terminal
+--- Create a new terminal instance (assumes toggle check already passed)
 --- @param integration Cli-Integration.Integration The integration configuration
 --- @param args string|nil Command line arguments for CLI tool
 --- @param keep_open boolean|nil Whether to keep the terminal open after execution
 --- @param working_dir string|nil Working directory for the terminal
 --- @param visual_text string|nil Optional text from visual selection (overrides start_with_text)
 --- @return nil
-function M.open_terminal(integration, args, keep_open, working_dir, visual_text)
-	if not integration or not integration.cli_cmd or integration.cli_cmd == "" then
-		show_config_help()
-		return
-	end
-
+local function create_new_terminal(integration, args, keep_open, working_dir, visual_text)
 	local cli_cmd = integration.cli_cmd
-	local term_data = M.terminals[cli_cmd]
-
-	-- Toggle if terminal already exists and is valid
-	if term_data and term_data.cli_term and term_data.cli_term.toggle then
-		if term_data.term_buf and vim.api.nvim_buf_is_valid(term_data.term_buf) then
-			term_data.cli_term:toggle()
-			return
-		else
-			-- Terminal buffer is invalid, clean it up
-			M.terminals[cli_cmd] = nil
-			if term_data.term_buf then
-				M.buf_to_cli_cmd[term_data.term_buf] = nil
-			end
-		end
-	end
-
-	-- Create new terminal
 	local cmd = args and " " .. args or ""
 	local current_file_abs = vim.fn.expand("%:p")
 	local base_dir = working_dir or vim.fn.getcwd()
@@ -274,6 +252,48 @@ function M.open_terminal(integration, args, keep_open, working_dir, visual_text)
 	then
 		M.attach_text_when_ready(integration, term_buf, nil, visual_text)
 	end
+end
+
+--- Open or toggle the CLI tool terminal
+--- @param integration Cli-Integration.Integration The integration configuration
+--- @param args string|nil Command line arguments for CLI tool
+--- @param keep_open boolean|nil Whether to keep the terminal open after execution
+--- @param working_dir string|nil Working directory for the terminal
+--- @param visual_text string|nil Optional text from visual selection (overrides start_with_text)
+--- @return nil
+function M.open_terminal(integration, args, keep_open, working_dir, visual_text)
+	if not integration or not integration.cli_cmd or integration.cli_cmd == "" then
+		show_config_help()
+		return
+	end
+
+	local cli_cmd = integration.cli_cmd
+	local term_data = M.terminals[cli_cmd]
+
+	-- Toggle if terminal already exists and is valid
+	if term_data and term_data.cli_term and term_data.cli_term.toggle then
+		if term_data.term_buf and vim.api.nvim_buf_is_valid(term_data.term_buf) then
+			term_data.cli_term:toggle()
+			return
+		else
+			-- Terminal buffer is invalid, clean it up
+			M.terminals[cli_cmd] = nil
+			if term_data.term_buf then
+				M.buf_to_cli_cmd[term_data.term_buf] = nil
+			end
+		end
+	end
+
+	-- Delay terminal creation if configured
+	local open_delay = integration.open_delay or 0
+	if open_delay > 0 then
+		vim.defer_fn(function()
+			create_new_terminal(integration, args, keep_open, working_dir, visual_text)
+		end, open_delay)
+		return
+	end
+
+	create_new_terminal(integration, args, keep_open, working_dir, visual_text)
 end
 
 --- Toggle terminal window width between default and maximum

@@ -38,6 +38,7 @@
 --- @field cli_ready_flags Cli-Integration.CliReadyFlags|nil # Configuration for detecting when the CLI tool is ready
 --- @field format_paths (fun(path: string): string)|nil # Function to format file paths when inserting (if not set, uses the raw path)
 --- @field terminal_keys Cli-Integration.TerminalKeys|nil # Key mappings for the CLI terminal window (all values must be arrays)
+--- @field open_delay number|nil # Milliseconds to wait before creating the terminal window (default: 0, no delay). Useful when an on_open hook triggers an external process that needs time to start.
 --- @field on_open (fun(integration: Cli-Integration.Integration, working_dir: string): nil)|nil # Called before the terminal is created. Use it for pre-launch setup (e.g., writing config files with dynamic values like the Neovim socket path).
 --- @field on_close (fun(integration: Cli-Integration.Integration, working_dir: string): nil)|nil # Called after the terminal process exits. Use it for cleanup tasks (e.g., removing temporary config files).
 
