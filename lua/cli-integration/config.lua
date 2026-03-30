@@ -41,6 +41,8 @@
 --- @field open_delay number|nil # Milliseconds to wait before creating the terminal window (default: 0, no delay). Useful when an on_open hook triggers an external process that needs time to start.
 --- @field on_open (fun(integration: Cli-Integration.Integration, working_dir: string): nil)|nil # Called before the terminal is created. Use it for pre-launch setup (e.g., writing config files with dynamic values like the Neovim socket path).
 --- @field on_close (fun(integration: Cli-Integration.Integration, working_dir: string): nil)|nil # Called after the terminal process exits. Use it for cleanup tasks (e.g., removing temporary config files).
+--- @field start_insert_on_click boolean|nil # Force insert mode when clicking inside the terminal window (default: false)
+--- @field list_buffer boolean|nil # Show the terminal buffer in bufferline; sidebar starts 1 row lower (default: false)
 
 --- @class Cli-Integration.Config
 --- @field integrations Cli-Integration.Integration[]|nil # Array of CLI integrations (optional, defaults to empty array)
@@ -51,6 +53,8 @@
 --- @field border string|nil # Default: border style for terminal window (applied to all integrations)
 --- @field floating boolean|nil # Default: whether to open terminal in floating window (applied to all integrations)
 --- @field terminal_keys Cli-Integration.TerminalKeys|nil # Default: key mappings for the CLI terminal window (applied to all integrations)
+--- @field start_insert_on_click boolean|nil # Default: force insert mode on click (applied to all integrations)
+--- @field list_buffer boolean|nil # Default: show terminal buffer in bufferline (applied to all integrations)
 
 local M = {}
 
@@ -63,6 +67,8 @@ M.defaults = {
 	window_padding = 0, -- No padding by default
 	border = "none", -- No border by default for sidebar (rounded when expanded or floating)
 	floating = false,
+	start_insert_on_click = false,
+	list_buffer = false,
 	terminal_keys = {
 		terminal_mode = {
 			normal_mode = { "<M-q>" },
@@ -200,6 +206,8 @@ function M.setup(config)
 				window_padding = M.options.window_padding,
 				border = M.options.border,
 				floating = M.options.floating,
+				start_insert_on_click = M.options.start_insert_on_click,
+				list_buffer = M.options.list_buffer,
 				cli_ready_flags = {
 					search_for = "",
 					from_line = 1,
