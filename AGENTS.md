@@ -46,7 +46,7 @@
 ### lua/cli-integration/window.lua
 **Responsibility**: Window and terminal lifecycle management
 **Key Data Structures**:
-- `M.sidebars`: Table mapping float_win → {split_win, split_buf, terminal_buf, width_config, padding, win_opts, is_expanded}
+- `M.sidebars`: Table mapping float_win → {split_win, split_buf, terminal_buf, width_config, padding, win_opts, is_expanded, list_buffer}
 **Key Functions**:
 - `M.create_terminal(cmd, opts)`: Creates terminal buffer, window, job, and protection autocmds
 - `M.create_float_window(buf, win_opts)`: Creates centered floating window
@@ -178,6 +178,8 @@
   border = "none"|"single"|"double"|"rounded"|"solid"|"shadow", -- Default: "none"
   floating = boolean,              -- Default: false (true = centered float, false = sidebar)
   keep_open = boolean,             -- Default: false (true = keep after exit code 0)
+  start_insert_on_click = boolean, -- Default: false (re-enter insert when clicking inside terminal while in normal mode)
+  list_buffer = boolean,           -- Default: false (list buffer in bufferline as "[name]"; sidebar only: shifts window 1 row down)
   start_with_text = string|function(visual_text), -- Optional: text to insert when ready
   cli_ready_flags = { search_for = string, from_line = number, lines_amt = number }, -- Optional: config for readiness (default: cli_cmd, 1, 5)
   format_paths = function(path),   -- Optional: format file paths before insertion
@@ -381,6 +383,7 @@ terminal_keys = {
 6. **Integration name spaces**: Remember underscore ↔ space normalization for autocompletion
 7. **Width calculation**: Remember percentage (1-100) vs absolute (>100) distinction
 8. **Cleanup**: Always remove from M.terminals, M.buf_to_cli_cmd, M.sidebars on close
+9. **list_buffer name collision**: If two integrations share the same `name` and both have `list_buffer=true`, the second `nvim_buf_set_name` call silently fails (pcall). The second buffer stays listed but with a raw `term://...` name. Integration names should be unique.
 
 ## MODIFICATION_GUIDELINES
 
@@ -408,3 +411,4 @@ terminal_keys = {
 ## FILE_MODIFICATION_HISTORY
 - 2026-03-02: Complete rewrite of window.lua to implement robust buffer lock, proxy split navigation, and bidirectional resize synchronization
 - 2026-03-02: Created AGENTS.md for LLM context and project documentation
+- 2026-03-30: Added start_insert_on_click and list_buffer options (config.lua, terminal.lua, window.lua)

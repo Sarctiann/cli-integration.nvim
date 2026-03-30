@@ -41,8 +41,8 @@
 --- @field open_delay number|nil # Milliseconds to wait before creating the terminal window (default: 0, no delay). Useful when an on_open hook triggers an external process that needs time to start.
 --- @field on_open (fun(integration: Cli-Integration.Integration, working_dir: string): nil)|nil # Called before the terminal is created. Use it for pre-launch setup (e.g., writing config files with dynamic values like the Neovim socket path).
 --- @field on_close (fun(integration: Cli-Integration.Integration, working_dir: string): nil)|nil # Called after the terminal process exits. Use it for cleanup tasks (e.g., removing temporary config files).
---- @field start_insert_on_click boolean|nil # Force insert mode when clicking inside the terminal window (default: false)
---- @field list_buffer boolean|nil # Show the terminal buffer in bufferline; sidebar starts 1 row lower (default: false)
+--- @field start_insert_on_click boolean|nil # In normal mode, clicking inside the terminal window re-enters insert mode. Has no effect when clicking from another window (WinEnter already handles that). (default: false)
+--- @field list_buffer boolean|nil # Show the terminal buffer in bufferline with name "[integration.name]". Sidebar windows start 1 row lower to avoid overlapping bufferline. Row offset does not apply to floating windows. (default: false)
 
 --- @class Cli-Integration.Config
 --- @field integrations Cli-Integration.Integration[]|nil # Array of CLI integrations (optional, defaults to empty array)
