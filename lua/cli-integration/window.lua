@@ -293,10 +293,21 @@ function M.create_terminal(cmd, opts)
 	vim.keymap.set("t", "<C-l>", [[<C-\><C-n><C-w>l]], keymap_opts)
 
 	-- Force insert mode on mouse click (if configured)
+	-- Uses expr=true to check click position: only enter insert if click is inside
+	-- this terminal window. If clicking outside, fall through to default mouse behavior
+	-- (window focus change) by returning the built-in <LeftMouse> (noremap prevents recursion).
 	if opts.win and opts.win.start_insert_on_click then
-		local click_opts = { buffer = buf, noremap = true, silent = true }
-		vim.keymap.set("n", "<LeftMouse>",   "i", click_opts)
-		vim.keymap.set("n", "<2-LeftMouse>", "i", click_opts)
+		local click_opts = { buffer = buf, noremap = true, silent = true, expr = true }
+		local click_fn = function()
+			local mouse_pos = vim.fn.getmousepos()
+			if mouse_pos.winid == vim.api.nvim_get_current_win() then
+				return "i"
+			else
+				return "<LeftMouse>"
+			end
+		end
+		vim.keymap.set("n", "<LeftMouse>",   click_fn, click_opts)
+		vim.keymap.set("n", "<2-LeftMouse>", click_fn, click_opts)
 	end
 
 	-- Auto-enter insert mode when entering terminal

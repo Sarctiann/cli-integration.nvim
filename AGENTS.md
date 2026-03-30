@@ -67,6 +67,7 @@
 - **Insert Mode Management**:
   - **Auto-enter**: Automatically enters insert mode on `BufEnter`/`WinEnter` (lines 225-234).
   - **Auto-exit**: `WinLeave` autocmd on terminal buffer calls `vim.schedule(function() vim.cmd("stopinsert") end)` to ensure user arrives at destination window in Normal mode (even after mouse clicks on bufferline).
+  - **start_insert_on_click**: Uses `expr=true` keymap + `vim.fn.getmousepos()` to distinguish clicks inside vs outside the terminal window. Inside → `"i"` (insert mode). Outside → `"<LeftMouse>"` (built-in behavior, noremap prevents recursion) so the click propagates normally and focus moves to the clicked window.
 - **Fullwidth Toggle (lines 425-460)**:
   - `is_expanded=true`: Closes split, expands float to full width with rounded border
   - `is_expanded=false`: Recreates split, syncs dimensions from split width
@@ -417,3 +418,4 @@ After implementing any feature or change, always update both:
 - 2026-03-02: Complete rewrite of window.lua to implement robust buffer lock, proxy split navigation, and bidirectional resize synchronization
 - 2026-03-02: Created AGENTS.md for LLM context and project documentation
 - 2026-03-30: Added start_insert_on_click and list_buffer options (config.lua, terminal.lua, window.lua)
+- 2026-03-30: Fixed start_insert_on_click: clicks outside terminal window now correctly move focus to clicked window instead of staying in terminal and entering insert mode
