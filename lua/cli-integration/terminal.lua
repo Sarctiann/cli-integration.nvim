@@ -201,6 +201,9 @@ local function create_new_terminal(integration, args, keep_open, working_dir, vi
 			min_width = integration.floating and nil or integration.window_width,
 			padding = integration.window_padding or 0,
 			border = integration.border,
+			start_insert_on_click = integration.start_insert_on_click,
+			list_buffer = integration.list_buffer,
+			buffer_name = "[" .. integration.name .. "]",
 			on_close = function()
 				local stored_data = M.terminals[cli_cmd]
 				M.terminals[cli_cmd] = nil
