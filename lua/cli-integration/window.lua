@@ -280,10 +280,9 @@ function M.create_terminal(cmd, opts)
 	terminal.job_id = job_id
 
 	-- List buffer in bufferline if configured (must be after termopen so buftype=terminal is set)
-	local win_opts_lb = opts.win or {}
-	if win_opts_lb.list_buffer then
+	if opts.win and opts.win.list_buffer then
 		vim.bo[buf].buflisted = true
-		pcall(vim.api.nvim_buf_set_name, buf, win_opts_lb.buffer_name)
+		pcall(vim.api.nvim_buf_set_name, buf, opts.win.buffer_name)
 	end
 
 	-- Setup terminal navigation keymaps (Ctrl+hjkl to navigate between windows)
@@ -559,6 +558,7 @@ function M.update_sidebar_geometry(float_win, is_expanded, should_focus)
 	end
 
 	local width, height, col, border, border_offset
+	-- row_offset is 0 by default so the expanded branch (which never writes it) always gets row=0
 	local row_offset = 0
 	local padding = data.padding or 0
 
