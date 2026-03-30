@@ -285,6 +285,13 @@ function M.create_terminal(cmd, opts)
 	vim.keymap.set("t", "<C-k>", [[<C-\><C-n><C-w>k]], keymap_opts)
 	vim.keymap.set("t", "<C-l>", [[<C-\><C-n><C-w>l]], keymap_opts)
 
+	-- Force insert mode on mouse click (if configured)
+	if opts.win and opts.win.start_insert_on_click then
+		local click_opts = { buffer = buf, noremap = true, silent = true }
+		vim.keymap.set("n", "<LeftMouse>",   "i", click_opts)
+		vim.keymap.set("n", "<2-LeftMouse>", "i", click_opts)
+	end
+
 	-- Auto-enter insert mode when entering terminal
 	vim.api.nvim_create_autocmd({ "BufEnter", "WinEnter" }, {
 		buffer = buf,
