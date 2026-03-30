@@ -17,7 +17,8 @@ local M = {}
 ---   width_config = number,
 ---   padding = number,
 ---   win_opts = table,
----   is_expanded = boolean
+---   is_expanded = boolean,
+---   list_buffer = boolean,
 --- }
 M.sidebars = {}
 
@@ -278,6 +279,13 @@ function M.create_terminal(cmd, opts)
 
 	terminal.job_id = job_id
 
+	-- List buffer in bufferline if configured (must be after termopen so buftype=terminal is set)
+	local win_opts_lb = opts.win or {}
+	if win_opts_lb.list_buffer then
+		vim.bo[buf].buflisted = true
+		pcall(vim.api.nvim_buf_set_name, buf, win_opts_lb.buffer_name)
+	end
+
 	-- Setup terminal navigation keymaps (Ctrl+hjkl to navigate between windows)
 	local keymap_opts = { buffer = buf, noremap = true, silent = true }
 	vim.keymap.set("t", "<C-h>", [[<C-\><C-n><C-w>h]], keymap_opts)
@@ -472,13 +480,14 @@ function M.create_sidebar_layout(buf, win_opts)
 
 	-- Step 3: Store sidebar configuration
 	M.sidebars[float_win] = {
-		split_win = split_win,
-		split_buf = split_buf,
+		split_win    = split_win,
+		split_buf    = split_buf,
 		terminal_buf = buf,
 		width_config = width_config,
-		win_opts = win_opts,
-		padding = padding,
-		is_expanded = false,
+		win_opts     = win_opts,
+		padding      = padding,
+		is_expanded  = false,
+		list_buffer  = win_opts.list_buffer or false,
 	}
 
 	-- Step 4: Update geometry to correct dimensions
@@ -550,6 +559,7 @@ function M.update_sidebar_geometry(float_win, is_expanded, should_focus)
 	end
 
 	local width, height, col, border, border_offset
+	local row_offset = 0
 	local padding = data.padding or 0
 
 	local term_buf = data.terminal_buf
@@ -608,6 +618,8 @@ function M.update_sidebar_geometry(float_win, is_expanded, should_focus)
 		local split_row, _ = unpack(vim.api.nvim_win_get_position(data.split_win))
 		local split_height = vim.api.nvim_win_get_height(data.split_win)
 		height = split_row + split_height - border_offset
+		row_offset = data.list_buffer and 1 or 0
+		height = height - row_offset
 		data.is_expanded = false
 	end
 
@@ -617,7 +629,7 @@ function M.update_sidebar_geometry(float_win, is_expanded, should_focus)
 		border = border,
 		width = width,
 		height = height,
-		row = 0,
+		row = row_offset,
 		col = col,
 	})
 
