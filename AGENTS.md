@@ -387,6 +387,11 @@ terminal_keys = {
 
 ## MODIFICATION_GUIDELINES
 
+### Documentation Sync (mandatory after any feature or change)
+After implementing any feature or change, always update both:
+1. **`AGENTS.md`**: architectural details, module responsibilities, config schema, pitfalls, FILE_MODIFICATION_HISTORY
+2. **`README.md`**: user-facing option tables (Global Options, Integration Options), examples if a new option or behavior was introduced
+
 ### When Adding Features
 1. **Respect buffer lock**: Never bypass BufWinEnter protection in window.lua
 2. **Maintain split proxy**: Keep split as navigation-only, no content
