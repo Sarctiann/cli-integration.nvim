@@ -419,3 +419,5 @@ After implementing any feature or change, always update both:
 - 2026-03-02: Created AGENTS.md for LLM context and project documentation
 - 2026-03-30: Added start_insert_on_click and list_buffer options (config.lua, terminal.lua, window.lua)
 - 2026-03-30: Fixed start_insert_on_click: clicks outside terminal window now correctly move focus to clicked window instead of staying in terminal and entering insert mode
+- 2026-04-09: Changed terminal_keys override behavior: per-section (terminal_mode/normal_mode) replacement with key-by-key merge within section
+- 2026-04-09: Fixed terminal_keys override timing issue: pass integration directly from autocmd closure to keymaps setup (TermOpen fires before M.buf_to_cli_cmd populated)

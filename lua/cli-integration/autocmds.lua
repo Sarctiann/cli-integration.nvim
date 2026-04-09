@@ -38,7 +38,9 @@ function M.setup(user_config)
 			group = cli_integration_group,
 			pattern = "term://*" .. vim.fn.escape(cli_cmd, "*") .. "*",
 			callback = function()
-				local ok, err = pcall(keymaps.setup_terminal_keymaps)
+				-- Pass integration directly: TermOpen fires before M.buf_to_cli_cmd is populated,
+				-- so setup_terminal_keymaps needs the integration from the closure.
+				local ok, err = pcall(keymaps.setup_terminal_keymaps, integration)
 				if not ok then
 					vim.notify(
 						"cli-integration.nvim: Error setting up keymaps for " .. cli_cmd .. ": " .. tostring(err),

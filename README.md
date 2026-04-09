@@ -439,11 +439,10 @@ require("cli-integration").setup({
       keep_open = true,  -- Keep terminal open after execution
       start_with_text = "Hello!\n",  -- Insert this text when terminal is ready
       cli_ready_flags = { search_for = "Ready>", from_line = 1, lines_amt = 10 },
-      terminal_keys = {  -- Override global terminal_keys
+      terminal_keys = {  -- Override global terminal_keys (per-section with key-by-key merge)
         terminal_mode = {
           submit = { "<C-s>" },
-          hide = { "<Esc>" },  -- Custom hide key for this integration
-          -- ... other keys inherit from global defaults
+          hide = { "<Esc>" },  -- Only this key is overridden; other terminal_mode keys inherit from global defaults
         },
         normal_mode = {
           hide = { "<Esc>", "q" },  -- Custom hide keys for this integration

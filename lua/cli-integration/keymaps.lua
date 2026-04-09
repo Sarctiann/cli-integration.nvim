@@ -18,8 +18,9 @@ local function set_keymaps(mode, keys, callback, opts)
 end
 
 --- Setup keymaps for the CLI tool terminal
+--- @param known_integration Cli-Integration.Integration|nil Integration passed directly from autocmd (avoids timing issues with TermOpen)
 --- @return nil
-function M.setup_terminal_keymaps()
+function M.setup_terminal_keymaps(known_integration)
 	local opts = { buffer = 0, silent = true, noremap = true }
 	local current_buf = vim.api.nvim_get_current_buf()
 
@@ -28,8 +29,9 @@ function M.setup_terminal_keymaps()
 		return
 	end
 
-	-- Get integration for current terminal buffer
-	local integration = terminal.get_integration_for_buf(current_buf)
+	-- Use the integration passed from the autocmd closure (reliable even during TermOpen,
+	-- when M.buf_to_cli_cmd may not yet be populated). Fall back to lookup for other callers.
+	local integration = known_integration or terminal.get_integration_for_buf(current_buf)
 
 	-- Get terminal keys and new_lines_amount from integration or fallback to global defaults
 	local keys = nil

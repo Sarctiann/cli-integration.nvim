@@ -198,6 +198,27 @@ function M.setup(config)
 				integration.terminal_keys = nil -- Will use global default
 			end
 
+			-- Build terminal_keys: per-section override with key-by-key merge
+			-- If integration defines terminal_keys, it replaces entire sub-section (terminal_mode or normal_mode)
+			-- but within each sub-section, only defined keys are overridden
+			local plugin_tkeys = M.options.terminal_keys
+			local int_tkeys = integration.terminal_keys
+			local final_tkeys = {}
+
+			-- terminal_mode: if integration defines it, merge with plugin; otherwise inherit
+			if int_tkeys and int_tkeys.terminal_mode then
+				final_tkeys.terminal_mode = vim.tbl_extend("force", plugin_tkeys.terminal_mode, int_tkeys.terminal_mode)
+			else
+				final_tkeys.terminal_mode = plugin_tkeys.terminal_mode
+			end
+
+			-- normal_mode: same logic
+			if int_tkeys and int_tkeys.normal_mode then
+				final_tkeys.normal_mode = vim.tbl_extend("force", plugin_tkeys.normal_mode, int_tkeys.normal_mode)
+			else
+				final_tkeys.normal_mode = plugin_tkeys.normal_mode
+			end
+
 			-- Start with global defaults
 			local default_integration = {
 				show_help_on_open = M.options.show_help_on_open,
@@ -213,10 +234,15 @@ function M.setup(config)
 					from_line = 1,
 					lines_amt = 5,
 				},
-				terminal_keys = M.options.terminal_keys,
+				terminal_keys = final_tkeys,
 			}
 			-- Apply integration-specific config (which may override defaults)
-			M.options.integrations[i] = vim.tbl_deep_extend("force", default_integration, integration)
+			-- Note: terminal_keys handled separately above, so exclude it from deep extend
+			local integration_without_tkeys = vim.deepcopy(integration)
+			integration_without_tkeys.terminal_keys = nil
+			M.options.integrations[i] = vim.tbl_deep_extend("force", default_integration, integration_without_tkeys)
+			-- Restore terminal_keys (already properly merged above)
+			M.options.integrations[i].terminal_keys = final_tkeys
 
 			::continue::
 		end
