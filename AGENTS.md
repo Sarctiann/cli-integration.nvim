@@ -79,8 +79,8 @@
 ### lua/cli-integration/terminal.lua
 **Responsibility**: Terminal state management and text insertion
 **Key Data Structures**:
-- `M.terminals`: Table mapping cli_cmd → {cli_term, term_buf, working_dir, current_file, is_expanded, integration}
-- `M.buf_to_cli_cmd`: Reverse index for fast lookup (term_buf → cli_cmd)
+- `M.terminals`: Table mapping integration.name → {cli_term, term_buf, working_dir, current_file, is_expanded, integration}
+- `M.buf_to_name`: Reverse index for fast lookup (term_buf → integration.name)
 **Key Functions**:
 - `M.open_terminal(integration, args, keep_open, working_dir, visual_text)`: Creates or toggles terminal
 - `M.insert_text(text, term_buf)`: Sends text to terminal via chansend
@@ -95,7 +95,7 @@
 - `start_with_text`: Can be string or function(visual_text) → string
 - Visual text priority: visual_text overrides start_with_text string
 - Toggle behavior: If terminal exists and valid, toggles visibility; otherwise creates new
-- Cleanup: on_close callback removes from M.terminals and M.buf_to_cli_cmd
+- Cleanup: on_close callback removes from M.terminals and M.buf_to_name
 
 
 
@@ -134,11 +134,13 @@
 **Key Functions**:
 - `M.setup(user_config)`: Creates autocommands for each integration
 **Critical Details**:
-- Creates two augroups: "CLI-Integration" (keymaps), "CLI-Integration-Opens" (help)
-- Pattern matching: `term://*<cli_cmd>*` (escapes special chars)
-- TermOpen + TermEnter: Calls keymaps.setup_terminal_keymaps() with error handling
-- TermOpen (if show_help_on_open): Calls help.show_quick_help() with error handling
-- Validates cli_cmd length ≥ 2 characters
+- Creates two augroups: "CLI-Integration" (keymaps) and "CLI-Integration-Opens" (help)
+- Terminal identification: reads `b:cli_integration_name` buffer variable (set before termopen) instead of pattern matching
+- Uses `integrations_by_name` lookup table for O(1) integration resolution
+- TermOpen + TermEnter: Calls keymaps.setup_terminal_keymaps() with error handling; uses `args.buf` for reliable buffer identity
+- TermOpen (if show_help_on_open): Calls help.show_quick_help() with error handling; uses `args.buf`
+- Pattern: `term://*` (catches all terminals, then filters by buffer variable)
+- Buffer name `[integration.name]` is always applied after termopen (not only when list_buffer=true)
 
 ### lua/cli-integration/buffers.lua
 **Responsibility**: Buffer path collection and filtering
@@ -261,8 +263,10 @@ terminal_keys = {
 3. terminal.open_terminal() → window.create_terminal()
 4. window.create_terminal():
    - Creates terminal buffer (bufhidden=hide, buflisted=false)
+   - Sets `b:cli_integration_name` buffer variable BEFORE termopen/jobstart
    - Calls create_sidebar_layout() or create_float_window()
    - Starts terminal job (jobstart/termopen)
+   - Re-applies buffer name with `nvim_buf_set_name` AFTER termopen (Neovim overwrites it)
    - Sets up navigation keymaps (<C-h/j/k/l>)
    - Sets up BufWinEnter protection autocmd
    - Sets up auto-insert autocmd
@@ -304,12 +308,12 @@ terminal_keys = {
 2. keymaps.lua calls terminal.toggle_width(term_buf)
 3. terminal.toggle_width():
    - Finds terminal window from term_buf
-   - Gets current is_expanded state from M.terminals[cli_cmd]
+   - Gets current is_expanded state from M.terminals[name]
    - Calls window.update_sidebar_geometry(term_win, !is_expanded, true)
 4. M.update_sidebar_geometry():
    - If expanding: Closes split, sets float to full width with rounded border
    - If restoring: Recreates split, syncs dimensions, restores configured border
-5. Updates is_expanded state in M.terminals[cli_cmd]
+5. Updates is_expanded state in M.terminals[name]
 6. Result: Terminal toggles between sidebar and fullwidth modes
 
 ## TESTING_CRITICAL_PATHS
@@ -369,8 +373,8 @@ terminal_keys = {
 - Neovim 0.11+: Uses jobstart() instead of termopen()
 
 ## PERFORMANCE_CONSIDERATIONS
-- M.buf_to_cli_cmd: O(1) lookup for terminal buffer → cli_cmd
-- M.terminals: O(1) lookup for cli_cmd → terminal data
+- M.buf_to_name: O(1) lookup for terminal buffer → integration.name
+- M.terminals: O(1) lookup for integration.name → terminal data
 - M.sidebars: O(n) iteration on resize (n = number of open terminals)
 - Ready detection: Polls every 300ms, max 20 tries (6 seconds timeout)
 - Buffer path collection: O(n) where n = number of open buffers
@@ -383,7 +387,7 @@ terminal_keys = {
 5. **Keymap arrays**: All terminal_keys values must be arrays, not strings
 6. **Integration name spaces**: Remember underscore ↔ space normalization for autocompletion
 7. **Width calculation**: Remember percentage (1-100) vs absolute (>100) distinction
-8. **Cleanup**: Always remove from M.terminals, M.buf_to_cli_cmd, M.sidebars on close
+8. **Cleanup**: Always remove from M.terminals, M.buf_to_name, M.sidebars on close
 9. **list_buffer name collision**: If two integrations share the same `name` and both have `list_buffer=true`, the second `nvim_buf_set_name` call silently fails (pcall). The second buffer stays listed but with a raw `term://...` name. Integration names should be unique.
 
 ## MODIFICATION_GUIDELINES
@@ -402,7 +406,7 @@ After implementing any feature or change, always update both:
 
 ### When Fixing Bugs
 1. **Check autocmds first**: Most issues are autocmd timing or condition problems
-2. **Verify state tables**: M.sidebars, M.terminals, M.buf_to_cli_cmd must stay consistent
+2. **Verify state tables**: M.sidebars, M.terminals, M.buf_to_name must stay consistent
 3. **Test all modes**: Sidebar, fullwidth, float modes must all work
 4. **Test edge cases**: Multiple terminals, rapid toggling, editor resize during operations
 5. **Check error handling**: All vim.api calls should use pcall() where appropriate
@@ -421,3 +425,4 @@ After implementing any feature or change, always update both:
 - 2026-03-30: Fixed start_insert_on_click: clicks outside terminal window now correctly move focus to clicked window instead of staying in terminal and entering insert mode
 - 2026-04-09: Changed terminal_keys override behavior: per-section (terminal_mode/normal_mode) replacement with key-by-key merge within section
 - 2026-04-09: Fixed terminal_keys override timing issue: pass integration directly from autocmd closure to keymaps setup (TermOpen fires before M.buf_to_cli_cmd populated)
+- 2026-04-19: Reindexed terminals by integration.name instead of cli_cmd; autocmds use b:cli_integration_name buffer variable instead of pattern matching; buf_to_cli_cmd renamed to buf_to_name; updated hooks.lua, terminal.lua, window.lua, autocmds.lua, keymaps.lua

@@ -38,17 +38,15 @@ function M.insert_current_path_or_explain_selection(prefix, suffix)
 			return prefix .. visual_text .. suffix
 		end
 
-		-- Try to get current_file from the active terminal (avoids getting terminal buffer path)
+		-- Look up terminal data directly by integration name (reliable regardless of current focus)
 		local terminal = require("cli-integration.terminal")
-		local current_buf = vim.api.nvim_get_current_buf()
-		local cli_cmd = terminal.buf_to_cli_cmd and terminal.buf_to_cli_cmd[current_buf]
-		local term_data = cli_cmd and terminal.terminals[cli_cmd]
+		local term_data = integration and integration.name and terminal.terminals[integration.name]
 
 		local relative_path
 		if term_data and term_data.current_file then
 			relative_path = term_data.current_file
 		else
-			-- Fallback: not a terminal buffer, use current buffer path
+			-- Fallback: terminal not found, use current buffer path
 			local current_file_abs = vim.fn.expand("%:p")
 			local workspace = M.get_current_workspace()
 			relative_path = vim.fs.relpath(workspace, current_file_abs)

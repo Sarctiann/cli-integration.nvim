@@ -30,7 +30,7 @@ function M.setup_terminal_keymaps(known_integration)
 	end
 
 	-- Use the integration passed from the autocmd closure (reliable even during TermOpen,
-	-- when M.buf_to_cli_cmd may not yet be populated). Fall back to lookup for other callers.
+	-- when M.buf_to_name may not yet be populated). Fall back to lookup for other callers.
 	local integration = known_integration or terminal.get_integration_for_buf(current_buf)
 
 	-- Get terminal keys and new_lines_amount from integration or fallback to global defaults
@@ -53,9 +53,9 @@ function M.setup_terminal_keymaps(known_integration)
 	-- Get terminal data for current file and working dir
 	-- Use index for faster lookup if available
 	local term_data = nil
-	local cli_cmd = terminal.buf_to_cli_cmd and terminal.buf_to_cli_cmd[current_buf]
-	if cli_cmd and terminal.terminals[cli_cmd] then
-		term_data = terminal.terminals[cli_cmd]
+	local name = terminal.buf_to_name and terminal.buf_to_name[current_buf]
+	if name and terminal.terminals[name] then
+		term_data = terminal.terminals[name]
 	else
 		-- Fallback to linear search
 		for _, data in pairs(terminal.terminals) do

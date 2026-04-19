@@ -16,58 +16,70 @@ function M.setup(user_config)
 	local cli_integration_group = vim.api.nvim_create_augroup("CLI-Integration", { clear = true })
 	local cli_integration_opens_group = vim.api.nvim_create_augroup("CLI-Integration-Opens", { clear = true })
 
-	-- Setup autocommands for each integration
+	-- Build a lookup table: integration name -> integration config
+	local integrations_by_name = {}
 	for _, integration in ipairs(integrations) do
-		local cli_cmd = integration.cli_cmd or ""
-		if cli_cmd == "" or type(cli_cmd) ~= "string" then
-			goto continue
+		if integration.name and integration.name ~= "" then
+			integrations_by_name[integration.name] = integration
 		end
+	end
 
-		-- Validate cli_cmd is not too short to avoid false matches
-		if #cli_cmd < 2 then
-			vim.notify(
-				"cli-integration.nvim: cli_cmd '" .. cli_cmd .. "' is too short (minimum 2 characters recommended)",
-				vim.log.levels.WARN
-			)
-		end
+	-- Use a single TermOpen/TermEnter autocmd that checks the buffer variable
+	-- b:cli_integration_name to identify which integration this terminal belongs to.
+	-- This avoids pattern matching on buffer names (which Neovim overwrites during termopen).
+	vim.api.nvim_create_autocmd({ "TermOpen", "TermEnter" }, {
+		group = cli_integration_group,
+		pattern = "*",
+		callback = function(args)
+			local buf = args.buf
+			local ok_var, integration_name = pcall(vim.api.nvim_buf_get_var, buf, "cli_integration_name")
+			if not ok_var or not integration_name then
+				return
+			end
 
-		-- Setup keymaps when terminal opens or is entered
-		-- Pattern matches any terminal with the CLI command name
-		-- Wrap callback in error handler
-		vim.api.nvim_create_autocmd({ "TermOpen", "TermEnter" }, {
-			group = cli_integration_group,
-			pattern = "term://*" .. vim.fn.escape(cli_cmd, "*") .. "*",
-			callback = function()
-				-- Pass integration directly: TermOpen fires before M.buf_to_cli_cmd is populated,
-				-- so setup_terminal_keymaps needs the integration from the closure.
+			local integration = integrations_by_name[integration_name]
+			if integration then
 				local ok, err = pcall(keymaps.setup_terminal_keymaps, integration)
 				if not ok then
 					vim.notify(
-						"cli-integration.nvim: Error setting up keymaps for " .. cli_cmd .. ": " .. tostring(err),
+						"cli-integration.nvim: Error setting up keymaps for " .. integration_name .. ": " .. tostring(err),
 						vim.log.levels.ERROR
 					)
 				end
-			end,
-		})
+			end
+		end,
+	})
 
-		-- Show help notification when opening the terminal
-		if integration.show_help_on_open then
-			vim.api.nvim_create_autocmd("TermOpen", {
-				group = cli_integration_opens_group,
-				pattern = "term://*" .. vim.fn.escape(cli_cmd, "*") .. "*",
-				callback = function()
+	-- Collect names that need help on open
+	local help_names = {}
+	for _, integration in ipairs(integrations) do
+		if integration.show_help_on_open and integration.name then
+			help_names[integration.name] = true
+		end
+	end
+
+	if next(help_names) then
+		vim.api.nvim_create_autocmd("TermOpen", {
+			group = cli_integration_opens_group,
+			pattern = "*",
+			callback = function(args)
+				local buf = args.buf
+				local ok_var, integration_name = pcall(vim.api.nvim_buf_get_var, buf, "cli_integration_name")
+				if not ok_var or not integration_name then
+					return
+				end
+
+				if help_names[integration_name] then
 					local ok, err = pcall(help.show_quick_help)
 					if not ok then
 						vim.notify(
-							"cli-integration.nvim: Error showing help for " .. cli_cmd .. ": " .. tostring(err),
+							"cli-integration.nvim: Error showing help for " .. integration_name .. ": " .. tostring(err),
 							vim.log.levels.ERROR
 						)
 					end
-				end,
-			})
-		end
-
-		::continue::
+				end
+			end,
+		})
 	end
 end
 

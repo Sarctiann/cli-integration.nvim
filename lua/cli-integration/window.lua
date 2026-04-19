@@ -159,6 +159,12 @@ function M.create_terminal(cmd, opts)
 	vim.bo[buf].bufhidden = "hide"
 	vim.bo[buf].buflisted = false
 
+	-- Set buffer variable for integration identification BEFORE termopen/jobstart
+	-- so TermOpen autocmds can identify which integration this terminal belongs to.
+	if win_opts.integration_name and win_opts.integration_name ~= "" then
+		vim.api.nvim_buf_set_var(buf, "cli_integration_name", win_opts.integration_name)
+	end
+
 	-- Create window based on position
 	local is_float = win_opts.position == "float"
 	local win
@@ -282,7 +288,11 @@ function M.create_terminal(cmd, opts)
 	-- List buffer in bufferline if configured (must be after termopen so buftype=terminal is set)
 	if opts.win and opts.win.list_buffer then
 		vim.bo[buf].buflisted = true
-		pcall(vim.api.nvim_buf_set_name, buf, opts.win.buffer_name)
+	end
+
+	-- Set/re-apply buffer name after termopen/jobstart (Neovim overwrites with term://...)
+	if win_opts.buffer_name and win_opts.buffer_name ~= "" then
+		pcall(vim.api.nvim_buf_set_name, buf, win_opts.buffer_name)
 	end
 
 	-- Setup terminal navigation keymaps (Ctrl+hjkl to navigate between windows)

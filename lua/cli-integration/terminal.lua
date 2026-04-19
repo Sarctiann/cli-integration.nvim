@@ -2,12 +2,12 @@
 local M = {}
 local window = require("cli-integration.window")
 
--- Terminals storage: indexed by cli_cmd
+-- Terminals storage: indexed by integration name
 -- Each entry contains: { cli_term, term_buf, working_dir, current_file, is_expanded, integration }
 M.terminals = {}
 
--- Index for fast lookup: term_buf -> cli_cmd
-M.buf_to_cli_cmd = {}
+-- Index for fast lookup: term_buf -> integration name
+M.buf_to_name = {}
 
 --- Insert text into the terminal
 --- @param text string The text to insert
@@ -43,9 +43,9 @@ function M.get_integration_for_buf(term_buf)
 		return nil
 	end
 
-	local cli_cmd = M.buf_to_cli_cmd[term_buf]
-	if cli_cmd and M.terminals[cli_cmd] then
-		return M.terminals[cli_cmd].integration
+	local name = M.buf_to_name[term_buf]
+	if name and M.terminals[name] then
+		return M.terminals[name].integration
 	end
 
 	return nil
@@ -176,6 +176,7 @@ end
 --- @return nil
 local function create_new_terminal(integration, args, keep_open, working_dir, visual_text)
 	local cli_cmd = integration.cli_cmd
+	local name = integration.name
 	local cmd = args and " " .. args or ""
 	local current_file_abs = vim.fn.expand("%:p")
 	local base_dir = working_dir or vim.fn.getcwd()
@@ -188,7 +189,7 @@ local function create_new_terminal(integration, args, keep_open, working_dir, vi
 	if integration.on_open then
 		local ok, err = pcall(integration.on_open, integration, base_dir)
 		if not ok then
-			vim.notify("cli-integration.nvim: on_open hook failed for '" .. cli_cmd .. "': " .. tostring(err), vim.log.levels.WARN)
+			vim.notify("cli-integration.nvim: on_open hook failed for '" .. name .. "': " .. tostring(err), vim.log.levels.WARN)
 		end
 	end
 
@@ -196,25 +197,26 @@ local function create_new_terminal(integration, args, keep_open, working_dir, vi
 		interactive = true,
 		cwd = base_dir,
 		win = {
-			title = " " .. integration.name .. " ",
+			title = " " .. name .. " ",
 			position = integration.floating and "float" or "right",
 			min_width = integration.floating and nil or integration.window_width,
 			padding = integration.window_padding or 0,
 			border = integration.border,
 			start_insert_on_click = integration.start_insert_on_click,
 			list_buffer = integration.list_buffer,
-			buffer_name = "[" .. integration.name .. "]",
+			buffer_name = "[" .. name .. "]",
+			integration_name = name,
 			on_close = function()
-				local stored_data = M.terminals[cli_cmd]
-				M.terminals[cli_cmd] = nil
+				local stored_data = M.terminals[name]
+				M.terminals[name] = nil
 				if stored_data and stored_data.term_buf then
-					M.buf_to_cli_cmd[stored_data.term_buf] = nil
+					M.buf_to_name[stored_data.term_buf] = nil
 				end
 				-- Run post-exit hook if configured
 				if integration.on_close then
 					local ok, err = pcall(integration.on_close, integration, base_dir)
 					if not ok then
-						vim.notify("cli-integration.nvim: on_close hook failed for '" .. cli_cmd .. "': " .. tostring(err), vim.log.levels.WARN)
+						vim.notify("cli-integration.nvim: on_close hook failed for '" .. name .. "': " .. tostring(err), vim.log.levels.WARN)
 					end
 				end
 			end,
@@ -224,18 +226,18 @@ local function create_new_terminal(integration, args, keep_open, working_dir, vi
 	})
 
 	if not cli_term then
-		vim.notify("cli-integration.nvim: Failed to create terminal for " .. cli_cmd, vim.log.levels.ERROR)
+		vim.notify("cli-integration.nvim: Failed to create terminal for " .. name, vim.log.levels.ERROR)
 		return
 	end
 
 	local term_buf = cli_term.buf
 	if not term_buf then
-		vim.notify("cli-integration.nvim: Terminal buffer not available for " .. cli_cmd, vim.log.levels.ERROR)
+		vim.notify("cli-integration.nvim: Terminal buffer not available for " .. name, vim.log.levels.ERROR)
 		return
 	end
 
 	-- Store terminal data
-	M.terminals[cli_cmd] = {
+	M.terminals[name] = {
 		cli_term = cli_term,
 		term_buf = term_buf,
 		working_dir = base_dir,
@@ -245,7 +247,7 @@ local function create_new_terminal(integration, args, keep_open, working_dir, vi
 	}
 
 	-- Update index for fast lookup
-	M.buf_to_cli_cmd[term_buf] = cli_cmd
+	M.buf_to_name[term_buf] = name
 
 	-- Attach text if new terminal (only if visual_text or start_with_text is set)
 	local start_with_text = integration.start_with_text
@@ -270,8 +272,8 @@ function M.open_terminal(integration, args, keep_open, working_dir, visual_text)
 		return
 	end
 
-	local cli_cmd = integration.cli_cmd
-	local term_data = M.terminals[cli_cmd]
+	local name = integration.name
+	local term_data = M.terminals[name]
 
 	-- Toggle if terminal already exists and is valid
 	if term_data and term_data.cli_term and term_data.cli_term.toggle then
@@ -280,9 +282,9 @@ function M.open_terminal(integration, args, keep_open, working_dir, visual_text)
 			return
 		else
 			-- Terminal buffer is invalid, clean it up
-			M.terminals[cli_cmd] = nil
+			M.terminals[name] = nil
 			if term_data.term_buf then
-				M.buf_to_cli_cmd[term_data.term_buf] = nil
+				M.buf_to_name[term_data.term_buf] = nil
 			end
 		end
 	end
@@ -308,8 +310,8 @@ function M.toggle_width(term_buf)
 		return
 	end
 
-	local cli_cmd = M.buf_to_cli_cmd[term_buf]
-	local term_data = cli_cmd and M.terminals[cli_cmd]
+	local name = M.buf_to_name[term_buf]
+	local term_data = name and M.terminals[name]
 
 	if not term_data then
 		return
@@ -383,8 +385,8 @@ function M.hide_terminal(term_buf)
 		return
 	end
 
-	local cli_cmd = M.buf_to_cli_cmd[term_buf]
-	local term_data = cli_cmd and M.terminals[cli_cmd]
+	local name = M.buf_to_name[term_buf]
+	local term_data = name and M.terminals[name]
 
 	if not term_data or not term_data.cli_term then
 		return
@@ -413,8 +415,8 @@ function M.close_terminal(term_buf)
 		return
 	end
 
-	local cli_cmd = M.buf_to_cli_cmd[term_buf]
-	local term_data = cli_cmd and M.terminals[cli_cmd]
+	local name = M.buf_to_name[term_buf]
+	local term_data = name and M.terminals[name]
 
 	if not term_data or not term_data.cli_term then
 		-- If we don't have term_data, just try to close the window and delete the buffer
@@ -468,8 +470,8 @@ function M.close_terminal(term_buf)
 	end
 
 	-- Clean up terminal data (the on_close callback should handle this, but just in case)
-	M.terminals[cli_cmd] = nil
-	M.buf_to_cli_cmd[term_buf] = nil
+	M.terminals[name] = nil
+	M.buf_to_name[term_buf] = nil
 end
 
 return M
