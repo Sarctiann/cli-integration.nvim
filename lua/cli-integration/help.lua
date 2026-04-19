@@ -59,17 +59,13 @@ local function generate_help_text()
 	-- Get integration for current terminal buffer
 	local integration = terminal.get_integration_for_buf(current_buf)
 
-	-- Get terminal keys and cli_cmd from integration or fallback to global defaults
 	local keys = nil
-	local cli_cmd = "CLI Tool"
 
 	if integration and integration.terminal_keys then
 		keys = integration.terminal_keys
-		cli_cmd = integration.cli_cmd or "CLI Tool"
 	else
 		-- Fallback to global defaults
 		keys = config.options.terminal_keys
-		cli_cmd = "CLI Tool"
 	end
 
 	if not keys or not keys.terminal_mode or not keys.normal_mode then
@@ -128,24 +124,6 @@ local function generate_help_text()
 		end
 	end
 	table.insert(lines, "")
-
-	-- CLI tool commands section
-	table.insert(lines, cli_cmd .. " commands:")
-	local cmd_entries = {
-		{ key_str = "quit | exit", description = "(<CR>) Close " .. cli_cmd },
-		{ separator = true },
-		{ key_str = "/", description = "Show command list" },
-		{ key_str = "@", description = "Show file list to attach" },
-		{ key_str = "!", description = "To run in the shell" },
-	}
-	local cmd_key_width = get_max_key_width(cmd_entries)
-	for _, entry in ipairs(cmd_entries) do
-		if entry.separator then
-			table.insert(lines, "    ---")
-		else
-			table.insert(lines, format_help_line(entry.key_str, entry.description, cmd_key_width))
-		end
-	end
 
 	return table.concat(lines, "\n")
 end
