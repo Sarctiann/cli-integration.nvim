@@ -389,6 +389,7 @@ terminal_keys = {
 7. **Width calculation**: Remember percentage (1-100) vs absolute (>100) distinction
 8. **Cleanup**: Always remove from M.terminals, M.buf_to_name, M.sidebars on close
 9. **list_buffer name collision**: If two integrations share the same `name` and both have `list_buffer=true`, the second `nvim_buf_set_name` call silently fails (pcall). The second buffer stays listed but with a raw `term://...` name. Integration names should be unique.
+10. **Terminal dimensions at job start**: Always calculate COLUMNS/LINES using calculate_content_dimensions() AFTER the window geometry is final. Reading win width/height before update_sidebar_geometry() runs will give provisional values (e.g. height=10) and cause TUI apps to render with garbage characters.
 
 ## MODIFICATION_GUIDELINES
 
@@ -426,3 +427,4 @@ After implementing any feature or change, always update both:
 - 2026-04-09: Changed terminal_keys override behavior: per-section (terminal_mode/normal_mode) replacement with key-by-key merge within section
 - 2026-04-09: Fixed terminal_keys override timing issue: pass integration directly from autocmd closure to keymaps setup (TermOpen fires before M.buf_to_cli_cmd populated)
 - 2026-04-19: Reindexed terminals by integration.name instead of cli_cmd; autocmds use b:cli_integration_name buffer variable instead of pattern matching; buf_to_cli_cmd renamed to buf_to_name; updated hooks.lua, terminal.lua, window.lua, autocmds.lua, keymaps.lua
+- 2026-04-24: Fixed TUI garbage characters: job now starts after final geometry is established; COLUMNS/LINES calculated via calculate_content_dimensions() subtracting border_offset (0 or 2), padding*2, and list_buffer row_offset.

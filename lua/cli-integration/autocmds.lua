@@ -42,7 +42,10 @@ function M.setup(user_config)
 				local ok, err = pcall(keymaps.setup_terminal_keymaps, integration)
 				if not ok then
 					vim.notify(
-						"cli-integration.nvim: Error setting up keymaps for " .. integration_name .. ": " .. tostring(err),
+						"cli-integration.nvim: Error setting up keymaps for "
+							.. integration_name
+							.. ": "
+							.. tostring(err),
 						vim.log.levels.ERROR
 					)
 				end
@@ -70,13 +73,20 @@ function M.setup(user_config)
 				end
 
 				if help_names[integration_name] then
-					local ok, err = pcall(help.show_quick_help)
-					if not ok then
-						vim.notify(
-							"cli-integration.nvim: Error showing help for " .. integration_name .. ": " .. tostring(err),
-							vim.log.levels.ERROR
-						)
-					end
+					-- Delay quick help slightly so the terminal has time to initialize
+					-- and won't have its early output interfered by UI notifications.
+					vim.defer_fn(function()
+						local ok, err = pcall(help.show_quick_help)
+						if not ok then
+							vim.notify(
+								"cli-integration.nvim: Error showing help for "
+									.. integration_name
+									.. ": "
+									.. tostring(err),
+								vim.log.levels.ERROR
+							)
+						end
+					end, 300)
 				end
 			end,
 		})

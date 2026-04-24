@@ -40,6 +40,29 @@ local function calculate_width(width_config)
 	return width_config
 end
 
+--- Calculate the usable content dimensions of a terminal window,
+--- subtracting border cells, padding, and optional list_buffer row offset.
+--- @param win number Window handle (must be valid and sized)
+--- @param border string|table Border style ("none"|"single"|"double"|"rounded"|"solid"|"shadow") or 8-element array
+--- @param padding number Horizontal padding in columns (foldcolumn)
+--- @param list_buffer boolean Whether the list_buffer row offset is active
+--- @return number cols  Usable columns (COLUMNS env var)
+--- @return number lines Usable lines  (LINES env var)
+local function calculate_content_dimensions(win, border, padding, list_buffer)
+	local w = vim.api.nvim_win_get_width(win)
+	local h = vim.api.nvim_win_get_height(win)
+	local border_offset
+	if type(border) == "table" then
+		border_offset = (#border > 0) and 2 or 0
+	else
+		border_offset = (border == nil or border == "none" or border == "") and 0 or 2
+	end
+	local row_offset = (list_buffer == true) and 1 or 0
+	local cols  = math.max(1, w - border_offset - (padding * 2))
+	local lines = math.max(1, h - border_offset - row_offset)
+	return cols, lines
+end
+
 --- Create a proxy split window (no buffer, just for navigation)
 --- @param width number Width of the split
 --- @param float_win number Associated floating window
@@ -202,11 +225,14 @@ function M.create_terminal(cmd, opts)
 		M.toggle_terminal(terminal)
 	end
 
-	-- Calculate terminal dimensions
-	local win_width = vim.api.nvim_win_get_width(win)
-	local win_height = vim.api.nvim_win_get_height(win)
+	-- Read final content dimensions AFTER geometry is established.
+	-- create_sidebar_layout calls update_sidebar_geometry before returning, so
+	-- win dimensions are correct here. Using calculate_content_dimensions ensures
+	-- we subtract border cells, padding, and list_buffer row offset.
 	local padding = win_opts.padding or 0
-	local effective_width = win_width - (padding * 2)
+	local border  = win_opts.border or (is_float and "rounded" or "none")
+	local list_buf_flag = win_opts.list_buffer or false
+	local cols, lines = calculate_content_dimensions(win, border, padding, list_buf_flag)
 
 	-- Start terminal job
 	local job_id
@@ -216,10 +242,16 @@ function M.create_terminal(cmd, opts)
 			vim.cmd("lcd " .. vim.fn.fnameescape(cwd))
 		end
 
-		local env = vim.tbl_extend("force", opts.env or {}, {
-			COLUMNS = tostring(effective_width),
-			LINES = tostring(win_height),
-		})
+        -- Ensure TERM and related env vars are set so TUI apps interpret
+        -- escape sequences correctly. Respect user-provided opts.env.
+        local default_term = vim.env.TERM or "xterm-256color"
+        local default_colorterm = vim.env.COLORTERM or "truecolor"
+        local env = vim.tbl_extend("force", opts.env or {}, {
+            COLUMNS = tostring(cols),
+            LINES   = tostring(lines),
+            TERM = opts.env and opts.env.TERM or default_term,
+            COLORTERM = opts.env and opts.env.COLORTERM or default_colorterm,
+        })
 
 		local use_jobstart = vim.fn.has("nvim-0.11") == 1
 		local job_opts = {
@@ -283,7 +315,7 @@ function M.create_terminal(cmd, opts)
 		return nil
 	end
 
-	terminal.job_id = job_id
+    terminal.job_id = job_id
 
 	-- List buffer in bufferline if configured (must be after termopen so buftype=terminal is set)
 	if opts.win and opts.win.list_buffer then
