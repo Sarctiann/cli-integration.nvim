@@ -22,6 +22,62 @@ local M = {}
 --- }
 M.sidebars = {}
 
+--- Helper predicates for window classification
+
+--- Check if a window is a sidebar proxy split (navigation-only, no content)
+--- @param win number Window handle
+--- @return boolean
+local function is_sidebar_split_win(win)
+	for _, data in pairs(M.sidebars) do
+		if data.split_win == win then
+			return true
+		end
+	end
+	return false
+end
+
+--- Find sidebar float by terminal buffer
+--- @param term_buf number Terminal buffer
+--- @return number|nil float_win or nil if not found
+local function find_sidebar_float_by_term_buf(term_buf)
+	for float_win, data in pairs(M.sidebars) do
+		if data.terminal_buf == term_buf then
+			return float_win
+		end
+	end
+	return nil
+end
+
+--- Check if a window is an integration float window for a given terminal buffer
+--- @param win number Window handle
+--- @param term_buf number Terminal buffer
+--- @return boolean
+local function is_integration_float_win(win, term_buf)
+	local data = M.sidebars[win]
+	return data ~= nil and data.terminal_buf == term_buf
+end
+
+--- Check if a window is an integration proxy split for a given terminal buffer
+--- @param win number Window handle
+--- @param term_buf number Terminal buffer
+--- @return boolean
+local function is_integration_proxy_split(win, term_buf)
+	local float_win = find_sidebar_float_by_term_buf(term_buf)
+	if float_win then
+		local data = M.sidebars[float_win]
+		return data ~= nil and data.split_win == win
+	end
+	return false
+end
+
+--- Check if a window is any integration window (float or proxy split) for a given terminal buffer
+--- @param win number Window handle
+--- @param term_buf number Terminal buffer
+--- @return boolean
+local function is_integration_window(win, term_buf)
+	return is_integration_float_win(win, term_buf) or is_integration_proxy_split(win, term_buf)
+end
+
 --- Track if resize autocmd is setup
 M.resized_autocmd_setup = false
 
@@ -342,7 +398,9 @@ function M.create_terminal(cmd, opts)
 		local click_opts = { buffer = buf, noremap = true, silent = true, expr = true }
 		local click_fn = function()
 			local mouse_pos = vim.fn.getmousepos()
-			if mouse_pos.winid == vim.api.nvim_get_current_win() then
+			local current_win = vim.api.nvim_get_current_win()
+			-- Enter insert only if click is inside current window AND current window is integration window for this buf
+			if mouse_pos.winid == current_win and is_integration_window(current_win, buf) then
 				return "i"
 			else
 				return "<LeftMouse>"
@@ -367,6 +425,8 @@ function M.create_terminal(cmd, opts)
 	-- This ensures the terminal window ONLY shows the terminal buffer.
 	-- NOTE: `win` can become stale after a toggle (create_sidebar_layout creates a new float ID),
 	-- so we also check M.sidebars dynamically for the current window.
+	-- Also handles list_buffer edge case: if integration window is hidden and user selects buffer
+	-- from bufferline, allow load in regular window without forcing insert mode.
 	vim.api.nvim_create_autocmd("BufWinEnter", {
 		callback = function(args)
 			if args.buf == buf then
@@ -378,79 +438,89 @@ function M.create_terminal(cmd, opts)
 			local is_our_win = current_win == win
 				or (sidebar_data ~= nil and sidebar_data.terminal_buf == buf)
 
-			if not is_our_win then
-				return
-			end
+			-- Case 1: current_win is integration window and different buffer loaded
+			if is_our_win then
+				vim.schedule(function()
+					if not vim.api.nvim_win_is_valid(current_win) or not vim.api.nvim_buf_is_valid(buf) then
+						return
+					end
 
-			vim.schedule(function()
-				if not vim.api.nvim_win_is_valid(current_win) or not vim.api.nvim_buf_is_valid(buf) then
-					return
-				end
+					-- Restore the terminal buffer
+					pcall(vim.api.nvim_win_set_buf, current_win, buf)
 
-				-- Restore the terminal buffer
-				pcall(vim.api.nvim_win_set_buf, current_win, buf)
-
-				-- Find a window to redirect the new buffer to.
-				-- Priority: normal file window > any non-terminal/nofile window > new split.
-				local target_win = nil
-				local fallback_win = nil
-				for _, w in ipairs(vim.api.nvim_list_wins()) do
-					if w ~= current_win and vim.api.nvim_win_is_valid(w) then
-						local b = vim.api.nvim_win_get_buf(w)
-						local bt = vim.bo[b].buftype
-						local is_split = false
-						for _, sd in pairs(M.sidebars) do
-							if sd.split_win == w then
-								is_split = true
-								break
-							end
-						end
-						if not is_split then
-							if bt == "" then
-								target_win = w
-								break
-							elseif not fallback_win and bt ~= "terminal" and bt ~= "nofile" then
-								fallback_win = w
+					-- Find a window to redirect the new buffer to.
+					-- Priority: normal file window > any non-terminal/nofile window > new split.
+					-- Skip sidebar proxy splits using is_sidebar_split_win.
+					local target_win = nil
+					local fallback_win = nil
+					for _, w in ipairs(vim.api.nvim_list_wins()) do
+						if w ~= current_win and vim.api.nvim_win_is_valid(w) then
+							local b = vim.api.nvim_win_get_buf(w)
+							local bt = vim.bo[b].buftype
+							if not is_sidebar_split_win(w) then
+								if bt == "" then
+									target_win = w
+									break
+								elseif not fallback_win and bt ~= "terminal" and bt ~= "nofile" then
+									fallback_win = w
+								end
 							end
 						end
 					end
-				end
 
-				local dest = target_win or fallback_win
-				if not dest then
-					-- Last resort: open a new split to host the buffer
-					vim.cmd("vsplit")
-					dest = vim.api.nvim_get_current_win()
-				end
+					local dest = target_win or fallback_win
+					if not dest then
+						-- Last resort: open a new split to host the buffer
+						vim.cmd("vsplit")
+						dest = vim.api.nvim_get_current_win()
+					end
 
-				if dest and vim.api.nvim_buf_is_valid(args.buf) then
-					vim.api.nvim_set_current_win(dest)
-					pcall(vim.api.nvim_win_set_buf, dest, args.buf)
+					if dest and vim.api.nvim_buf_is_valid(args.buf) then
+						vim.api.nvim_set_current_win(dest)
+						pcall(vim.api.nvim_win_set_buf, dest, args.buf)
+					end
+				end)
+				return
+			end
+
+			-- Case 2: current_win is regular window and args.buf is terminal buffer
+			if args.buf == buf then
+				local float_win = find_sidebar_float_by_term_buf(buf)
+				-- If visible integration float exists, focus it and start insert
+				if float_win and vim.api.nvim_win_is_valid(float_win) then
+					vim.api.nvim_set_current_win(float_win)
+					vim.schedule(function()
+						if vim.api.nvim_win_is_valid(float_win) then
+							vim.cmd("startinsert")
+						end
+					end)
+				-- Otherwise allow (window already has the terminal buffer in regular window)
 				end
-			end)
+			end
 		end,
-		desc = "Lock terminal window to terminal buffer only",
+		desc = "Lock terminal window to terminal buffer only; handle list_buffer window separation",
 	})
 
 	-- Secondary guard: if somehow a wrong buffer ends up in the terminal window
 	-- on WinEnter, restore the terminal buffer immediately.
+	-- Apply only when current window is integration window for this buf.
 	vim.api.nvim_create_autocmd("WinEnter", {
 		callback = function()
 			local current_win = vim.api.nvim_get_current_win()
-			local sidebar_data = M.sidebars[current_win]
-			local is_our_win = current_win == win
-				or (sidebar_data ~= nil and sidebar_data.terminal_buf == buf)
+			-- Only guard if current window is an integration window (float or proxy split)
+			if not is_integration_window(current_win, buf) then
+				return
+			end
 
 			if
-				is_our_win
-				and vim.api.nvim_get_current_buf() ~= buf
+				vim.api.nvim_get_current_buf() ~= buf
 				and vim.api.nvim_buf_is_valid(buf)
 				and vim.api.nvim_win_is_valid(current_win)
 			then
 				pcall(vim.api.nvim_win_set_buf, current_win, buf)
 			end
 		end,
-		desc = "Secondary guard: restore terminal buffer on WinEnter",
+		desc = "Secondary guard: restore terminal buffer on WinEnter in integration window",
 	})
 
 	return terminal
