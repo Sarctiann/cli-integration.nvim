@@ -733,8 +733,10 @@ function M.update_sidebar_geometry(float_win, is_expanded, should_focus)
 		vim.keymap.set("t", "<C-k>", [[<C-\><C-n><C-w>k]], nav_opts)
 		vim.keymap.set("t", "<C-l>", [[<C-\><C-n><C-w>l]], nav_opts)
 
-		-- Sync width from split (handles manual resize)
-		width = vim.api.nvim_win_get_width(data.split_win)
+		-- Restore width from configured values (not from split, which may differ)
+		-- Use width_config as source of truth to ensure padding is preserved
+		local configured_width = calculate_width(data.width_config)
+		width = configured_width - (padding * 2)
 		col = vim.o.columns - width
 
 		-- Calculate height to cover the split area
