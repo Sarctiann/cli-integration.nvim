@@ -13,6 +13,21 @@
 4. **No Split Buffer Loading**: The proxy split window NEVER loads any buffer content - it's purely for navigation.
 5. **Fullwidth Toggle**: When toggling to fullwidth, the split must be hidden; when restoring, it must be recreated.
 
+### Canonical Window Terminology
+- **Integration Window**: The plugin's terminal window. Modes: `floating`, `sidebar`, `fullwidth` (fullwidth is a variant of the sidebar mode).
+- **Background Split**: The right-side vsplit that sits behind the Integration Window in sidebar mode. Also referred to as the `proxy split` or `bg window`. In informal contexts it may be called the "vsplit" when the meaning is clear.
+
+### Window Invariants and Enforcement Rules
+- The Background Split is inert: it never contains real buffers, it is not buflisted, and it must never become a normal editable window.
+- The Background Split must never take focus. If focus moves to it, code must immediately redirect focus to the Integration Window (or a safe normal window if the Integration Window is not visible).
+- Synchronization is bidirectional:
+  - If the Background Split width/position changes (manual resize or external layout change), the Integration Window must update width and column (X) to remain visually aligned.
+  - If the Integration Window is resized (programmatically or by restoring from fullwidth), the Background Split must be updated to match.
+- Fullwidth toggle semantics:
+  - sidebar -> fullwidth: the Background Split is closed/hidden and the Integration Window expands to full editor width.
+  - fullwidth -> sidebar: the Background Split is recreated and the Integration Window is restored to synchronized geometry.
+
+
 ## MODULE_ARCHITECTURE
 
 ### lua/cli-integration/init.lua
@@ -430,3 +445,4 @@ After implementing any feature or change, always update both:
 - 2026-04-24: Fixed TUI garbage characters: job now starts after final geometry is established; COLUMNS/LINES calculated via calculate_content_dimensions() subtracting border_offset (0 or 2), padding*2, and list_buffer row_offset.
 - 2026-04-27: Fixed fullwidth toggle padding loss: M.update_sidebar_geometry() now restores width from width_config instead of reading potentially-adjusted split width (window.lua lines 666-670). This ensures padding is preserved during sidebar restoration after fullwidth mode.
 - 2026-04-27: Fixed start_insert_on_click + list_buffer edge-case: added window classification helpers (is_integration_window, is_integration_float_win, is_integration_proxy_split, is_sidebar_split_win) to distinguish integration windows from regular windows; click-insert enters insert only when clicked inside integration window, allowing normal window navigation when integration window is hidden in bufferline; BufWinEnter autocmd now handles separate cases (Case 1: integration window with different buffer loaded → restore terminal buffer; Case 2: regular window with terminal buffer loaded → focus integration float if visible, otherwise allow) (window.lua lines 24-78, 401-508)
+- 2026-04-30: Hardened sidebar/fullwidth transition and navigation stability: proxy split recreation now anchors on a safe normal layout window (avoids layout competition with sidebars like neo-tree), fullwidth explicitly clears split references (split_win/split_buf), and terminal navigation mappings use `<Cmd>wincmd ...<CR>` form after terminal-normal escape to reduce mode-state glitches during `<C-h>/<C-l>` navigation.

@@ -166,6 +166,13 @@ require("cli-integration").setup({
     },
   },
 })
+
+## Terminology (glossary)
+
+- Integration Window: The plugin's terminal window. It can open as a centered floating window (`floating`), a right-side panel (`sidebar`), or a fullwidth variant of the sidebar (`fullwidth`).
+- Background Split: The inert vsplit that sits behind the Integration Window when in `sidebar` mode. Also referred to as proxy split or `bg window`. In informal contexts the term "vsplit" may be used when the meaning is clear.
+
+These terms are used throughout the documentation and the codebase (AGENTS.md contains the canonical definitions and invariants).
 ```
 
 ### Configuration Options
