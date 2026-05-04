@@ -55,6 +55,7 @@
 - Default window_padding: 0
 - Default border: "none" for sidebar, "rounded" for float/expanded
 - Integration-specific config overrides global defaults
+- Environment strategy: inherit full Neovim process environment by default (including NVIM/TERM/TMUX), with optional per-integration `env` overrides and `unset_env` removals
 - All terminal_keys values MUST be arrays (validated)
 - Minimum cli_cmd length: 2 characters (to avoid false pattern matches)
 
@@ -198,6 +199,8 @@
   keep_open = boolean,             -- Default: false (true = keep after exit code 0)
   start_insert_on_click = boolean, -- Default: false (re-enter insert when clicking inside terminal while in normal mode)
   list_buffer = boolean,           -- Default: false (list buffer in bufferline as "[name]"; sidebar only: shifts window 1 row down)
+  env = { KEY = "value" },        -- Optional: env var overrides merged on top of inherited process env
+  unset_env = { "KEY" },          -- Optional: env var names removed after merge
   start_with_text = string|function(visual_text), -- Optional: text to insert when ready
   cli_ready_flags = { search_for = string, from_line = number, lines_amt = number }, -- Optional: config for readiness (default: cli_cmd, 1, 5)
   format_paths = function(path),   -- Optional: format file paths before insertion
@@ -446,3 +449,4 @@ After implementing any feature or change, always update both:
 - 2026-04-27: Fixed fullwidth toggle padding loss: M.update_sidebar_geometry() now restores width from width_config instead of reading potentially-adjusted split width (window.lua lines 666-670). This ensures padding is preserved during sidebar restoration after fullwidth mode.
 - 2026-04-27: Fixed start_insert_on_click + list_buffer edge-case: added window classification helpers (is_integration_window, is_integration_float_win, is_integration_proxy_split, is_sidebar_split_win) to distinguish integration windows from regular windows; click-insert enters insert only when clicked inside integration window, allowing normal window navigation when integration window is hidden in bufferline; BufWinEnter autocmd now handles separate cases (Case 1: integration window with different buffer loaded → restore terminal buffer; Case 2: regular window with terminal buffer loaded → focus integration float if visible, otherwise allow) (window.lua lines 24-78, 401-508)
 - 2026-04-30: Hardened sidebar/fullwidth transition and navigation stability: proxy split recreation now anchors on a safe normal layout window (avoids layout competition with sidebars like neo-tree), fullwidth explicitly clears split references (split_win/split_buf), and terminal navigation mappings use `<Cmd>wincmd ...<CR>` form after terminal-normal escape to reduce mode-state glitches during `<C-h>/<C-l>` navigation.
+- 2026-05-04: Changed terminal job environment strategy to inherit full Neovim process env by default (preserving NVIM/TERM/TMUX behavior), replaced hardcoded TERM/COLORTERM overrides with `build_job_env()` in window.lua, and added configurable `env`/`unset_env` options at global and per-integration levels (config.lua, terminal.lua, README.md).

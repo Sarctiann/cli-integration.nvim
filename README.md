@@ -113,6 +113,8 @@ require("cli-integration").setup({
   window_padding = 0,  -- Horizontal padding in columns (0 = no padding)
   border = "none",  -- Border style (none/single/double/rounded/solid/shadow)
   floating = false,  -- Whether to open terminal in floating window
+  env = {},  -- Default environment overrides for all integration jobs
+  unset_env = {},  -- Default environment variables to remove from integration jobs
   terminal_keys = {
     terminal_mode = {
       normal_mode = { "<M-q>" },
@@ -188,6 +190,8 @@ These terms are used throughout the documentation and the codebase (AGENTS.md co
 | `window_padding`    | `number`  | `0`       | Default: Horizontal padding in columns (adds empty space on left and right)   |
 | `border`            | `string`  | `"none"`  | Default: Border style ("none", "single", "double", "rounded", "solid", "shadow") |
 | `floating`          | `boolean` | `false`   | Default: Whether to open terminal in floating window                          |
+| `env`               | `table`   | `{}`      | Default: Environment overrides merged on top of inherited process environment |
+| `unset_env`         | `string[]`| `{}`      | Default: Environment variable names removed from the spawned terminal job environment |
 | `terminal_keys`     | `table`   | See below | Default: Key mappings for the CLI terminal window (all values must be arrays) |
 
 #### Integration Options (can override global defaults)
@@ -204,6 +208,8 @@ Each integration in the `integrations` array can have:
 | `window_padding`    | `number`           | Inherits global | Override: Horizontal padding in columns (adds empty space on left and right)                                                                                                             |
 | `border`            | `string`           | Inherits global | Override: Border style ("none", "single", "double", "rounded", "solid", "shadow"). Default is "none" for sidebar, "rounded" when expanded or floating                                    |
 | `floating`          | `boolean`          | Inherits global | Override: Whether to open terminal in floating window                                                                                                                                    |
+| `env`               | `table`            | Inherits global | Override: Environment overrides merged on top of inherited process environment                                                                                                           |
+| `unset_env`         | `string[]`         | Inherits global | Override: Environment variable names removed from the spawned terminal job environment                                                                                                   |
 | `keep_open`         | `boolean`          | `false`         | Whether to keep the terminal open after execution (not auto-closing)                                                                                                                     |
 | `start_insert_on_click` | `boolean`      | `false`         | Re-enter insert mode when clicking inside the terminal while in normal mode                                                                                                              |
 | `list_buffer`       | `boolean`          | `false`         | List the terminal buffer in the bufferline as `[name]`. Sidebar only: shifts window 1 row down to avoid overlap. When `start_insert_on_click=true` and the integration window is hidden (e.g., buffer selected via bufferline), clicking on a regular window will correctly move focus there instead of forcing insert mode in the integration window. |
@@ -363,6 +369,38 @@ require("cli-integration").setup({
         search_for = "Ready>",  -- Look for this flag
         from_line = 1,          -- Starting from line 1
         lines_amt = 10,         -- Check 10 lines
+      },
+    },
+  },
+})
+```
+
+#### Environment Inheritance and Overrides
+
+Terminal jobs inherit Neovim's process environment by default (including variables like `$NVIM`, `$TERM`, and tmux variables when present).
+
+Use `env` and `unset_env` only when a specific tool requires explicit adjustments:
+
+```lua
+require("cli-integration").setup({
+  -- Optional global environment defaults
+  env = {
+    EXAMPLE_FLAG = "1",
+  },
+  unset_env = {
+    "EXAMPLE_UNWANTED_VAR",
+  },
+
+  integrations = {
+    {
+      name = "OpenCode",
+      cli_cmd = "opencode",
+      -- Optional per-integration environment tuning
+      env = {
+        OPENCODE_MODE = "embedded",
+      },
+      unset_env = {
+        -- e.g. "TMUX" only if a specific setup needs it
       },
     },
   },

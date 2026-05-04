@@ -43,6 +43,8 @@
 --- @field on_close (fun(integration: Cli-Integration.Integration, working_dir: string): nil)|nil # Called after the terminal process exits. Use it for cleanup tasks (e.g., removing temporary config files).
 --- @field start_insert_on_click boolean|nil # In normal mode, clicking inside the terminal window re-enters insert mode. Has no effect when clicking from another window (WinEnter already handles that). (default: false)
 --- @field list_buffer boolean|nil # Show the terminal buffer in bufferline with name "[integration.name]". Sidebar windows start 1 row lower to avoid overlapping bufferline. Row offset does not apply to floating windows. (default: false)
+--- @field env table<string, string>|nil # Environment variable overrides passed to the terminal job. Merged on top of inherited environment.
+--- @field unset_env string[]|nil # Environment variable names to remove from the terminal job environment after merging.
 
 --- @class Cli-Integration.Config
 --- @field integrations Cli-Integration.Integration[]|nil # Array of CLI integrations (optional, defaults to empty array)
@@ -55,6 +57,8 @@
 --- @field terminal_keys Cli-Integration.TerminalKeys|nil # Default: key mappings for the CLI terminal window (applied to all integrations)
 --- @field start_insert_on_click boolean|nil # Default: force insert mode on click (applied to all integrations)
 --- @field list_buffer boolean|nil # Default: show terminal buffer in bufferline (applied to all integrations)
+--- @field env table<string, string>|nil # Default: environment variable overrides passed to all integration jobs
+--- @field unset_env string[]|nil # Default: environment variable names removed from all integration jobs
 
 local M = {}
 
@@ -69,6 +73,8 @@ M.defaults = {
 	floating = false,
 	start_insert_on_click = false,
 	list_buffer = false,
+	env = {},
+	unset_env = {},
 	terminal_keys = {
 		terminal_mode = {
 			normal_mode = { "<M-q>" },
@@ -132,6 +138,48 @@ local function validate_terminal_keys(terminal_keys)
 	return validate_keys_table(terminal_keys)
 end
 
+--- Validate env table structure (string keys and string values)
+--- @param env table|nil
+--- @return boolean
+local function validate_env(env)
+	if env == nil then
+		return true
+	end
+
+	if type(env) ~= "table" then
+		return false
+	end
+
+	for key, value in pairs(env) do
+		if type(key) ~= "string" or type(value) ~= "string" then
+			return false
+		end
+	end
+
+	return true
+end
+
+--- Validate unset_env structure (array of strings)
+--- @param unset_env table|nil
+--- @return boolean
+local function validate_unset_env(unset_env)
+	if unset_env == nil then
+		return true
+	end
+
+	if type(unset_env) ~= "table" then
+		return false
+	end
+
+	for index, key in pairs(unset_env) do
+		if type(index) ~= "number" or type(key) ~= "string" then
+			return false
+		end
+	end
+
+	return true
+end
+
 --- @param config Cli-Integration.Config
 --- @return Cli-Integration.Config
 function M.setup(config)
@@ -155,6 +203,24 @@ function M.setup(config)
 			vim.log.levels.WARN
 		)
 		M.options.terminal_keys = M.defaults.terminal_keys
+	end
+
+	-- Validate global env if provided
+	if user_config.env and not validate_env(M.options.env) then
+		vim.notify(
+			"cli-integration.nvim: 'env' must be a table with string keys and string values",
+			vim.log.levels.WARN
+		)
+		M.options.env = vim.deepcopy(M.defaults.env)
+	end
+
+	-- Validate global unset_env if provided
+	if user_config.unset_env and not validate_unset_env(M.options.unset_env) then
+		vim.notify(
+			"cli-integration.nvim: 'unset_env' must be an array of strings",
+			vim.log.levels.WARN
+		)
+		M.options.unset_env = vim.deepcopy(M.defaults.unset_env)
 	end
 
 	-- Apply global defaults to each integration (unless overridden by integration-specific config)
@@ -198,6 +264,26 @@ function M.setup(config)
 				integration.terminal_keys = nil -- Will use global default
 			end
 
+			-- Validate env if provided
+			if integration.env and not validate_env(integration.env) then
+				vim.notify(
+					"cli-integration.nvim: Integration '" .. cli_cmd .. "' has invalid 'env' (must be table<string, string>)",
+					vim.log.levels.WARN
+				)
+				integration.env = nil -- Will use global default
+			end
+
+			-- Validate unset_env if provided
+			if integration.unset_env and not validate_unset_env(integration.unset_env) then
+				vim.notify(
+					"cli-integration.nvim: Integration '"
+						.. cli_cmd
+						.. "' has invalid 'unset_env' (must be string[])",
+					vim.log.levels.WARN
+				)
+				integration.unset_env = nil -- Will use global default
+			end
+
 			-- Build terminal_keys: per-section override with key-by-key merge
 			-- If integration defines terminal_keys, it replaces entire sub-section (terminal_mode or normal_mode)
 			-- but within each sub-section, only defined keys are overridden
@@ -229,6 +315,8 @@ function M.setup(config)
 				floating = M.options.floating,
 				start_insert_on_click = M.options.start_insert_on_click,
 				list_buffer = M.options.list_buffer,
+				env = vim.deepcopy(M.options.env),
+				unset_env = vim.deepcopy(M.options.unset_env),
 				cli_ready_flags = {
 					search_for = "",
 					from_line = 1,

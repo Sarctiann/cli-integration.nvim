@@ -86,6 +86,34 @@ local function is_valid_buf(buf)
 	return type(buf) == "number" and buf > 0 and vim.api.nvim_buf_is_valid(buf)
 end
 
+--- Build terminal job environment starting from inherited process env,
+--- then applying explicit overrides and removals.
+--- @param opts table
+--- @param cols number
+--- @param lines number
+--- @return table<string, string>
+local function build_job_env(opts, cols, lines)
+	local env = vim.fn.environ()
+
+	-- Always refresh dimensions from finalized geometry
+	env.COLUMNS = tostring(cols)
+	env.LINES = tostring(lines)
+
+	-- Optional explicit overrides
+	if type(opts.env) == "table" then
+		env = vim.tbl_extend("force", env, opts.env)
+	end
+
+	-- Optional removals after merge
+	if type(opts.unset_env) == "table" then
+		for _, key in ipairs(opts.unset_env) do
+			env[key] = nil
+		end
+	end
+
+	return env
+end
+
 --- Find a safe anchor window in the normal layout (non-float/non-proxy)
 --- for creating/recreating sidebar proxy splits.
 --- @return number|nil
@@ -440,16 +468,7 @@ function M.create_terminal(cmd, opts)
 			vim.cmd("lcd " .. vim.fn.fnameescape(cwd))
 		end
 
-		-- Ensure TERM and related env vars are set so TUI apps interpret
-		-- escape sequences correctly. Respect user-provided opts.env.
-		local default_term = vim.env.TERM or "xterm-256color"
-		local default_colorterm = vim.env.COLORTERM or "truecolor"
-		local env = vim.tbl_extend("force", opts.env or {}, {
-			COLUMNS = tostring(cols),
-			LINES = tostring(lines),
-			TERM = opts.env and opts.env.TERM or default_term,
-			COLORTERM = opts.env and opts.env.COLORTERM or default_colorterm,
-		})
+		local env = build_job_env(opts, cols, lines)
 
 		local use_jobstart = vim.fn.has("nvim-0.11") == 1
 		local job_opts = {

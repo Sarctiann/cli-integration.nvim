@@ -196,6 +196,8 @@ local function create_new_terminal(integration, args, keep_open, working_dir, vi
 	local cli_term = window.create_terminal(cli_cmd .. cmd, {
 		interactive = true,
 		cwd = base_dir,
+		env = integration.env,
+		unset_env = integration.unset_env,
 		win = {
 			title = " " .. name .. " ",
 			position = integration.floating and "float" or "right",
