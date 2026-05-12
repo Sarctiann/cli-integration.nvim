@@ -917,26 +917,43 @@ function M.update_sidebar_geometry(float_win, is_expanded, should_focus)
 end
 
 --- Resize all sidebars (bidirectional sync)
---- Handles both editor resize and manual split resize
+--- Distinguishes editor resize (recalculate from width_config) from
+--- manual split resize (use observed split width as source of truth).
 function M.resize_sidebars()
+	local editor_resized = vim.o.columns ~= M._last_editor_width
+	if editor_resized then
+		M._last_editor_width = vim.o.columns
+	end
+
 	for float_win, data in pairs(M.sidebars) do
 		if is_valid_win(float_win) then
-			-- Check if split is visible to determine mode
 			local is_expanded = not is_valid_win(data.split_win)
 
-			-- If split was manually resized, sync the float
-			if not is_expanded and is_valid_win(data.split_win) then
-				-- Sidebar mode: prefer observed split width as authoritative
+			if is_expanded then
+				-- Fullwidth mode: always recompute from editor dimensions
+				local geom = compute_fullwidth_geometry()
+				apply_float_geometry(float_win, geom)
+			elseif editor_resized then
+				-- Editor was resized: recalculate from configured width_config (percentage or absolute)
+				local padding = data.padding or 0
+				local configured_width = calculate_width(data.width_config)
+				local target_width = configured_width - (padding * 2)
+				local border = data.win_opts and data.win_opts.border or "none"
+				local border_offset = (border == "none" or border == "") and 0 or 2
+				local geom = {
+					width = target_width,
+					height = vim.o.lines - vim.o.cmdheight - border_offset - 1,
+					col = vim.o.columns - target_width,
+					row = 0,
+					border = border,
+				}
+				apply_split_width(data.split_win, target_width)
+				apply_float_geometry(float_win, geom)
+			else
+				-- Manual split resize: use observed split width as source of truth
 				local geom = compute_sidebar_target_geometry(data, data.split_win)
 				apply_float_geometry(float_win, geom)
-				-- Reconcile split width to computed width (edge cases)
 				apply_split_width(data.split_win, geom.width)
-			else
-				-- Editor resize or fullwidth: compute appropriate geometry
-				if is_expanded then
-					local geom = compute_fullwidth_geometry()
-					apply_float_geometry(float_win, geom)
-				end
 			end
 		else
 			-- Cleanup invalid windows
