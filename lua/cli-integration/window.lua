@@ -814,6 +814,8 @@ function M.create_sidebar_layout(buf, win_opts)
 	})
 
 	-- Step 7: Setup resize handling (bidirectional sync)
+	-- Refresh cached editor width so resize detection starts from the current state.
+	M._last_editor_width = vim.o.columns
 	if not M.resized_autocmd_setup then
 		local group = vim.api.nvim_create_augroup("CliIntegrationResize", { clear = true })
 		vim.api.nvim_create_autocmd({ "VimResized", "WinResized" }, {
