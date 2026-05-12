@@ -149,6 +149,9 @@ M.resized_autocmd_setup = false
 --- Suppress stopinsert scheduling during proxy split recreation to preserve insert mode
 M._suppress_stopinsert = false
 
+--- Track last known editor width to distinguish editor resize from manual split resize
+M._last_editor_width = vim.o.columns
+
 --- Calculate width based on config (percentage or absolute)
 --- @param width_config number Width configuration (1-100 for percentage, >100 for absolute)
 --- @return number Calculated width in columns
