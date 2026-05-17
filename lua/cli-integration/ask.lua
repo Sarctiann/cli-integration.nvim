@@ -59,7 +59,7 @@ local function show_input(title, screen_row, screen_col, on_submit, on_cancel)
 	local sc = screen_col - 1
 
 	local width = math.min(60, vim.o.columns - 4)
-	local height = 3
+	local height = 1
 
 	-- Position below cursor, centered horizontally
 	local row = sr + 1
