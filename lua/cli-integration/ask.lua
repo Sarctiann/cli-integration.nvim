@@ -127,6 +127,8 @@ local function show_input(title, screen_row, screen_col, on_submit, on_cancel)
 
 	vim.keymap.set("i", "<Esc>", function()
 		pcall(vim.api.nvim_win_close, win, true)
+		-- Explicitly exit insert mode so we return to normal mode
+		vim.cmd("stopinsert")
 		on_cancel()
 	end, opts)
 
@@ -135,9 +137,18 @@ local function show_input(title, screen_row, screen_col, on_submit, on_cancel)
 		on_cancel()
 	end, opts)
 
-	-- Focus and enter insert mode
+	-- Focus the input window
 	vim.api.nvim_set_current_win(win)
-	vim.cmd("startinsert!")
+
+	-- Use vim.schedule for startinsert so it runs AFTER any pending
+	-- stopinsert from the terminal's WinLeave autocmd (which also uses
+	-- vim.schedule). Since vim.schedule is FIFO, our startinsert enqueues
+	-- after the terminal's stopinsert and wins.
+	vim.schedule(function()
+		if vim.api.nvim_win_is_valid(win) then
+			vim.cmd("startinsert!")
+		end
+	end)
 end
 
 --- Look up integration by name, index, or cli_cmd (same logic as commands.lua)
