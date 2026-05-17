@@ -189,7 +189,10 @@ local function create_new_terminal(integration, args, keep_open, working_dir, vi
 	if integration.on_open then
 		local ok, err = pcall(integration.on_open, integration, base_dir)
 		if not ok then
-			vim.notify("cli-integration.nvim: on_open hook failed for '" .. name .. "': " .. tostring(err), vim.log.levels.WARN)
+			vim.notify(
+				"cli-integration.nvim: on_open hook failed for '" .. name .. "': " .. tostring(err),
+				vim.log.levels.WARN
+			)
 		end
 	end
 
@@ -218,7 +221,10 @@ local function create_new_terminal(integration, args, keep_open, working_dir, vi
 				if integration.on_close then
 					local ok, err = pcall(integration.on_close, integration, base_dir)
 					if not ok then
-						vim.notify("cli-integration.nvim: on_close hook failed for '" .. name .. "': " .. tostring(err), vim.log.levels.WARN)
+						vim.notify(
+							"cli-integration.nvim: on_close hook failed for '" .. name .. "': " .. tostring(err),
+							vim.log.levels.WARN
+						)
 					end
 				end
 			end,
@@ -501,7 +507,9 @@ function M.get_terminal_job_id(term_buf)
 		return job_id
 	end
 	-- Fallback: try vim.b (current buffer only, but may work if term_buf is current)
-	ok, job_id = pcall(function() return vim.b.terminal_job_id end)
+	ok, job_id = pcall(function()
+		return vim.b.terminal_job_id
+	end)
 	if ok and job_id then
 		return job_id
 	end
@@ -509,6 +517,7 @@ function M.get_terminal_job_id(term_buf)
 end
 
 --- Focus the window containing a terminal buffer and enter insert mode
+--- @return nil
 --- @param term_buf number The terminal buffer handle
 function M.focus_terminal_window(term_buf)
 	local win = M.find_terminal_window(term_buf)
