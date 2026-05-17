@@ -42,9 +42,20 @@
 --- @field on_open (fun(integration: Cli-Integration.Integration, working_dir: string): nil)|nil # Called before the terminal is created. Use it for pre-launch setup (e.g., writing config files with dynamic values like the Neovim socket path).
 --- @field on_close (fun(integration: Cli-Integration.Integration, working_dir: string): nil)|nil # Called after the terminal process exits. Use it for cleanup tasks (e.g., removing temporary config files).
 --- @field start_insert_on_click boolean|nil # In normal mode, clicking inside the terminal window re-enters insert mode. Has no effect when clicking from another window (WinEnter already handles that). (default: false)
+--- @field format_ask_query nil|fun(data: Cli-Integration.AskData, integration: Cli-Integration.Integration): string # Function to format context+question into text for the integration. Receives captured context and user question, returns a string to insert into the terminal. If not set, a built-in default formatter is used.
+--- @field ask_title string|nil # Custom title for the floating input window (default: integration name)
 --- @field list_buffer boolean|nil # Show the terminal buffer in bufferline with name "[integration.name]". Sidebar windows start 1 row lower to avoid overlapping bufferline. Row offset does not apply to floating windows. (default: false)
 --- @field env table<string, string>|nil # Environment variable overrides passed to the terminal job. Merged on top of inherited environment.
 --- @field unset_env string[]|nil # Environment variable names to remove from the terminal job environment after merging.
+
+--- @class Cli-Integration.AskData
+--- @field file string Absolute path of the current file
+--- @field relative_file string Path relative to the integration's workspace
+--- @field start_line number 1-indexed start line (from selection or cursor)
+--- @field end_line number 1-indexed end line (= start_line if no selection)
+--- @field selection string|nil Selected text content (nil if no visual selection)
+--- @field question string The user's typed question
+--- @field filetype string vim.bo.filetype of the source buffer
 
 --- @class Cli-Integration.Config
 --- @field integrations Cli-Integration.Integration[]|nil # Array of CLI integrations (optional, defaults to empty array)
@@ -73,6 +84,21 @@ M.defaults = {
 	floating = false,
 	start_insert_on_click = false,
 	list_buffer = false,
+	format_ask_query = function(data, integration)
+		local parts = { data.question, "" }
+		local fmt = integration and integration.format_paths
+		if data.selection then
+			table.insert(parts, "```" .. data.relative_file .. ":"
+				.. data.start_line .. "-" .. data.end_line)
+			table.insert(parts, data.selection)
+			table.insert(parts, "```")
+		else
+			local ref = data.relative_file .. ":" .. data.start_line
+			table.insert(parts, (fmt and fmt(ref)) or ref)
+		end
+		return table.concat(parts, "\n")
+	end,
+	ask_title = nil,
 	env = {},
 	unset_env = {},
 	terminal_keys = {
@@ -315,6 +341,8 @@ function M.setup(config)
 				floating = M.options.floating,
 				start_insert_on_click = M.options.start_insert_on_click,
 				list_buffer = M.options.list_buffer,
+				format_ask_query = M.options.format_ask_query,
+				ask_title = M.options.ask_title,
 				env = vim.deepcopy(M.options.env),
 				unset_env = vim.deepcopy(M.options.unset_env),
 				cli_ready_flags = {
