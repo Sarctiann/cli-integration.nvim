@@ -476,4 +476,46 @@ function M.close_terminal(term_buf)
 	M.buf_to_name[term_buf] = nil
 end
 
+--- Find the window displaying a terminal buffer
+--- @param term_buf number The terminal buffer handle
+--- @return number|nil win_id or nil if not visible
+function M.find_terminal_window(term_buf)
+	for _, win in ipairs(vim.api.nvim_list_wins()) do
+		if vim.api.nvim_win_get_buf(win) == term_buf then
+			return win
+		end
+	end
+	return nil
+end
+
+--- Get the job_id for a terminal buffer (handles both old and new Neovim APIs)
+--- @param term_buf number The terminal buffer handle
+--- @return number|nil job_id or nil
+function M.get_terminal_job_id(term_buf)
+	if not term_buf or not vim.api.nvim_buf_is_valid(term_buf) then
+		return nil
+	end
+	-- Try Neovim >= 0.11 buffer variable first
+	local ok, job_id = pcall(vim.api.nvim_buf_get_var, term_buf, "terminal_job_id")
+	if ok and job_id then
+		return job_id
+	end
+	-- Fallback: try vim.b (current buffer only, but may work if term_buf is current)
+	ok, job_id = pcall(function() return vim.b.terminal_job_id end)
+	if ok and job_id then
+		return job_id
+	end
+	return nil
+end
+
+--- Focus the window containing a terminal buffer and enter insert mode
+--- @param term_buf number The terminal buffer handle
+function M.focus_terminal_window(term_buf)
+	local win = M.find_terminal_window(term_buf)
+	if win and vim.api.nvim_win_is_valid(win) then
+		vim.api.nvim_set_current_win(win)
+		pcall(vim.cmd, "startinsert")
+	end
+end
+
 return M
