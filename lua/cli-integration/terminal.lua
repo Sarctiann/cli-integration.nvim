@@ -523,7 +523,9 @@ function M.focus_terminal_window(term_buf)
 	local win = M.find_terminal_window(term_buf)
 	if win and vim.api.nvim_win_is_valid(win) then
 		vim.api.nvim_set_current_win(win)
-		pcall(vim.cmd, "startinsert")
+		pcall(function()
+			vim.cmd("startinsert")
+		end)
 	end
 end
 

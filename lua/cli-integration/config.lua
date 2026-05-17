@@ -84,7 +84,7 @@ M.defaults = {
 	floating = false,
 	start_insert_on_click = false,
 	list_buffer = false,
-	format_ask_query = function(data, integration)
+	format_ask_query = function(data, _)
 		local parts = { data.question, "" }
 		if data.selection then
 			table.insert(parts, "```" .. data.relative_file .. ":"

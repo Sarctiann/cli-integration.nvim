@@ -101,7 +101,9 @@ local function show_input(title, screen_row, screen_col, on_submit, on_cancel)
 	local opts = { buffer = buf, nowait = true, silent = true }
 
 	vim.keymap.set("i", "<CR>", function()
-		if submitted then return end
+		if submitted then
+			return
+		end
 		submitted = true
 		local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
 		local text = table.concat(lines, "\n"):gsub("^%s+", ""):gsub("%s+$", "")
@@ -290,7 +292,10 @@ function M._show_ask_input(integration, context, screen_cap)
 			if format_ask and type(format_ask) == "function" then
 				local ok, result = pcall(format_ask, context, integration)
 				if not ok then
-					vim.notify("cli-integration.nvim: format_ask_query error: " .. tostring(result), vim.log.levels.ERROR)
+					vim.notify(
+						"cli-integration.nvim: format_ask_query error: " .. tostring(result),
+						vim.log.levels.ERROR
+					)
 					return
 				end
 				if type(result) ~= "string" then

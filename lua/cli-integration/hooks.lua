@@ -49,8 +49,7 @@ function M.insert_current_path_or_explain_selection(prefix, suffix)
 			-- Fallback: terminal not found, use current buffer path
 			local current_file_abs = vim.fn.expand("%:p")
 			local workspace = M.get_current_workspace()
-			relative_path = vim.fs.relpath(workspace, current_file_abs)
-				or vim.fn.fnamemodify(current_file_abs, ":.")
+			relative_path = vim.fs.relpath(workspace, current_file_abs) or vim.fn.fnamemodify(current_file_abs, ":.")
 		end
 
 		-- Format if integration provides it
