@@ -46,9 +46,6 @@ local function capture_context(screen_capture)
 
 		local lines = vim.api.nvim_buf_get_lines(0, start_line - 1, end_line, false)
 		selection = table.concat(lines, "\n")
-
-		-- Exit visual mode synchronously so we can open a floating window
-		vim.api.nvim_input("<Esc>")
 	end
 
 	return {
@@ -140,15 +137,17 @@ local function show_input(title, screen_row, screen_col, on_submit, on_cancel)
 	-- Focus the input window
 	vim.api.nvim_set_current_win(win)
 
-	-- Use vim.schedule for startinsert so it runs AFTER any pending
-	-- stopinsert from the terminal's WinLeave autocmd (which also uses
-	-- vim.schedule). Since vim.schedule is FIFO, our startinsert enqueues
-	-- after the terminal's stopinsert and wins.
-	vim.schedule(function()
+	-- Use vim.defer_fn (not vim.schedule) to ensure startinsert runs AFTER
+	-- any pending stopinsert from the terminal's WinLeave autocmd.
+	-- The terminal's WinLeave uses vim.schedule which runs on the next tick;
+	-- defer_fn with 10ms guarantees we run after it.
+	vim.defer_fn(function()
 		if vim.api.nvim_win_is_valid(win) then
-			vim.cmd("startinsert!")
+			-- Re-focus in case something stole it
+			vim.api.nvim_set_current_win(win)
+			vim.cmd("startinsert")
 		end
-	end)
+	end, 10)
 end
 
 --- Look up integration by name, index, or cli_cmd (same logic as commands.lua)
@@ -271,7 +270,24 @@ function M.ask(integration_identifier)
 		return
 	end
 
-	-- Step 3: Ensure terminal is ready, then show input
+	-- Step 3: If we captured a visual selection, defer the rest of the flow
+	-- so visual mode exits naturally before we show the input window.
+	-- The visual marks '< and '> persist across mode changes, so we already
+	-- have the selection data.
+	if context.selection then
+		vim.defer_fn(function()
+			M._show_ask_input(integration, context, screen_cap)
+		end, 50)
+	else
+		M._show_ask_input(integration, context, screen_cap)
+	end
+end
+
+--- Internal: show the input and handle terminal readiness.
+--- @param integration Cli-Integration.Integration
+--- @param context Cli-Integration.AskData
+--- @param screen_cap table
+function M._show_ask_input(integration, context, screen_cap)
 	ensure_terminal_ready(integration, function(term_data)
 		local title = integration.ask_title or integration.name
 		show_input(title, screen_cap.row, screen_cap.col, function(question)
