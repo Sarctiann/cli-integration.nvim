@@ -188,11 +188,14 @@ local function send_to_terminal(term_buf, text)
 	-- Insert the formatted question text
 	terminal.insert_text(text, term_buf)
 
-	-- Auto-submit: send Enter
-	local job_id = terminal.get_terminal_job_id(term_buf)
-	if job_id and vim.fn.jobwait({ job_id }, 10)[1] == -1 then
-		vim.fn.chansend(job_id, "\r")
-	end
+	-- Auto-submit: send Enter via feedkeys (same mechanism as the submit keymap)
+	-- Use a small delay to ensure text is fully processed before submitting
+	vim.defer_fn(function()
+		local job_id = terminal.get_terminal_job_id(term_buf)
+		if job_id and vim.fn.jobwait({ job_id }, 10)[1] == -1 then
+			vim.fn.chansend(job_id, "\r")
+		end
+	end, 50)
 
 	-- Focus the terminal window so user sees the response
 	terminal.focus_terminal_window(term_buf)

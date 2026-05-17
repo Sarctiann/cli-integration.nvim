@@ -86,15 +86,13 @@ M.defaults = {
 	list_buffer = false,
 	format_ask_query = function(data, integration)
 		local parts = { data.question, "" }
-		local fmt = integration and integration.format_paths
 		if data.selection then
 			table.insert(parts, "```" .. data.relative_file .. ":"
 				.. data.start_line .. "-" .. data.end_line)
 			table.insert(parts, data.selection)
 			table.insert(parts, "```")
 		else
-			local ref = data.relative_file .. ":" .. data.start_line
-			table.insert(parts, (fmt and fmt(ref)) or ref)
+			table.insert(parts, data.relative_file .. ":" .. data.start_line)
 		end
 		return table.concat(parts, "\n")
 	end,
