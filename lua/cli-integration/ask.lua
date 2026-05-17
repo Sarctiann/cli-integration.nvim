@@ -23,25 +23,16 @@ local function capture_context(screen_capture)
 	local start_line = cursor_line
 	local end_line = cursor_line
 
-	-- Detect visual selection: check mode first, then fallback to visual marks
 	local in_visual = mode:match("[vV\22]") ~= nil
-	if not in_visual then
-		-- Fallback: check if visual marks are set and span multiple lines
-		-- (this handles cases where mode transition already happened)
-		local v_start = vim.fn.getpos("'<")
-		local v_end = vim.fn.getpos("'>")
-		if v_start[2] > 0 and v_end[2] > 0 and v_start[2] ~= v_end[2] then
-			in_visual = true
-		end
-	end
 
 	if in_visual then
-		-- Visual mode: capture selection from marks '< and '>
-		local start_pos = vim.fn.getpos("'<")
-		local end_pos = vim.fn.getpos("'>")
-		if start_pos[2] > 0 and end_pos[2] > 0 then
-			start_line = start_pos[2]
-			end_line = end_pos[2]
+		-- While still in visual mode, '< and '> contain the PREVIOUS selection.
+		-- Use 'v' (visual start) and '.' (current cursor) for the current selection.
+		local v_start = vim.fn.getpos("v")
+		local v_end = vim.fn.getpos(".")
+		if v_start[2] > 0 and v_end[2] > 0 then
+			start_line = math.min(v_start[2], v_end[2])
+			end_line = math.max(v_start[2], v_end[2])
 		end
 
 		local lines = vim.api.nvim_buf_get_lines(0, start_line - 1, end_line, false)
