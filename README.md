@@ -168,6 +168,7 @@ require("cli-integration").setup({
     },
   },
 })
+```
 
 ## Terminology (glossary)
 
@@ -175,49 +176,51 @@ require("cli-integration").setup({
 - Background Split: The inert vsplit that sits behind the Integration Window when in `sidebar` mode. Also referred to as proxy split or `bg window`. In informal contexts the term "vsplit" may be used when the meaning is clear.
 
 These terms are used throughout the documentation and the codebase (AGENTS.md contains the canonical definitions and invariants).
-```
 
 ### Configuration Options
 
 #### Global Options (applied to all integrations)
 
-| Option              | Type      | Default   | Description                                                                   |
-| ------------------- | --------- | --------- | ----------------------------------------------------------------------------- |
-| `integrations`      | `table[]` | `{}`      | **Required**: Array of integration configurations                             |
-| `show_help_on_open` | `boolean` | `true`    | Default: Show help screen when terminal opens                                 |
-| `new_lines_amount`  | `number`  | `2`       | Default: Number of new lines to insert after command submission               |
-| `window_width`      | `number`  | `34`      | Default: Width for terminal window (percentage 0-100, or absolute >100)       |
-| `window_padding`    | `number`  | `0`       | Default: Horizontal padding in columns (adds empty space on left and right)   |
-| `border`            | `string`  | `"none"`  | Default: Border style ("none", "single", "double", "rounded", "solid", "shadow") |
-| `floating`          | `boolean` | `false`   | Default: Whether to open terminal in floating window                          |
-| `env`               | `table`   | `{}`      | Default: Environment overrides merged on top of inherited process environment |
-| `unset_env`         | `string[]`| `{}`      | Default: Environment variable names removed from the spawned terminal job environment |
-| `terminal_keys`     | `table`   | See below | Default: Key mappings for the CLI terminal window (all values must be arrays) |
+| Option              | Type       | Default   | Description                                                                           |
+| ------------------- | ---------- | --------- | ------------------------------------------------------------------------------------- |
+| `integrations`      | `table[]`  | `{}`      | **Required**: Array of integration configurations                                     |
+| `show_help_on_open` | `boolean`  | `true`    | Default: Show help screen when terminal opens                                         |
+| `new_lines_amount`  | `number`   | `2`       | Default: Number of new lines to insert after command submission                       |
+| `window_width`      | `number`   | `34`      | Default: Width for terminal window (percentage 0-100, or absolute >100)               |
+| `window_padding`    | `number`   | `0`       | Default: Horizontal padding in columns (adds empty space on left and right)           |
+| `border`            | `string`   | `"none"`  | Default: Border style ("none", "single", "double", "rounded", "solid", "shadow")      |
+| `floating`          | `boolean`  | `false`   | Default: Whether to open terminal in floating window                                  |
+| `env`               | `table`    | `{}`      | Default: Environment overrides merged on top of inherited process environment         |
+| `unset_env`         | `string[]` | `{}`      | Default: Environment variable names removed from the spawned terminal job environment |
+| `terminal_keys`     | `table`    | See below | Default: Key mappings for the CLI terminal window (all values must be arrays)         |
 
 #### Integration Options (can override global defaults)
 
 Each integration in the `integrations` array can have:
 
-| Option              | Type               | Default         | Description                                                                                                                                                                              |
-| ------------------- | ------------------ | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`              | `string`           | **Required**    | Name for the integration (used for autocompletion in commands)                                                                                                                           |
-| `cli_cmd`           | `string`           | **Required**    | CLI command name to execute (e.g., "cursor-agent")                                                                                                                                       |
-| `show_help_on_open` | `boolean`          | Inherits global | Override: Show help screen when terminal opens                                                                                                                                           |
-| `new_lines_amount`  | `number`           | Inherits global | Override: Number of new lines to insert after command submission                                                                                                                         |
-| `window_width`      | `number`           | Inherits global | Override: Width for terminal window (percentage 0-100, or absolute >100)                                                                                                                 |
-| `window_padding`    | `number`           | Inherits global | Override: Horizontal padding in columns (adds empty space on left and right)                                                                                                             |
-| `border`            | `string`           | Inherits global | Override: Border style ("none", "single", "double", "rounded", "solid", "shadow"). Default is "none" for sidebar, "rounded" when expanded or floating                                    |
-| `floating`          | `boolean`          | Inherits global | Override: Whether to open terminal in floating window                                                                                                                                    |
-| `env`               | `table`            | Inherits global | Override: Environment overrides merged on top of inherited process environment                                                                                                           |
-| `unset_env`         | `string[]`         | Inherits global | Override: Environment variable names removed from the spawned terminal job environment                                                                                                   |
-| `keep_open`         | `boolean`          | `false`         | Whether to keep the terminal open after execution (not auto-closing)                                                                                                                     |
-| `start_insert_on_click` | `boolean`      | `false`         | Re-enter insert mode when clicking inside the terminal while in normal mode                                                                                                              |
-| `list_buffer`       | `boolean`          | `false`         | List the terminal buffer in the bufferline as `[name]`. Sidebar only: shifts window 1 row down to avoid overlap. When `start_insert_on_click=true` and the integration window is hidden (e.g., buffer selected via bufferline), clicking on a regular window will correctly move focus there instead of forcing insert mode in the integration window. |
-| `open_delay`        | `number`           | `0`             | Milliseconds to wait before creating the terminal window. Useful when `on_open` triggers an external process that needs time to start before the terminal connects                       |
-| `start_with_text`   | `string\|function` | `nil`           | Text to insert when terminal is ready, or function that receives `visual_text` (string\|nil) and returns text to insert. Searches for `cli_ready_flags.search_for` or `cli_cmd` to detect readiness |
-| `cli_ready_flags`   | `table`            | See below       | Configuration for detecting readiness (search string, starting line, and number of lines to inspect)                                                                                     |
-| `format_paths`      | `function`         | `nil`           | Function to format file paths when inserting (receives path string, returns formatted string). If not set, uses `"@" .. path`                                                            |
-| `terminal_keys`     | `table`            | Inherits global | Override: Key mappings for the CLI terminal window                                                                                                                                       |
+| Option                  | Type               | Default         | Description                                                                                                                                                                                                                                                                                                                                            |
+| ----------------------- | ------------------ | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `name`                  | `string`           | **Required**    | Name for the integration (used for autocompletion in commands)                                                                                                                                                                                                                                                                                         |
+| `cli_cmd`               | `string`           | **Required**    | CLI command name to execute (e.g., "cursor-agent")                                                                                                                                                                                                                                                                                                     |
+| `show_help_on_open`     | `boolean`          | Inherits global | Override: Show help screen when terminal opens                                                                                                                                                                                                                                                                                                         |
+| `new_lines_amount`      | `number`           | Inherits global | Override: Number of new lines to insert after command submission                                                                                                                                                                                                                                                                                       |
+| `window_width`          | `number`           | Inherits global | Override: Width for terminal window (percentage 0-100, or absolute >100)                                                                                                                                                                                                                                                                               |
+| `window_padding`        | `number`           | Inherits global | Override: Horizontal padding in columns (adds empty space on left and right)                                                                                                                                                                                                                                                                           |
+| `border`                | `string`           | Inherits global | Override: Border style ("none", "single", "double", "rounded", "solid", "shadow"). Default is "none" for sidebar, "rounded" when expanded or floating                                                                                                                                                                                                  |
+| `floating`              | `boolean`          | Inherits global | Override: Whether to open terminal in floating window                                                                                                                                                                                                                                                                                                  |
+| `env`                   | `table`            | Inherits global | Override: Environment overrides merged on top of inherited process environment                                                                                                                                                                                                                                                                         |
+| `unset_env`             | `string[]`         | Inherits global | Override: Environment variable names removed from the spawned terminal job environment                                                                                                                                                                                                                                                                 |
+| `keep_open`             | `boolean`          | `false`         | Whether to keep the terminal open after execution (not auto-closing)                                                                                                                                                                                                                                                                                   |
+| `start_insert_on_click` | `boolean`          | `false`         | Re-enter insert mode when clicking inside the terminal while in normal mode                                                                                                                                                                                                                                                                            |
+| `list_buffer`           | `boolean`          | `false`         | List the terminal buffer in the bufferline as `[name]`. Sidebar only: shifts window 1 row down to avoid overlap. When `start_insert_on_click=true` and the integration window is hidden (e.g., buffer selected via bufferline), clicking on a regular window will correctly move focus there instead of forcing insert mode in the integration window. |
+| `open_delay`            | `number`           | `0`             | Milliseconds to wait before creating the terminal window. Useful when `on_open` triggers an external process that needs time to start before the terminal connects                                                                                                                                                                                     |
+| `start_with_text`       | `string\|function` | `nil`           | Text to insert when terminal is ready, or function that receives `visual_text` (string\|nil) and returns text to insert. Searches for `cli_ready_flags.search_for` or `cli_cmd` to detect readiness                                                                                                                                                    |
+| `cli_ready_flags`       | `table`            | See below       | Configuration for detecting readiness (search string, starting line, and number of lines to inspect)                                                                                                                                                                                                                                                   |
+| `format_paths`          | `function`         | `nil`           | Function to format file paths when inserting (receives path string, returns formatted string). If not set, uses `"@" .. path`                                                                                                                                                                                                                          |
+| `on_open`               | `function`         | `nil`           | Called before the terminal is created. Receives `(integration, working_dir)`. Use for pre-launch setup (e.g., writing config files with dynamic values)                                                                                                                                                                                                |
+| `on_close`              | `function`         | `nil`           | Called after the terminal process exits. Receives `(integration, working_dir)`. Use for cleanup tasks (e.g., removing temporary config files)                                                                                                                                                                                                          |
+| `ask_title`             | `string`           | `"Ask "..name`  | Custom title for the floating input window used by the Ask hook                                                                                                                                                                                                                                                                                        |
+| `terminal_keys`         | `table`            | Inherits global | Override: Key mappings for the CLI terminal window                                                                                                                                                                                                                                                                                                     |
 
 ## 💬 Ask Hook
 
@@ -323,11 +326,13 @@ The `window_padding` option adds visual spacing on the left and right sides of t
 - **Recommended**: `1` for a cleaner look with TUI applications
 
 How it works:
+
 - The terminal window width is reduced by `padding * 2` (left + right)
 - Left padding is created using `foldcolumn`
 - Right padding is created by limiting the terminal's `COLUMNS` environment variable
 
 Example:
+
 ```lua
 window_padding = 1,  -- Adds 1 character padding on each side
 ```
@@ -341,6 +346,7 @@ The `border` option controls the border style of the terminal window:
 - **Note**: When you toggle the window width to maximum (Ctrl+f), the border automatically changes to `"rounded"`
 
 Examples:
+
 ```lua
 border = "none",     -- No border (default for sidebar)
 border = "rounded",  -- Rounded corners (default for floating)
@@ -356,26 +362,26 @@ multiple key combinations for the same action.
 
 #### Terminal Mode Keys
 
-| Key                  | Default                     | Description                                      |
-| -------------------- | --------------------------- | ------------------------------------------------ |
-| `normal_mode`        | `{ "<M-q>" }`               | Enter normal mode                                |
-| `insert_file_path`   | `{ "<C-p>" }`               | Insert current file path                         |
-| `insert_all_buffers` | `{ "<C-p><C-p>" }`          | Insert all open buffer paths                     |
-| `new_lines`          | `{ "<S-CR>" }`              | Insert new lines                                 |
-| `submit`             | `{ "<C-s>", "<C-CR>" }`     | Submit command/message                           |
-| `enter`              | `{ "<CR>" }`                | Enter key                                        |
-| `help`               | `{ "<M-?>", "??", "\\\\" }` | Show help (multiple keys supported)              |
-| `toggle_width`       | `{ "<C-f>" }`               | Toggle window width                              |
-| `hide`               | `{ "<C-q>" }`               | Hide terminal (keeps process alive)              |
-| `close`              | `{ "<C-S-q>" }`             | Close terminal and kill process                  |
+| Key                  | Default                     | Description                         |
+| -------------------- | --------------------------- | ----------------------------------- |
+| `normal_mode`        | `{ "<M-q>" }`               | Enter normal mode                   |
+| `insert_file_path`   | `{ "<C-p>" }`               | Insert current file path            |
+| `insert_all_buffers` | `{ "<C-p><C-p>" }`          | Insert all open buffer paths        |
+| `new_lines`          | `{ "<S-CR>" }`              | Insert new lines                    |
+| `submit`             | `{ "<C-s>", "<C-CR>" }`     | Submit command/message              |
+| `enter`              | `{ "<CR>" }`                | Enter key                           |
+| `help`               | `{ "<M-?>", "??", "\\\\" }` | Show help (multiple keys supported) |
+| `toggle_width`       | `{ "<C-f>" }`               | Toggle window width                 |
+| `hide`               | `{ "<C-q>" }`               | Hide terminal (keeps process alive) |
+| `close`              | `{ "<C-S-q>" }`             | Close terminal and kill process     |
 
 #### Normal Mode Keys
 
-| Key            | Default         | Description                                      |
-| -------------- | --------------- | ------------------------------------------------ |
-| `hide`         | `{ "<C-q>" }`   | Hide terminal (keeps process alive)              |
-| `toggle_width` | `{ "<C-f>" }`   | Toggle window width                              |
-| `close`        | `{ "<C-S-q>" }` | Close terminal and kill process                  |
+| Key            | Default         | Description                         |
+| -------------- | --------------- | ----------------------------------- |
+| `hide`         | `{ "<C-q>" }`   | Hide terminal (keeps process alive) |
+| `toggle_width` | `{ "<C-f>" }`   | Toggle window width                 |
+| `close`        | `{ "<C-S-q>" }` | Close terminal and kill process     |
 
 #### Example: Custom Key Configuration
 
@@ -631,27 +637,27 @@ Once the CLI tool terminal is open, you have access to special keymaps:
 
 #### Terminal Mode
 
-| Keymap                  | Description                                      |
-| ----------------------- | ------------------------------------------------ |
-| `<C-s>` or `<C-CR>`     | Submit command/message                           |
-| `<M-q>`                 | Enter normal mode                                |
-| `<C-p>`                 | Attach current file path                         |
-| `<C-p><C-p>`            | Attach all open buffer paths                     |
-| `<C-f>`                 | Toggle window width (expand/collapse)            |
-| `<M-?>` or `??` or `\\` | Show help                                        |
-| `<C-q>`                 | Hide terminal window (keeps process alive)       |
-| `<C-S-q>`               | Close terminal window and kill process           |
-| `<S-CR>`                | Insert new line                                  |
-| `<CR>`                  | Send Enter key                                   |
+| Keymap                  | Description                                |
+| ----------------------- | ------------------------------------------ |
+| `<C-s>` or `<C-CR>`     | Submit command/message                     |
+| `<M-q>`                 | Enter normal mode                          |
+| `<C-p>`                 | Attach current file path                   |
+| `<C-p><C-p>`            | Attach all open buffer paths               |
+| `<C-f>`                 | Toggle window width (expand/collapse)      |
+| `<M-?>` or `??` or `\\` | Show help                                  |
+| `<C-q>`                 | Hide terminal window (keeps process alive) |
+| `<C-S-q>`               | Close terminal window and kill process     |
+| `<S-CR>`                | Insert new line                            |
+| `<CR>`                  | Send Enter key                             |
 
 #### Normal Mode (in terminal)
 
-| Keymap                                   | Description                                      |
-| ---------------------------------------- | ------------------------------------------------ |
-| `<C-q>`                                  | Hide terminal window (keeps process alive)       |
-| `<C-S-q>`                                | Close terminal window and kill process           |
-| `<C-f>`                                  | Toggle window width (expand/collapse)            |
-| All other normal mode keys work as usual |                                                  |
+| Keymap                                   | Description                                |
+| ---------------------------------------- | ------------------------------------------ |
+| `<C-q>`                                  | Hide terminal window (keeps process alive) |
+| `<C-S-q>`                                | Close terminal window and kill process     |
+| `<C-f>`                                  | Toggle window width (expand/collapse)      |
+| All other normal mode keys work as usual |                                            |
 
 ## 🚀 Quick Start
 
@@ -825,7 +831,9 @@ cli-integration.nvim/
         ├── buffers.lua       # Buffer path management
         ├── keymaps.lua       # Terminal keymaps
         ├── autocmds.lua      # Autocommands
-        └── help.lua          # Help system
+        ├── help.lua          # Help system
+        ├── ask.lua           # Ask hook (context-aware questions)
+        └── hooks.lua         # Shared hooks (session management, path helpers)
 ```
 
 ## 🤝 Contributing
