@@ -219,6 +219,81 @@ Each integration in the `integrations` array can have:
 | `format_paths`      | `function`         | `nil`           | Function to format file paths when inserting (receives path string, returns formatted string). If not set, uses `"@" .. path`                                                            |
 | `terminal_keys`     | `table`            | Inherits global | Override: Key mappings for the CLI terminal window                                                                                                                                       |
 
+## 💬 Ask Hook
+
+The Ask hook provides a quick way to send context-aware questions to CLI integrations from within Neovim.
+
+### Usage
+
+```lua
+-- Via Lua API
+require("cli-integration").hooks.ask("Opencode")
+
+-- Via keymap (in your config)
+vim.keymap.set("n", "<leader>aq", function()
+  require("cli-integration").hooks.ask("Opencode")
+end, { desc = "Ask Opencode" })
+```
+
+When invoked, a floating input window appears near the cursor. Type your question and press Enter to send it to the integration terminal.
+
+### Features
+
+- **Two-window architecture**: Outer window displays border, title, and "❯ " icon. Inner window handles text input. No prefix management needed — Backspace works naturally.
+- **Visual selection**: If you have text selected in visual mode, the selection is captured as context
+- **Sequential flow**: Context captured → terminal opened → focus returned to file → selection restored → input shown
+
+### Configuration
+
+```lua
+{
+  cli_cmd = "opencode",
+  name = "Opencode",
+  -- Override the default "Ask {name}" title
+  ask_title = "Ask AI",  -- default: "Ask " .. integration.name
+
+  -- Custom handler for submitted questions
+  on_ask_submit = function(data, actions)
+    -- data.file          — absolute file path
+    -- data.relative_file — relative file path
+    -- data.start_line    — start line number
+    -- data.end_line      — end line number
+    -- data.selection     — selected text (nil if no selection)
+    -- data.filetype      — file type
+    -- data.question      — user's typed question
+
+    -- actions.send(text)  — send text to terminal
+    -- actions.submit()    — send Enter key
+    -- actions.newline()   — send newline
+    -- actions.focus_file()— focus the file window
+
+    actions.send(data.question .. "\n\nFile: " .. data.relative_file)
+    actions.submit()
+  end,
+}
+```
+
+### Default Behavior
+
+If `on_ask_submit` is not configured, the built-in default handler sends a formatted message:
+
+```
+<question>
+
+<relative_file>:L<start_line>-L<end_line>  (with selection)
+<selection text>
+```
+
+or:
+
+```
+<question>
+
+<relative_file>:L<start_line>  (without selection)
+```
+
+The terminal window is auto-focused after submission unless `actions.focus_file()` is called.
+
 #### Window Width Configuration
 
 The `window_width` option supports two modes:

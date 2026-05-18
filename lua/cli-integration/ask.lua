@@ -6,7 +6,6 @@ local M = {}
 --- @param screen_capture table|nil {row, col} to store screen position into (optional)
 --- @return Cli-Integration.AskData
 local function capture_context(screen_capture)
-	-- Capture screen position first, before anything changes
 	if screen_capture then
 		screen_capture.row = vim.fn.screenrow()
 		screen_capture.col = vim.fn.screencol()
@@ -17,24 +16,18 @@ local function capture_context(screen_capture)
 	local cursor = vim.api.nvim_win_get_cursor(0)
 	local cursor_line = cursor[1]
 	local filetype = vim.bo.filetype
-
 	local mode = vim.api.nvim_get_mode().mode
 	local selection = nil
 	local start_line = cursor_line
 	local end_line = cursor_line
 
-	local in_visual = mode:match("[vV\22]") ~= nil
-
-	if in_visual then
-		-- While still in visual mode, '< and '> contain the PREVIOUS selection.
-		-- Use 'v' (visual start) and '.' (current cursor) for the current selection.
+	if mode:match("[vV\22]") then
 		local v_start = vim.fn.getpos("v")
 		local v_end = vim.fn.getpos(".")
 		if v_start[2] > 0 and v_end[2] > 0 then
 			start_line = math.min(v_start[2], v_end[2])
 			end_line = math.max(v_start[2], v_end[2])
 		end
-
 		local lines = vim.api.nvim_buf_get_lines(0, start_line - 1, end_line, false)
 		selection = table.concat(lines, "\n")
 	end
@@ -49,101 +42,102 @@ local function capture_context(screen_capture)
 	}
 end
 
---- Show a floating input window near the cursor
---- @param title string Window title
---- @param screen_row number 1-indexed screen row (from screenrow())
---- @param screen_col number 1-indexed screen col (from screencol())
---- @param on_submit fun(text: string) Called with trimmed text when user presses Enter
---- @param on_cancel fun() Called when user presses Escape or cancels
+--- Floating input built from two windows:
+---   outer — border + title + "❯ " icon (non-editable, non-focusable)
+---   inner — actual text input, overlaid after the icon inside the outer window
+---
+--- @param title string
+--- @param screen_row number 1-indexed screen row
+--- @param screen_col number 1-indexed screen col
+--- @param on_submit fun(text: string)
+--- @param on_cancel fun()
 local function show_input(title, screen_row, screen_col, on_submit, on_cancel)
-	-- Convert to 0-indexed for nvim_open_win
-	local sr = screen_row - 1
-	local sc = screen_col - 1
-
-	local width = math.min(60, vim.o.columns - 4)
+	local icon = "❯ "
+	local icon_cols = 2
+	local total_width = math.min(60, vim.o.columns - 4)
 	local height = 1
 
-	-- Position below cursor, centered horizontally
-	local row = sr + 1
-	local col = sc - math.floor(width / 2)
-
-	-- Clamp horizontal
-	col = math.max(0, math.min(col, vim.o.columns - width))
-
-	-- Clamp vertical: if off-screen at bottom, place above cursor
-	if row + height > vim.o.lines - 1 then
-		row = sr - height - 1
-		row = math.max(0, row)
+	local row = (screen_row - 1) + 1
+	local col = (screen_col - 1) - math.floor(total_width / 2)
+	col = math.max(0, math.min(col, vim.o.columns - total_width - 2))
+	if row + height + 2 > vim.o.lines - 1 then
+		row = math.max(0, (screen_row - 1) - height - 2)
 	end
 
-	-- Create buffer
-	local buf = vim.api.nvim_create_buf(false, true)
-	vim.bo[buf].buftype = "nofile"
-	vim.bo[buf].bufhidden = "wipe"
+	local outer_buf = vim.api.nvim_create_buf(false, true)
+	vim.bo[outer_buf].buftype = "nofile"
+	vim.bo[outer_buf].bufhidden = "wipe"
+	vim.api.nvim_buf_set_lines(outer_buf, 0, -1, false, { icon })
+	vim.bo[outer_buf].modifiable = false
 
-	-- Create floating window
-	local win = vim.api.nvim_open_win(buf, true, {
+	local outer_win = vim.api.nvim_open_win(outer_buf, false, {
 		relative = "editor",
 		row = row,
 		col = col,
-		width = width,
+		width = total_width,
 		height = height,
 		border = "rounded",
 		title = " " .. title .. " ",
 		title_pos = "center",
 		style = "minimal",
+		focusable = false,
+		zindex = 50,
 	})
 
-	-- Guard against double-submit
-	local submitted = false
+	local buf = vim.api.nvim_create_buf(false, true)
+	vim.bo[buf].buftype = "nofile"
+	vim.bo[buf].bufhidden = "wipe"
 
-	-- Buffer-local keymaps
+	local win = vim.api.nvim_open_win(buf, true, {
+		relative = "win",
+		win = outer_win,
+		row = 0,
+		col = icon_cols,
+		width = total_width - icon_cols,
+		height = height,
+		border = "none",
+		style = "minimal",
+		zindex = 51,
+	})
+
+	local submitted = false
 	local opts = { buffer = buf, nowait = true, silent = true }
 
+	local function close_all()
+		pcall(vim.api.nvim_win_close, win, true)
+		pcall(vim.api.nvim_win_close, outer_win, true)
+	end
+
 	vim.keymap.set("i", "<CR>", function()
-		if submitted then
-			return
-		end
+		if submitted then return end
 		submitted = true
 		local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-		local text = table.concat(lines, "\n"):gsub("^%s+", ""):gsub("%s+$", "")
-		pcall(vim.api.nvim_win_close, win, true)
-		if text ~= "" then
-			on_submit(text)
-		else
-			on_cancel()
-		end
+		local text = vim.trim(table.concat(lines, "\n"))
+		close_all()
+		if text ~= "" then on_submit(text) else on_cancel() end
 	end, opts)
 
 	vim.keymap.set("i", "<Esc>", function()
-		pcall(vim.api.nvim_win_close, win, true)
-		-- Explicitly exit insert mode so we return to normal mode
+		close_all()
 		vim.cmd("stopinsert")
 		on_cancel()
 	end, opts)
 
 	vim.keymap.set("n", "<Esc>", function()
-		pcall(vim.api.nvim_win_close, win, true)
+		close_all()
 		on_cancel()
 	end, opts)
 
-	-- Focus the input window
-	vim.api.nvim_set_current_win(win)
+	vim.api.nvim_create_autocmd("WinClosed", {
+		pattern = tostring(win),
+		once = true,
+		callback = function() pcall(vim.api.nvim_win_close, outer_win, true) end,
+	})
 
-	-- Use vim.defer_fn (not vim.schedule) to ensure startinsert runs AFTER
-	-- any pending stopinsert from the terminal's WinLeave autocmd.
-	-- The terminal's WinLeave uses vim.schedule which runs on the next tick;
-	-- defer_fn with 10ms guarantees we run after it.
-	vim.defer_fn(function()
-		if vim.api.nvim_win_is_valid(win) then
-			-- Re-focus in case something stole it
-			vim.api.nvim_set_current_win(win)
-			vim.cmd("startinsert")
-		end
-	end, 10)
+	vim.cmd("startinsert")
 end
 
---- Look up integration by name, index, or cli_cmd (same logic as commands.lua)
+--- Look up integration by name, index, or cli_cmd
 --- @param identifier string|number|nil
 --- @return Cli-Integration.Integration|nil
 --- @return string|nil error message
@@ -151,8 +145,8 @@ local function lookup_integration(identifier)
 	local config = require("cli-integration.config")
 	local integrations = config.options.integrations or {}
 
-	if not integrations or #integrations == 0 then
-		return nil, "No integrations configured. Please configure at least one integration with 'cli_cmd'."
+	if #integrations == 0 then
+		return nil, "No integrations configured."
 	end
 
 	if not identifier then
@@ -161,7 +155,7 @@ local function lookup_integration(identifier)
 
 	if type(identifier) == "number" then
 		if identifier < 1 or identifier > #integrations then
-			return nil, "Integration index " .. identifier .. " is out of range (1-" .. #integrations .. ")"
+			return nil, "Integration index " .. identifier .. " out of range (1-" .. #integrations .. ")"
 		end
 		return integrations[identifier], nil
 	elseif type(identifier) == "string" then
@@ -172,151 +166,149 @@ local function lookup_integration(identifier)
 			end
 		end
 		for _, integration in ipairs(integrations) do
-			if integration.cli_cmd == identifier then
-				return integration, nil
-			end
+			if integration.cli_cmd == identifier then return integration, nil end
 		end
-		return nil, "Integration with name or cli_cmd '" .. identifier .. "' not found"
+		return nil, "Integration '" .. identifier .. "' not found"
 	end
 
 	return nil, "Invalid identifier type"
 end
 
---- Send formatted text to a terminal and auto-submit
---- @param term_buf number Terminal buffer handle
---- @param text string Text to insert
-local function send_to_terminal(term_buf, text)
-	local terminal = require("cli-integration.terminal")
-
-	-- Insert the formatted question text
-	terminal.insert_text(text, term_buf)
-
-	-- Auto-submit: send Enter via feedkeys (same mechanism as the submit keymap)
-	-- Use a small delay to ensure text is fully processed before submitting
-	vim.defer_fn(function()
-		local job_id = terminal.get_terminal_job_id(term_buf)
-		if job_id and vim.fn.jobwait({ job_id }, 10)[1] == -1 then
-			vim.fn.chansend(job_id, "\r")
-		end
-	end, 50)
-
-	-- Focus the terminal window so user sees the response
-	terminal.focus_terminal_window(term_buf)
-end
-
---- Ensure the terminal exists and is visible, then call on_ready with term_data.
---- For closed integrations: opens the terminal (suppressing start_with_text), waits
---- for CLI readiness via the existing attach_text_when_ready polling, then proceeds.
+--- Open or toggle the integration terminal (no callbacks, no start_with_text overrides).
 --- @param integration Cli-Integration.Integration
---- @param on_ready fun(term_data: table) Called when terminal is ready
-local function ensure_terminal_ready(integration, on_ready)
+local function open_integration(integration)
 	local terminal = require("cli-integration.terminal")
 	local name = integration.name
 	local term_data = terminal.terminals[name]
 
 	if term_data and term_data.term_buf and vim.api.nvim_buf_is_valid(term_data.term_buf) then
-		-- Terminal exists. If hidden, show it via toggle.
 		local term_win = terminal.find_terminal_window(term_data.term_buf)
-		if not term_win then
-			if term_data.cli_term and term_data.cli_term.toggle then
-				term_data.cli_term:toggle()
-			end
+		if not term_win and term_data.cli_term and term_data.cli_term.toggle then
+			term_data.cli_term:toggle()
 		end
-		on_ready(term_data)
 	else
-		-- Terminal doesn't exist. Open it, suppressing start_with_text so
-		-- the ask hook's formatted question takes priority.
+		-- Suppress start_with_text so ask's question takes priority
 		local saved_start = integration.start_with_text
 		integration.start_with_text = function()
-			-- CLI is ready. Restore original and signal.
 			integration.start_with_text = saved_start
-			local fresh_data = terminal.terminals[name]
-			if fresh_data then
-				on_ready(fresh_data)
-			end
-			return "" -- don't insert anything
+			return ""
 		end
 
 		local working_dir = vim.fn.expand("%:p:h")
-		if working_dir == "" then
-			working_dir = vim.fn.getcwd()
-		end
-
+		if working_dir == "" then working_dir = vim.fn.getcwd() end
 		terminal.open_terminal(integration, nil, integration.keep_open, working_dir)
 	end
 end
 
+--- Build the actions table and call on_ask_submit once the terminal is ready.
+--- @param integration Cli-Integration.Integration
+--- @param context Cli-Integration.AskData
+--- @param question string
+local function _handle_submit(integration, context, question)
+	context.question = question
+
+	local terminal = require("cli-integration.terminal")
+	local term_data = terminal.terminals[integration.name]
+	if not term_data or not term_data.term_buf then return end
+	local term_buf = term_data.term_buf
+	local focused_file = false
+
+	local actions = {
+		send = function(keys)
+			require("cli-integration.terminal").insert_text(keys, term_buf)
+		end,
+		submit = function()
+			vim.defer_fn(function()
+				local job_id = terminal.get_terminal_job_id(term_buf)
+				if job_id and vim.fn.jobwait({ job_id }, 10)[1] == -1 then
+					vim.fn.chansend(job_id, "\r")
+				end
+			end, 50)
+		end,
+		newline = function()
+			require("cli-integration.terminal").insert_text("\n", term_buf)
+		end,
+		focus_file = function()
+			focused_file = true
+			for _, w in ipairs(vim.api.nvim_list_wins()) do
+				if vim.api.nvim_win_is_valid(w) then
+					local b = vim.api.nvim_win_get_buf(w)
+					if vim.bo[b].buftype == "" and vim.bo[b].buflisted then
+						pcall(vim.api.nvim_set_current_win, w)
+						pcall(function() vim.cmd("stopinsert") end)
+						return
+					end
+				end
+			end
+		end,
+	}
+
+	local on_ask = integration.on_ask_submit
+	if on_ask and type(on_ask) == "function" then
+		local ok, err = pcall(on_ask, context, actions)
+		if not ok then
+			vim.notify("cli-integration.nvim: on_ask_submit error: " .. tostring(err), vim.log.levels.ERROR)
+			return
+		end
+	else
+		local default_fn = require("cli-integration.config").options.on_ask_submit
+		if default_fn then default_fn(context, actions) end
+	end
+
+	if not focused_file then
+		require("cli-integration.terminal").focus_terminal_window(term_buf)
+	end
+end
+
 --- Ask a question to a CLI integration.
---- Captures current file context (and visual selection if in visual mode),
---- shows a floating input at cursor position, formats the question via
---- integration.format_ask_query, and sends it to the integration terminal.
---- @param integration_identifier string|number|nil Integration name, index, or cli_cmd (defaults to first)
+--- Sequential flow: capture → open terminal → return to file → restore selection → show input.
+--- @param integration_identifier string|number|nil
 function M.ask(integration_identifier)
-	-- Step 1: Capture screen position BEFORE any mode/window changes
 	local screen_cap = {}
 	local context = capture_context(screen_cap)
 
-	-- Step 2: Look up the integration
 	local integration, err = lookup_integration(integration_identifier)
 	if not integration then
 		vim.notify("cli-integration.nvim: " .. (err or "integration not found"), vim.log.levels.WARN)
 		return
 	end
 
-	-- Step 3: If we captured a visual selection, defer the rest of the flow
-	-- so visual mode exits naturally before we show the input window.
-	-- The visual marks '< and '> persist across mode changes, so we already
-	-- have the selection data.
-	if context.selection then
-		vim.defer_fn(function()
-			M._show_ask_input(integration, context, screen_cap)
-		end, 50)
-	else
-		M._show_ask_input(integration, context, screen_cap)
+	local title = integration.ask_title or ("Ask " .. integration.name)
+
+	-- Step 2: Open the integration terminal (steals focus, enters normal mode — expected)
+	open_integration(integration)
+
+	-- Step 3: Return to the file buffer
+	local file_win = nil
+	for _, w in ipairs(vim.api.nvim_list_wins()) do
+		if vim.api.nvim_win_is_valid(w) then
+			local b = vim.api.nvim_win_get_buf(w)
+			if vim.bo[b].buftype == "" and vim.bo[b].buflisted then
+				file_win = w
+				break
+			end
+		end
 	end
-end
 
---- Internal: show the input and handle terminal readiness.
---- @param integration Cli-Integration.Integration
---- @param context Cli-Integration.AskData
---- @param screen_cap table
-function M._show_ask_input(integration, context, screen_cap)
-	ensure_terminal_ready(integration, function(term_data)
-		local title = integration.ask_title or integration.name
+	if file_win then
+		pcall(vim.api.nvim_set_current_win, file_win)
+	end
+
+	-- Step 4: Restore visual selection if there was one
+	if context.selection then
+		vim.api.nvim_win_set_cursor(0, { context.start_line, 0 })
+		vim.cmd("normal! V")
+		vim.api.nvim_win_set_cursor(0, { context.end_line, 0 })
+	end
+
+	-- Step 5: Show the input in insert mode
+	-- Delay ensures the terminal's scheduled stopinsert (from WinLeave when we
+	-- returned focus to the file window) runs before we enter insert mode.
+	vim.defer_fn(function()
 		show_input(title, screen_cap.row, screen_cap.col, function(question)
-			-- User submitted: format and send
-			context.question = question
-
-			local format_ask = integration.format_ask_query
-			local formatted
-			if format_ask and type(format_ask) == "function" then
-				local ok, result = pcall(format_ask, context, integration)
-				if not ok then
-					vim.notify(
-						"cli-integration.nvim: format_ask_query error: " .. tostring(result),
-						vim.log.levels.ERROR
-					)
-					return
-				end
-				if type(result) ~= "string" then
-					vim.notify("cli-integration.nvim: format_ask_query must return a string", vim.log.levels.ERROR)
-					return
-				end
-				formatted = result
-			else
-				-- Use default formatter from config
-				local config = require("cli-integration.config")
-				local default_fmt = config.options.format_ask_query
-				formatted = default_fmt(context, integration)
-			end
-
-			if formatted and formatted ~= "" then
-				send_to_terminal(term_data.term_buf, formatted)
-			end
-		end, function()
-			-- User cancelled: nothing to do
-		end)
-	end)
+			_handle_submit(integration, context, question)
+		end, function() end)
+	end, 50)
 end
 
 return M

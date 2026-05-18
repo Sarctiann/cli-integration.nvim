@@ -158,6 +158,26 @@
 - Pattern: `term://*` (catches all terminals, then filters by buffer variable)
 - Buffer name `[integration.name]` is always applied after termopen (not only when list_buffer=true)
 
+### lua/cli-integration/ask.lua
+**Responsibility**: Ask hook — captures context, opens terminal, shows floating input, sends to terminal via actions
+**Key Functions**:
+- `M.ask(integration_identifier)`: Main entry point — sequential flow: capture context → open terminal → return to file → restore selection → show input
+- `capture_context(screen_capture)`: Captures file, cursor, visual selection, and screen position before any window changes
+- `show_input(title, screen_row, screen_col, on_submit, on_cancel)`: Creates two-window floating input (outer border+icon, inner text)
+- `lookup_integration(identifier)`: Resolves integration by name, index, or cli_cmd
+- `open_integration(integration)`: Opens or toggles terminal, suppresses start_with_text so ask's question takes priority
+- `_handle_submit(integration, context, question)`: Builds actions table, calls on_ask_submit, auto-focuses terminal unless focus_file was called
+**Critical Details**:
+- **Sequential Flow**: Context is captured first, then terminal is opened (steals focus), then focus returns to file, visual selection is restored if any, then input is shown with 50ms delay to let terminal's scheduled stopinsert complete.
+- **Two-Window Input**: Outer window displays border, title, and "❯ " icon (non-focusable, non-editable). Inner window handles text input, positioned after the icon via `relative="win"`. No prefix management needed — BS works naturally.
+- **Title Format**: "Ask {name}" by default (e.g., "Ask Opencode"). Can be overridden by `ask_title` integration config.
+- **Actions Table**: `on_ask_submit(data, actions)` receives an AskActions table with:
+  - `actions.send(keys)` — sends text to terminal via chansend
+  - `actions.submit()` — sends Enter with 50ms delay for processing
+  - `actions.newline()` — sends newline character
+  - `actions.focus_file()` — moves focus to a normal file window; does NOT stop execution
+- **Auto-focus**: After on_ask_submit returns, the terminal window is auto-focused UNLESS `actions.focus_file()` was called during execution.
+
 ### lua/cli-integration/buffers.lua
 **Responsibility**: Buffer path collection and filtering
 **Key Functions**:
@@ -204,6 +224,8 @@
   start_with_text = string|function(visual_text), -- Optional: text to insert when ready
   cli_ready_flags = { search_for = string, from_line = number, lines_amt = number }, -- Optional: config for readiness (default: cli_cmd, 1, 5)
   format_paths = function(path),   -- Optional: format file paths before insertion
+  ask_title = string,              -- Optional: override default "Ask {name}" title for ask input window
+  on_ask_submit = nil|fun(data: Cli-Integration.AskData, actions: Cli-Integration.AskActions), -- Optional: callback for ask submit
   terminal_keys = {                -- Optional: override global keys
     terminal_mode = { ... },
     normal_mode = { ... }
@@ -231,6 +253,29 @@ terminal_keys = {
     hide = {"<C-q>"},                           -- Hide window (keep process)
     close = {"<C-S-q>"}                         -- Close window (kill process)
   }
+}
+```
+
+### Ask Actions Schema
+```lua
+actions = {
+  send = function(keys) end,     -- Send text/keys to terminal via chansend
+  submit = function() end,       -- Send Enter key (auto-submit)
+  newline = function() end,       -- Send newline character
+  focus_file = function() end,    -- Move focus to file window (actions continue)
+}
+```
+
+### Ask Context Data Schema
+```lua
+AskData = {
+  file = "string",          -- Absolute path of the current file
+  relative_file = "string", -- Path relative to current directory
+  start_line = number,      -- 1-indexed start line (from selection or cursor)
+  end_line = number,        -- 1-indexed end line (= start_line if no selection)
+  selection = "string|nil", -- Selected text content (nil if no visual selection)
+  filetype = "string",      -- vim.bo.filetype of the source buffer
+  question = "string",      -- The user's typed question (set by ask.lua after submit)
 }
 ```
 
@@ -451,3 +496,4 @@ After implementing any feature or change, always update both:
 - 2026-04-30: Hardened sidebar/fullwidth transition and navigation stability: proxy split recreation now anchors on a safe normal layout window (avoids layout competition with sidebars like neo-tree), fullwidth explicitly clears split references (split_win/split_buf), and terminal navigation mappings use `<Cmd>wincmd ...<CR>` form after terminal-normal escape to reduce mode-state glitches during `<C-h>/<C-l>` navigation.
 - 2026-05-04: Changed terminal job environment strategy to inherit full Neovim process env by default (preserving NVIM/TERM/TMUX behavior), replaced hardcoded TERM/COLORTERM overrides with `build_job_env()` in window.lua, and added configurable `env`/`unset_env` options at global and per-integration levels (config.lua, terminal.lua, README.md).
 - 2026-05-12: Fixed sidebar width recalculation on editor resize: added `M._last_editor_width` state to `window.lua` and refactored `M.resize_sidebars()` to distinguish editor resize (recalculate from `width_config` percentage) from manual split resize (split as source of truth). Also refreshes `_last_editor_width` on `create_sidebar_layout()` to prevent stale-cache misclassification. Fullwidth mode behavior unchanged.
+- 2026-05-18: Renamed format_ask_query → on_ask_submit with actions table API (send/submit/newline/focus_file). Rewrote ask.lua with two-window input architecture (outer border+icon, inner text) eliminating prefix management complexity. Sequential flow: capture → open terminal → return to file → restore selection → show input with 50ms delay to avoid insert mode race with terminal's scheduled stopinsert.
