@@ -28,6 +28,7 @@ Captures editing context BEFORE any window changes.
 
 - `file` — Absolute path
 - `relative_file` — Path relative to current directory
+- `filename` — Just the filename (e.g. "main.lua")
 - `start_line` — 1-indexed start line
 - `end_line` — 1-indexed end line
 - `selection` — Selected text (nil if no visual selection)
@@ -62,7 +63,7 @@ Resolves integration by name, index, or cli_cmd. Same logic as commands.lua.
 
 ### `open_integration(integration)`
 
-Opens or toggles terminal, suppresses `start_with_text` so ask's question takes priority.
+Opens or toggles terminal, suppresses `start_with_text` so ask's question takes priority. Terminal is created in the **git root** directory (falls back to file's directory if not in a git repo).
 
 ### `_handle_submit(integration, context, question)`
 
@@ -70,12 +71,13 @@ Builds actions table and calls `on_ask_submit`.
 
 **Actions table:**
 
-- `send(keys)` — Sends text to terminal via chansend
+- `send_line(text?)` — Sends text followed by newline to terminal via chansend (text defaults to "")
+- `send_keys(keys)` — Sends key sequences (Vim key notation like `<CR>`, `<Esc>`) via chansend
+- `wait(ms)` — Yields execution via coroutine for the given ms, allowing the terminal to process inputs between actions
 - `submit()` — Sends Enter with 50ms delay
-- `newline()` — Sends newline character
 - `focus_file()` — Moves focus to file window (does NOT stop execution)
 
-**Auto-focus:** After `on_ask_submit` returns, terminal window is auto-focused UNLESS `focus_file()` was called.
+**Auto-focus:** Terminal window is focused BEFORE `on_ask_submit` runs so user sees actions execute. If `focus_file()` is called during the callback, focus returns to the file window after the callback completes.
 
 ## Critical Details
 

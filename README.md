@@ -259,18 +259,20 @@ When invoked, a floating input window appears near the cursor. Type your questio
   on_ask_submit = function(data, actions)
     -- data.file          — absolute file path
     -- data.relative_file — relative file path
+    -- data.filename      — just the filename (e.g. "main.lua")
     -- data.start_line    — start line number
     -- data.end_line      — end line number
     -- data.selection     — selected text (nil if no selection)
     -- data.filetype      — file type
     -- data.question      — user's typed question
 
-    -- actions.send(text)  — send text to terminal
-    -- actions.submit()    — send Enter key
-    -- actions.newline()   — send newline
-    -- actions.focus_file()— focus the file window
+    -- actions.send_line(text) — send text followed by newline (text defaults to "")
+    -- actions.send_keys(keys) — send key sequences ("<CR>", "<Esc>", "<C-c>", etc.)
+    -- actions.wait(ms)        — block for milliseconds before next action
+    -- actions.submit()        — send Enter key
+    -- actions.focus_file()    — focus the file window
 
-    actions.send(data.question .. "\n\nFile: " .. data.relative_file)
+    actions.send_line(data.question .. "\n\nFile: " .. data.relative_file)
     actions.submit()
   end,
 }

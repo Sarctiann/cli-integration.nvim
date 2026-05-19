@@ -13,6 +13,7 @@ local function capture_context(screen_capture)
 
 	local file = vim.fn.expand("%:p")
 	local relative_file = vim.fn.expand("%")
+	local filename = vim.fn.expand("%:t")
 	local cursor = vim.api.nvim_win_get_cursor(0)
 	local cursor_line = cursor[1]
 	local filetype = vim.bo.filetype
@@ -35,6 +36,7 @@ local function capture_context(screen_capture)
 	return {
 		file = file,
 		relative_file = relative_file,
+		filename = filename,
 		start_line = start_line,
 		end_line = end_line,
 		selection = selection,
@@ -67,8 +69,9 @@ local function show_input(title, screen_row, screen_col, on_submit, on_cancel)
 	local outer_buf = vim.api.nvim_create_buf(false, true)
 	vim.bo[outer_buf].buftype = "nofile"
 	vim.bo[outer_buf].bufhidden = "wipe"
-	vim.api.nvim_buf_set_lines(outer_buf, 0, -1, false, { icon })
+	vim.api.nvim_buf_set_lines(outer_buf, 0, -1, false, { " " .. icon })
 	vim.bo[outer_buf].modifiable = false
+	vim.api.nvim_buf_add_highlight(outer_buf, -1, "Keyword", 0, 1, 3)
 
 	local outer_win = vim.api.nvim_open_win(outer_buf, false, {
 		relative = "editor",
@@ -92,8 +95,8 @@ local function show_input(title, screen_row, screen_col, on_submit, on_cancel)
 		relative = "win",
 		win = outer_win,
 		row = 0,
-		col = icon_cols,
-		width = total_width - icon_cols,
+		col = icon_cols + 1,
+		width = total_width - icon_cols - 1,
 		height = height,
 		border = "none",
 		style = "minimal",
@@ -194,8 +197,11 @@ local function open_integration(integration)
 			return ""
 		end
 
-		local working_dir = vim.fn.expand("%:p:h")
-		if working_dir == "" then working_dir = vim.fn.getcwd() end
+		local working_dir = vim.fn.systemlist("git rev-parse --show-toplevel")[1]
+		if not working_dir or working_dir == "" then
+			working_dir = vim.fn.expand("%:p:h")
+			if working_dir == "" then working_dir = vim.fn.getcwd() end
+		end
 		terminal.open_terminal(integration, nil, integration.keep_open, working_dir)
 	end
 end
@@ -212,10 +218,23 @@ local function _handle_submit(integration, context, question)
 	if not term_data or not term_data.term_buf then return end
 	local term_buf = term_data.term_buf
 	local focused_file = false
+	local co = nil
 
 	local actions = {
-		send = function(keys)
-			require("cli-integration.terminal").insert_text(keys, term_buf)
+		send_line = function(text)
+			require("cli-integration.terminal").insert_text((text or "") .. "\n", term_buf)
+		end,
+		send_keys = function(keys)
+			local converted = vim.api.nvim_replace_termcodes(keys, true, true, true)
+			require("cli-integration.terminal").insert_text(converted, term_buf)
+		end,
+		wait = function(ms)
+			vim.defer_fn(function()
+				if co and coroutine.status(co) == "suspended" then
+					coroutine.resume(co)
+				end
+			end, ms)
+			coroutine.yield()
 		end,
 		submit = function()
 			vim.defer_fn(function()
@@ -224,9 +243,6 @@ local function _handle_submit(integration, context, question)
 					vim.fn.chansend(job_id, "\r")
 				end
 			end, 50)
-		end,
-		newline = function()
-			require("cli-integration.terminal").insert_text("\n", term_buf)
 		end,
 		focus_file = function()
 			focused_file = true
@@ -243,21 +259,43 @@ local function _handle_submit(integration, context, question)
 		end,
 	}
 
-	local on_ask = integration.on_ask_submit
-	if on_ask and type(on_ask) == "function" then
-		local ok, err = pcall(on_ask, context, actions)
-		if not ok then
-			vim.notify("cli-integration.nvim: on_ask_submit error: " .. tostring(err), vim.log.levels.ERROR)
-			return
+	local function apply_focus_file()
+		if focused_file then
+			for _, w in ipairs(vim.api.nvim_list_wins()) do
+				if vim.api.nvim_win_is_valid(w) then
+					local b = vim.api.nvim_win_get_buf(w)
+					if vim.bo[b].buftype == "" and vim.bo[b].buflisted then
+						pcall(vim.api.nvim_set_current_win, w)
+						pcall(function() vim.cmd("stopinsert") end)
+						return
+					end
+				end
+			end
 		end
-	else
-		local default_fn = require("cli-integration.config").options.on_ask_submit
-		if default_fn then default_fn(context, actions) end
 	end
 
-	if not focused_file then
-		require("cli-integration.terminal").focus_terminal_window(term_buf)
+	local function run_callback()
+		-- Focus terminal first so user sees the actions execute
+		terminal.focus_terminal_window(term_buf)
+
+		local on_ask = integration.on_ask_submit
+		if on_ask and type(on_ask) == "function" then
+			co = coroutine.create(function()
+				local ok, err = pcall(on_ask, context, actions)
+				if not ok then
+					vim.notify("cli-integration.nvim: on_ask_submit error: " .. tostring(err), vim.log.levels.ERROR)
+				end
+				apply_focus_file()
+			end)
+			coroutine.resume(co)
+		else
+			local default_fn = require("cli-integration.config").options.on_ask_submit
+			if default_fn then default_fn(context, actions) end
+			apply_focus_file()
+		end
 	end
+
+	run_callback()
 end
 
 --- Ask a question to a CLI integration.

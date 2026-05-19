@@ -25,14 +25,16 @@
 --- @field lines_amt number|nil # Number of lines to inspect
 
 --- @class Cli-Integration.AskActions
---- @field send fun(keys: string) Send text/keys to the terminal via chansend (same mechanism as start_with_text)
+--- @field send_line fun(text: string?) Send text followed by a newline to the terminal via chansend (text defaults to "")
+--- @field send_keys fun(keys: string) Send key sequences (Vim key notation like "<CR>", "<Esc>", "<C-c>") via chansend
+--- @field wait fun(ms: number) Yield execution for the given milliseconds (coroutine-based, allows terminal to process inputs between actions)
 --- @field submit fun() Send Enter key to the terminal (auto-submit)
---- @field newline fun() Send a newline character to the terminal
 --- @field focus_file fun() Move keyboard focus to the file (normal) window; actions continue to send to the terminal buffer via chansend regardless of focus
 
 --- @class Cli-Integration.AskData
 --- @field file string Absolute path of the current file
---- @field relative_file string Path relative to the integration's workspace
+--- @field relative_file string Path relative to the current directory
+--- @field filename string Just the filename (e.g. "main.lua")
 --- @field start_line number 1-indexed start line (from selection or cursor)
 --- @field end_line number 1-indexed end line (= start_line if no selection)
 --- @field selection string|nil Selected text content (nil if no visual selection)
@@ -100,7 +102,7 @@ M.defaults = {
 		else
 			table.insert(parts, data.relative_file .. " L" .. data.start_line)
 		end
-		actions.send(table.concat(parts, "\n"))
+		actions.send_line(table.concat(parts, "\n"))
 		actions.submit()
 	end,
 	ask_title = nil,
