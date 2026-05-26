@@ -643,9 +643,8 @@ function M.update_sidebar_geometry(sidebar_win, is_expanded, should_focus)
 		if is_valid_win(sidebar_win) then
 			local cfg = vim.api.nvim_win_get_config(sidebar_win)
 			if cfg.relative == "" then
-				-- It's a vsplit - close it properly instead of collapsing to width 0
-				-- The restore path will create a new vsplit if this one is gone
-				pcall(vim.api.nvim_win_close, sidebar_win, true)
+				-- It's a vsplit - hide it by setting width to 0
+				vim.api.nvim_win_set_width(sidebar_win, 0)
 			end
 		end
 
