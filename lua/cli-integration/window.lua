@@ -607,19 +607,20 @@ function M.update_sidebar_geometry(float_win, is_expanded, should_focus)
 
 	if is_expanded then
 		-- Fullwidth mode: expand float to full editor width
+		local geom = compute_fullwidth_geometry()
+		apply_float_geometry(float_win, geom)
+		data.is_expanded = true
 
 		-- Disable window-navigation keymaps (no other windows to navigate to)
 		pcall(vim.keymap.del, "t", "<C-h>", { buffer = term_buf })
 		pcall(vim.keymap.del, "t", "<C-j>", { buffer = term_buf })
 		pcall(vim.keymap.del, "t", "<C-k>", { buffer = term_buf })
 		pcall(vim.keymap.del, "t", "<C-l>", { buffer = term_buf })
-
-		-- Use geometry helper for fullwidth
-		local geom = compute_fullwidth_geometry()
-		apply_float_geometry(float_win, geom)
-		data.is_expanded = true
 	else
-		-- Normal sidebar mode: sync dimensions
+		-- Normal sidebar mode: restore to configured width on right side
+		local geom = compute_sidebar_target_geometry(data)
+		apply_float_geometry(float_win, geom)
+		data.is_expanded = false
 
 		-- Re-enable window-navigation keymaps
 		local nav_opts = { buffer = term_buf, noremap = true, silent = true }
@@ -627,11 +628,6 @@ function M.update_sidebar_geometry(float_win, is_expanded, should_focus)
 		vim.keymap.set("t", "<C-j>", [[<C-\><C-n><Cmd>wincmd j<CR>]], nav_opts)
 		vim.keymap.set("t", "<C-k>", [[<C-\><C-n><Cmd>wincmd k<CR>]], nav_opts)
 		vim.keymap.set("t", "<C-l>", [[<C-\><C-n><Cmd>wincmd l<CR>]], nav_opts)
-
-		-- Compute geometry from width_config and apply
-		local geom = compute_sidebar_target_geometry(data)
-		apply_float_geometry(float_win, geom)
-		data.is_expanded = false
 	end
 
 	-- Focus if requested or already focused
