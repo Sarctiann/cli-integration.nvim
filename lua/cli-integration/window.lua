@@ -59,19 +59,31 @@ local function build_job_env(opts, cols, lines)
 	env.TERM_PROGRAM = nil
 	env.TERM_PROGRAM_VERSION = nil
 
+	-- Strip Ghostty identity vars: the job runs inside Neovim :terminal, not Ghostty.
+	-- Ghostty sets GHOSTTY_RESOURCES_DIR and TERMINFO pointing to its own terminfo.
+	-- If the TUI library (e.g. crossterm via opencode) detects Ghostty through these
+	-- vars, it enables Ghostty-specific escape sequences (e.g. SGR mouse mode 1016
+	-- queries like ?1016$p) that Neovim's internal terminal emulator does not handle,
+	-- resulting in visible garbage characters on startup. We also clear TERMINFO to
+	-- prevent the job from loading Ghostty's custom terminfo directory.
+	env.GHOSTTY_RESOURCES_DIR = nil
+	env.GHOSTTY_SHELL_FEATURES = nil
+	env.GHOSTTY_BIN_DIR = nil
+	env.TERMINFO = nil
+
 	-- Always refresh dimensions from finalized geometry
 	env.COLUMNS = tostring(cols)
 	env.LINES = tostring(lines)
 
 	-- NOTE: Normalize TERM/COLORTERM to safe defaults for Neovim's :terminal.
-	-- Host terminals like Ghostty set TERM=xterm-ghostty, whose terminfo
-	-- declares capabilities (e.g. SGR mouse mode 1016) that Neovim's internal
-	-- terminal emulator does not fully handle. This causes TUI apps to emit
-	-- escape sequences that appear as literal garbage characters (e.g.
-	-- "?1016$p") and break mouse-based bracketed paste. We override to a
-	-- universally compatible terminfo unless the user explicitly sets TERM
-	-- via opts.env. Do NOT remove this normalization without testing inside
-	-- Ghostty + tmux + Neovim :terminal with opencode/lazygit.
+	-- Host terminals like Ghostty set TERM=xterm-ghostty and expose identity vars
+	-- (GHOSTTY_RESOURCES_DIR, etc.) that cause TUI apps to enable Ghostty-specific
+	-- capabilities (e.g. SGR mouse mode 1016) that Neovim's internal terminal
+	-- emulator does not fully handle. This causes visible garbage characters (e.g.
+	-- "?1016$p") and can break mouse-based bracketed paste. We override to a
+	-- universally compatible terminfo and strip Ghostty identity vars unless the
+	-- user explicitly sets them via opts.env. Do NOT remove this normalization
+	-- without testing inside Ghostty + tmux + Neovim :terminal with opencode/lazygit.
 	if not (type(opts.env) == "table" and opts.env.TERM ~= nil) then
 		env.TERM = "xterm-256color"
 	end

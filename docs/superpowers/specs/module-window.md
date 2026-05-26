@@ -131,10 +131,11 @@ Pure helper functions for dimension calculations:
 
 1. Inherit full process env via `vim.fn.environ()`
 2. Strip tmux identity vars (`TMUX`, `TMUX_PANE`, `TERM_PROGRAM`, `TERM_PROGRAM_VERSION`) to prevent bracketed-paste leakage
-3. Set `COLUMNS`/`LINES` from finalized geometry
-4. **Normalize `TERM` to `xterm-256color` and `COLORTERM` to `truecolor` unless explicitly overridden in `opts.env`** — this prevents host terminal-specific terminfo (e.g. Ghostty's `xterm-ghostty`) from emitting escape sequences that Neovim's `:terminal` cannot handle, which appear as visible garbage characters like `?1016$p`
-5. Apply optional `env` overrides
-6. Apply optional `unset_env` removals
+3. Strip Ghostty identity vars (`GHOSTTY_RESOURCES_DIR`, `GHOSTTY_SHELL_FEATURES`, `GHOSTTY_BIN_DIR`, `TERMINFO`) to prevent TUI garbage characters from Ghostty-specific escape sequences
+4. Set `COLUMNS`/`LINES` from finalized geometry
+5. **Normalize `TERM` to `xterm-256color` and `COLORTERM` to `truecolor` unless explicitly overridden in `opts.env`** — this prevents host terminal-specific terminfo (e.g. Ghostty's `xterm-ghostty`) from emitting escape sequences that Neovim's `:terminal` cannot handle, which appear as visible garbage characters like `?1016$p`
+6. Apply optional `env` overrides
+7. Apply optional `unset_env` removals
 
 ## State Management
 
