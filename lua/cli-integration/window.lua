@@ -96,7 +96,7 @@ local function compute_fullwidth_geometry()
 end
 
 local function compute_sidebar_target_geometry(data)
-	-- data: M.sidebars[float_win]
+	-- data: M.sidebars[sidebar_win]
 	local padding = data.padding or 0
 	local border = data.win_opts and data.win_opts.border or "none"
 	local border_offset = (border == "none" or border == "") and 0 or 2
@@ -110,8 +110,8 @@ local function compute_sidebar_target_geometry(data)
 	return { width = width, height = height, col = col, row = row, border = border, border_offset = border_offset }
 end
 
-local function apply_float_geometry(float_win, geom)
-	if not vim.api.nvim_win_is_valid(float_win) then
+local function apply_float_geometry(win, geom)
+	if not vim.api.nvim_win_is_valid(win) then
 		return
 	end
 	local cfg = {
@@ -124,7 +124,7 @@ local function apply_float_geometry(float_win, geom)
 		border = geom.border or "none",
 		zindex = 45,
 	}
-	pcall(vim.api.nvim_win_set_config, float_win, cfg)
+	pcall(vim.api.nvim_win_set_config, win, cfg)
 end
 
 --- Calculate the usable content dimensions of a terminal window,
@@ -636,19 +636,19 @@ function M.update_sidebar_geometry(sidebar_win, is_expanded, should_focus)
 			title_pos = "center",
 		}
 
-		local float_win = vim.api.nvim_open_win(term_buf, true, float_opts)
+		local new_win = vim.api.nvim_open_win(term_buf, true, float_opts)
 
-		if float_win then
+		if new_win then
 			-- Configure float window
-			vim.wo[float_win].number = false
-			vim.wo[float_win].relativenumber = false
-			vim.wo[float_win].signcolumn = "no"
-			vim.wo[float_win].spell = false
-			vim.wo[float_win].cursorline = false
+			vim.wo[new_win].number = false
+			vim.wo[new_win].relativenumber = false
+			vim.wo[new_win].signcolumn = "no"
+			vim.wo[new_win].spell = false
+			vim.wo[new_win].cursorline = false
 
 			-- Update sidebar data for float
-			M.sidebars[float_win] = {
-				sidebar_win = float_win,
+			M.sidebars[new_win] = {
+				sidebar_win = new_win,
 				terminal_buf = term_buf,
 				width_config = data.width_config,
 				win_opts = win_opts,
@@ -661,9 +661,9 @@ function M.update_sidebar_geometry(sidebar_win, is_expanded, should_focus)
 			M.sidebars[sidebar_win] = nil
 
 			if should_focus then
-				vim.api.nvim_set_current_win(float_win)
+				vim.api.nvim_set_current_win(new_win)
 				vim.schedule(function()
-					if is_valid_win(float_win) then
+					if is_valid_win(new_win) then
 						vim.cmd("startinsert")
 					end
 				end)
