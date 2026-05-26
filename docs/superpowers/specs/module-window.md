@@ -8,27 +8,26 @@ Window and terminal lifecycle management. The core module responsible for creati
 
 ### `M.sidebars`
 
-Table mapping `float_win` → sidebar data:
+Table mapping `sidebar_win` → sidebar data:
 
 ```lua
 {
-  split_win = number,      -- Proxy split window handle
-  split_buf = number,      -- Proxy split buffer handle
-  terminal_buf = number,   -- Terminal buffer handle
-  width_config = number,    -- Original width configuration
-  padding = number,         -- Horizontal padding in columns
-  win_opts = table,         -- Window options
-  is_expanded = boolean,    -- Fullwidth mode flag
-  list_buffer = boolean,    -- Bufferline listing flag
+  sidebar_win = number,      -- Vsplit window handle (or float in fullwidth mode)
+  terminal_buf = number,     -- Terminal buffer handle
+  width_config = number,     -- Original width configuration
+  padding = number,          -- Horizontal padding in columns
+  win_opts = table,          -- Window options
+  is_expanded = boolean,     -- Fullwidth mode flag
+  list_buffer = boolean,     -- Bufferline listing flag
 }
 ```
 
 ### Window Classification Helpers
 
-- `is_sidebar_split_win(win)` — Checks if window is a proxy split
-- `is_integration_sidebar_win(win, term_buf)` — Checks if window is integration sidebar
-- `is_integration_proxy_split(win, term_buf)` — Checks if window is proxy split for buffer
-- `is_integration_window(win, term_buf)` — Checks if window is any integration window
+- `is_integration_sidebar_win(win, term_buf)` — Checks if window is the integration sidebar window
+- `is_valid_win(win)` — Checks if window handle is valid
+- `find_layout_anchor_window()` — Finds a safe anchor window for creating the vsplit
+- `is_terminal_visible(terminal)` — Checks if terminal window is visible
 
 ## Public API
 
@@ -53,32 +52,37 @@ Creates centered floating window. Returns window handle.
 
 ### `M.create_sidebar_layout(buf, win_opts)`
 
-Creates proxy split + floating terminal. Returns float window handle.
+Creates vsplit on the right side with terminal buffer. Returns vsplit window handle.
 
 **Steps:**
 
-1. Create proxy split via `create_proxy_split()`
-2. Create floating window over split
-3. Register in `M.sidebars[float_win]`
-4. Call `M.update_sidebar_geometry()` for correct dimensions
-5. Set up WinClosed cleanup autocmd
-6. Set up VimResized/WinResized sync autocmd
+1. Calculate vsplit width from `width_config` (percentage or absolute)
+2. Find anchor window via `find_layout_anchor_window()`
+3. Create vsplit via `botright vsplit`
+4. Set terminal buffer in the vsplit
+5. Configure vsplit (winfixwidth=true, no line numbers, no signcolumn, etc.)
+6. Apply padding via foldcolumn
+7. Register in `M.sidebars[sidebar_win]`
+8. Set up WinClosed cleanup autocmd
+9. Set up VimResized/WinResized sync autocmd
+10. Enter insert mode (`startinsert`)
 
-### `M.update_sidebar_geometry(float_win, is_expanded, should_focus)`
+### `M.update_sidebar_geometry(sidebar_win, is_expanded, should_focus)`
 
-Updates dimensions, handles fullwidth toggle.
+Handles fullwidth toggle between sidebar vsplit and centered float.
 
-**Expanded mode:**
+**Expanded mode (fullwidth):**
 
-- Closes proxy split
-- Expands float to full editor width with rounded border
-- Disables window-navigation keymaps
+- Closes vsplit if valid
+- Opens centered float with rounded border containing the terminal buffer
+- Updates `M.sidebars` to point to the new float window
+- Enters insert mode if `should_focus` is true
 
-**Sidebar mode:**
+**Sidebar mode (restore):**
 
-- Recreates proxy split if closed
-- Re-enables window-navigation keymaps
-- Syncs float dimensions from split width
+- Closes float if valid
+- Creates new vsplit via `create_sidebar_layout()`
+- Enters insert mode if `should_focus` is true
 
 ### `M.resize_sidebars()`
 
@@ -95,14 +99,14 @@ Distinguishes editor resize (recalculate from `width_config` percentage) from ma
 - **Case 1**: Integration window with different buffer loaded → restore terminal buffer, redirect new buffer to normal window
 - **Case 2**: Regular window with terminal buffer loaded → focus integration float if visible
 
-### Proxy Split (lines 271-393)
+### Vsplit Window (lines 527-600)
 
-Creates empty scratch buffer (`buftype=nofile`, `modifiable=false`):
+The vsplit is created directly with the terminal buffer:
 
-- **Focus Redirection**: `WinEnter` autocmd redirects focus to float window
-- **Navigation Skip**: If moving from float to split (`<C-h>`), detects `prev_win == float_win` and skips to left window
-- **Close Redirection**: `QuitPre` autocmd redirects close to float window
-- Never loads any buffer content
+- **Layout**: `botright vsplit` with `winfixwidth=true` on the right side
+- **Configuration**: No line numbers, no signcolumn, no cursorline, no spell
+- **Cleanup**: `WinClosed` autocmd removes sidebar entry from `M.sidebars`
+- **Resize Sync**: `VimResized`/`WinResized` autocmds adjust width proportionally
 
 ### Insert Mode Management
 
@@ -133,7 +137,7 @@ Pure helper functions for dimension calculations:
 ## State Management
 
 - `M.resized_autocmd_setup` — Track if resize autocmd is registered
-- `M._suppress_stopinsert` — Suppress stopinsert during proxy split recreation
+- `M._suppress_stopinsert` — Suppress stopinsert during fullwidth toggle recreation
 - `M._last_editor_width` — Track editor width to distinguish resize types
 
 ## Source Location

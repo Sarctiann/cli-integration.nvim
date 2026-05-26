@@ -13,8 +13,8 @@
 9. **Path Insertion**: Press <C-p> in terminal -> current file path inserted
 10. **All Buffers**: Press <C-p><C-p> -> all open buffer paths inserted
 11. **Focus Mode Exit**: Click on bufferline or another window while in terminal insert mode -> focus changes and mode is Normal
-12. **Sidebar Left Navigation**: Press <C-h> in sidebar -> skips proxy split and focuses code window (if exists)
-13. **Sidebar Return**: Click on proxy split -> focus redirects to sidebar via dynamic lookup
+12. **Sidebar Left Navigation**: Press <C-h> in sidebar vsplit -> focuses code window to the left (if exists)
+13. **Sidebar Return**: Click on sidebar vsplit -> focuses the vsplit directly (no intermediate window)
 
 ## Must Never Happen
 

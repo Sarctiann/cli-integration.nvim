@@ -1,14 +1,14 @@
-# Sidebar Refactor: Eliminar Proxy Split
+# Sidebar Refactor: Remove Proxy Split
 
 ## Overview
 
-Eliminar la ventana proxy split (vsplit de background) del modo sidebar. El float window se posiciona directamente en el lado derecho del editor sin necesidad de un split de navegación artificial.
+Remove the proxy split (background vsplit) from the sidebar layout. The float window is positioned directly on the right side of the editor without needing an artificial navigation split.
 
-## Cambios Principales
+## Main Changes
 
-### 1. Estructura de Window
+### 1. Window Structure
 
-**Antes:**
+**Before:**
 ```
 +----------------+------------------+
 |                |  Proxy Split     |  <- Empty buffer, winfixwidth=true
@@ -18,36 +18,36 @@ Eliminar la ventana proxy split (vsplit de background) del modo sidebar. El floa
 +----------------+------------------+
 ```
 
-**Después:**
+**After:**
 ```
 +----------------+------------------------+
 |                |                        |
 |   Normal       |  Float Window          |  <- Terminal buffer (locked)
-|   Windows      |  (directo a la derecha)|
+|   Windows      |  (positioned on the right side)|
 |                |                        |
 +----------------+------------------------+
 ```
 
-El float usa `col = vim.o.columns - float_width` para posicionarse en el borde derecho.
+The float uses `col = vim.o.columns - float_width` to position on the right edge.
 
-### 2. Navegación
+### 2. Navigation
 
-- **C-h desde float**: `wincmd h` va al vecino izquierdo (window a la izquierda del float)
-- **C-l desde float**: `wincmd l` va al vecino derecho (o se queda si no hay más windows)
-- **C-j/k**: igual que antes (arriba/abajo)
-- El float tiene zindex=45 para estar sobre otras ventanas flotantes
+- **C-h from float**: `wincmd h` goes to the left neighbor (window to the left of the float)
+- **C-l from float**: `wincmd l` goes to the right neighbor (or stays if no more windows)
+- **C-j/k**: same as before (up/down)
+- The float has zindex=45 to layer above other floating windows
 
 ### 3. Fullwidth Toggle
 
-Mantiene el mismo comportamiento:
-- Sidebar -> fullwidth: float se expande a ancho completo (col=0, width=editor_width)
-- Fullwidth -> sidebar: float restaura a ancho configurado en el lado derecho
+Same behavior preserved:
+- Sidebar -> fullwidth: float expands to full editor width (col=0, width=editor_width)
+- Fullwidth -> sidebar: float restores to configured width on the right side
 
-Ya no hay split que cerrar/abrir - solo cambia la geometría del float.
+No more split to close/open - only the float geometry changes.
 
-### 4. M.sidebars Simplificado
+### 4. Simplified M.sidebars
 
-**Antes:**
+**Before:**
 ```lua
 M.sidebars[float_win] = {
   split_win = number,
@@ -61,7 +61,7 @@ M.sidebars[float_win] = {
 }
 ```
 
-**Después:**
+**After:**
 ```lua
 M.sidebars[float_win] = {
   terminal_buf = number,
@@ -73,41 +73,41 @@ M.sidebars[float_win] = {
 }
 ```
 
-### 5. Funciones Eliminadas
+### 5. Removed Functions
 
-- `create_proxy_split()` - eliminada completamente
-- `ensure_split_inert()` - eliminada completamente
-- `is_sidebar_split_win()` - eliminada
-- `is_integration_proxy_split()` - eliminada
-- `apply_split_width()` - eliminada (no hay split que resize)
+- `create_proxy_split()` - completely removed
+- `ensure_split_inert()` - completely removed
+- `is_sidebar_split_win()` - removed
+- `is_integration_proxy_split()` - removed
+- `apply_split_width()` - removed (no split to resize)
 
-### 6. Funciones Modificadas
+### 6. Modified Functions
 
-- `create_sidebar_layout()` - elimina creación de proxy split, usa float directo
-- `update_sidebar_geometry()` - elimina lógica de split, solofloat geometry
-- `resize_sidebars()` - elimina sync con split, solofloat resize
-- `compute_sidebar_target_geometry()` - elimina split como referencia
+- `create_sidebar_layout()` - removes proxy split creation, uses float directly
+- `update_sidebar_geometry()` - removes split logic, only float geometry
+- `resize_sidebars()` - removes split sync, only float resize
+- `compute_sidebar_target_geometry()` - removes split as reference
 
-### 7. Autocmds Eliminados
+### 7. Removed Autocommands
 
-- WinEnter en split_buf para redirigir a float - eliminado
-- QuitPre en split_buf para cerrar float - eliminado
-- WinClosed para cleanup de split - simplificado (solo limpia M.sidebars)
+- WinEnter on split_buf to redirect to float - removed
+- QuitPre on split_buf to close float - removed
+- WinClosed cleanup for split - simplified (only cleans M.sidebars)
 
-## Archivos a Modificar
+## Files to Modify
 
-1. `lua/cli-integration/window.lua` - lógica principal
-2. `docs/superpowers/specs/window-system-architecture.md` - actualizar diagrama
-3. `docs/superpowers/specs/module-window.md` - actualizar si es necesario
-4. `README.md` - eliminar referencias a proxy split
-5. `AGENTS.md` - actualizar restricciones si es necesario
+1. `lua/cli-integration/window.lua` - main logic
+2. `docs/superpowers/specs/window-system-architecture.md` - update diagram
+3. `docs/superpowers/specs/module-window.md` - update if necessary
+4. `README.md` - remove proxy split references
+5. `AGENTS.md` - update constraints if necessary
 
-## Comportamiento Preservado
+## Preserved Behavior
 
 - Buffer lock (BufWinEnter protection)
-- C-h/j/k/l navegación desde terminal
+- C-h/j/k/l navigation from terminal
 - start_insert_on_click
 - list_buffer
 - auto_close
 - Padding (foldcolumn)
-- Resize handling (editor resize recalcula desde width_config)
+- Resize handling (editor resize recalculates from width_config)

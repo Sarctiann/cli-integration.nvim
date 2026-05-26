@@ -24,8 +24,8 @@ window.create_terminal():
   |
   v
 window.create_sidebar_layout():
-  1. Creates proxy split (create_proxy_split)
-  2. Creates float window over split
+  1. Creates vsplit on the right side (`botright vsplit`)
+  2. Sets terminal buffer in vsplit
   3. Registers in M.sidebars
   4. Sets up WinClosed cleanup autocmd
   5. Sets up VimResized/WinResized sync autocmd
@@ -58,7 +58,7 @@ Detects: args.buf != terminal_buf AND current_win = terminal_win
   v
 Case 1: Integration window with different buffer loaded
   1. Restore terminal buffer to terminal window
-  2. Find normal window (buftype="", not a split proxy)
+   2. Find normal window (buftype="", not the sidebar vsplit)
   3. Switch focus to normal window
   4. Load new buffer in normal window
   |
@@ -83,17 +83,11 @@ M.resize_sidebars() iterates all sidebars
   |
   v
 For each sidebar:
-  1. Checks if split width != float width (manual resize detected)
-  2. Distinguishes editor resize vs manual split resize
-  3. Calls M.update_sidebar_geometry(float_win, is_expanded, false)
+  1. Distinguishes editor resize (recalculate from width_config percentage) vs manual resize
+  2. Calls M.update_sidebar_geometry(sidebar_win, is_expanded, false)
   |
   v
-M.update_sidebar_geometry():
-  - If is_expanded: Updates float to full width
-  - If not expanded: Syncs float width from split width, recalculates height
-  |
-  v
-Result: Float and split maintain synchronized dimensions
+Result: Sidebar vsplit maintains correct width proportionally
 ```
 
 ## Fullwidth Toggle
@@ -112,8 +106,8 @@ terminal.toggle_width():
   |
   v
 M.update_sidebar_geometry():
-  - If expanding: Closes split, sets float to full width with rounded border
-  - If restoring: Recreates split, syncs dimensions, restores configured border
+  - If expanding: Closes vsplit, opens centered float with rounded border
+  - If restoring: Closes float, creates new vsplit via create_sidebar_layout()
   |
   v
 Updates is_expanded state in M.terminals[name]

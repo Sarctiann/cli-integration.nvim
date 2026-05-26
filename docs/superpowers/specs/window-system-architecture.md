@@ -54,7 +54,7 @@
 **Properties:**
 
 - Centered floating window
-- No proxy split
+- Standalone float (no vsplit)
 - Border: "rounded"
 - Size: 80% of editor width/height
 
@@ -68,7 +68,7 @@
 ## Focus Behavior
 
 - **Navigation from float**: `<C-h>` focuses the nearest normal window to the left
-- **Float focus management**: Focus stays in float or moves to normal windows; no proxy split to redirect
+- **Float focus management**: Focus stays in float or moves to normal windows; no intermediate vsplit for navigation
 
 ## Geometry Engine
 

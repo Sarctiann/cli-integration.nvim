@@ -25,7 +25,7 @@ After implementing any feature or change, always update both:
 ## When Adding Features
 
 1. **Respect buffer lock**: Never bypass BufWinEnter protection in window.lua
-2. **Maintain split proxy**: Keep split as navigation-only, no content
+2. **Maintain sidebar vsplit**: Keep vsplit locked to terminal buffer only
 3. **Update sync logic**: If changing dimensions, update M.resize_sidebars()
 4. **Validate inputs**: Check window/buffer validity before operations
 5. **Update cleanup**: Add cleanup logic to WinClosed autocmd if adding state

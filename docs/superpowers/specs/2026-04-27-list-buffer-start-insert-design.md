@@ -13,7 +13,7 @@ When both options are enabled:
 
 and the CLI terminal buffer appears in bufferline as `[integration.name]`, selecting that buffer can trigger unexpected behavior because terminal-window protections and click-to-insert behavior are applied too broadly.
 
-Current architecture correctly prevents non-terminal buffers from appearing in the integration terminal window and proxy split, but the same guard logic can interfere with regular windows when selecting the listed terminal buffer.
+Current architecture correctly prevents non-terminal buffers from appearing in the integration terminal window (sidebar vsplit or float), but the same guard logic can interfere with regular windows when selecting the listed terminal buffer.
 
 ## 2. Expected Behavior (Validated)
 
@@ -36,15 +36,15 @@ If user clicks `[integration.name]` in bufferline (or selects it via buffer comm
 From project architecture (`AGENTS.md`):
 
 1. Terminal window must stay locked to its terminal buffer.
-2. Proxy split must remain navigation-only and never load file content.
-3. Focus redirection behavior for proxy split must remain stable.
+2. Sidebar vsplit must always contain the terminal buffer and never load file content.
+3. Focus behavior for the sidebar vsplit must remain stable.
 4. `start_insert_on_click` should only be meaningful for actual integration terminal interaction.
 
 ## 4. Root Cause Summary
 
 The event handlers in `window.lua` (notably `BufWinEnter`, `WinEnter`, and click mapping path) rely on window/buffer checks that correctly protect integration windows, but they do not fully distinguish between:
 
-- integration-controlled windows (terminal float + proxy split), and
+- integration-controlled windows (sidebar vsplit + fullwidth float), and
 - regular editor windows that may temporarily show the listed terminal buffer.
 
 This causes integration-only behaviors to leak into normal-window scenarios.
@@ -66,7 +66,7 @@ Recommended approach: **Context-aware guards in `window.lua`** (surgical change)
 Introduce local helper predicates to classify context:
 
 - `is_integration_float_win(win, term_buf)`
-- `is_integration_proxy_split(win, term_buf)`
+- `is_integration_sidebar_win(win, term_buf)`
 - `find_visible_integration_win(term_buf)`
 - `is_integration_visible(term_buf)`
 
@@ -76,7 +76,7 @@ These helpers become the source of truth for deciding whether integration-specif
 
 Current lock remains, but branch by window role:
 
-1. **If current window is integration float/proxy**:
+1. **If current window is integration sidebar vsplit/float**:
    - Keep existing protection: restore terminal buffer in integration window, redirect new buffer to regular window.
 
 2. **If current window is regular window and `args.buf` is this terminal buffer**:
@@ -85,7 +85,7 @@ Current lock remains, but branch by window role:
 
 ### 6.3 Refine secondary `WinEnter` guard
 
-Apply restoration guard only when the entered window is integration float/proxy context.
+Apply restoration guard only when the entered window is integration sidebar vsplit/float context.
 
 Do not restore/rewrite buffer when a regular window legitimately displays terminal buffer while integration window is hidden.
 
@@ -128,7 +128,7 @@ Mandatory scenarios:
 4. Hidden integration + `:buffer` select terminal -> open in regular window, no insert.
 5. Invariants:
    - integration terminal window never shows non-terminal buffer,
-   - proxy split never shows content,
+   - sidebar vsplit never shows non-terminal content,
    - split->float focus redirection unchanged.
 
 ## 10. Files Expected to Change
