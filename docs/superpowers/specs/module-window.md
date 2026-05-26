@@ -26,6 +26,7 @@ Table mapping `sidebar_win` → sidebar data:
 
 - `is_integration_sidebar_win(win, term_buf)` — Checks if window is the integration sidebar window
 - `is_valid_win(win)` — Checks if window handle is valid
+- `resize_pty(term_buf, win, border, padding)` — Resizes terminal job pty to match window content dimensions, sending SIGWINCH so TUI apps update their size and mouse coordinates
 - `find_layout_anchor_window()` — Finds a safe anchor window for creating the vsplit
 - `is_terminal_visible(terminal)` — Checks if terminal window is visible
 
@@ -77,12 +78,14 @@ Handles fullwidth toggle between sidebar vsplit and centered float.
 - Closes vsplit if valid
 - Opens centered float with rounded border containing the terminal buffer
 - Updates `M.sidebars` to point to the new float window
+- **Resizes pty via `resize_pty()`** so TUI apps receive correct dimensions and mouse coordinates work
 - Enters insert mode if `should_focus` is true
 
 **Sidebar mode (restore):**
 
 - Closes float if valid
-- Creates new vsplit via `create_sidebar_layout()`
+- Restores hidden vsplit to configured width
+- **Resizes pty via `resize_pty()`** so TUI apps adapt back to sidebar width
 - Enters insert mode if `should_focus` is true
 
 ### `M.resize_sidebars()`
@@ -90,6 +93,8 @@ Handles fullwidth toggle between sidebar vsplit and centered float.
 Bidirectional sync on VimResized/WinResized events.
 
 Distinguishes editor resize (recalculate from `width_config` percentage) from manual split resize (split as source of truth).
+
+**After any dimension change** (fullwidth float resize or sidebar vsplit resize), calls `resize_pty()` to send SIGWINCH to the terminal job so TUI apps update their internal size.
 
 ## Critical Implementation Details
 

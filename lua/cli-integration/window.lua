@@ -36,6 +36,30 @@ local function is_valid_win(win)
 	return type(win) == "number" and win > 0 and vim.api.nvim_win_is_valid(win)
 end
 
+--- Resize the pty of a terminal job to match current window content dimensions.
+--- Sends SIGWINCH so TUI apps update their internal size and mouse coordinates.
+--- @param term_buf number Terminal buffer handle
+--- @param win number Window handle (must be valid)
+--- @param border string|table Border style
+--- @param padding number Horizontal padding
+local function resize_pty(term_buf, win, border, padding)
+	local job_id = vim.bo[term_buf].channel
+	if not job_id or job_id <= 0 then
+		return
+	end
+	local w = vim.api.nvim_win_get_width(win)
+	local h = vim.api.nvim_win_get_height(win)
+	local border_offset
+	if type(border) == "table" then
+		border_offset = (#border > 0) and 2 or 0
+	else
+		border_offset = (border == nil or border == "none" or border == "") and 0 or 2
+	end
+	local content_width = math.max(1, w - border_offset - (padding * 2))
+	local content_height = math.max(1, h - border_offset)
+	pcall(vim.fn.jobresize, job_id, content_width, content_height)
+end
+
 --- Build terminal job environment starting from inherited process env,
 --- then applying explicit overrides and removals.
 ---
@@ -664,6 +688,9 @@ function M.update_sidebar_geometry(sidebar_win, is_expanded, should_focus)
 			-- Remove old sidebar entry (vsplit handle kept in hidden_vsplit_win above)
 			M.sidebars[sidebar_win] = nil
 
+			-- Resize pty to match the new fullwidth content dimensions
+			resize_pty(term_buf, new_win, "single", data.padding or 0)
+
 			-- When the float is closed from outside (e.g. :q), also close the hidden vsplit
 			-- so it doesn't remain as a width-0 phantom split.
 			vim.api.nvim_create_autocmd("WinClosed", {
@@ -709,6 +736,9 @@ function M.update_sidebar_geometry(sidebar_win, is_expanded, should_focus)
 			local configured_width = calculate_width(data.width_config)
 			local target_width = configured_width - (padding * 2)
 			vim.api.nvim_win_set_width(hidden_vsplit_win, target_width)
+
+			-- Resize pty to match the restored sidebar content dimensions
+			resize_pty(term_buf, hidden_vsplit_win, "none", data.padding or 0)
 
 			-- Re-register the vsplit as the active sidebar entry
 			M.sidebars[hidden_vsplit_win] = {
@@ -766,12 +796,16 @@ function M.resize_sidebars()
 					style = "minimal",
 					border = "single",
 				})
+				-- Resize pty to match the new fullwidth content dimensions
+				resize_pty(data.terminal_buf, sidebar_win, "single", data.padding or 0)
 			elseif editor_resized then
 				-- Editor was resized: recalculate vsplit width
 				local padding = data.padding or 0
 				local configured_width = calculate_width(data.width_config)
 				local target_width = configured_width - (padding * 2)
 				pcall(vim.api.nvim_win_set_width, sidebar_win, target_width)
+				-- Resize pty to match the new sidebar content dimensions
+				resize_pty(data.terminal_buf, sidebar_win, "none", data.padding or 0)
 			end
 		else
 			-- Cleanup invalid windows
