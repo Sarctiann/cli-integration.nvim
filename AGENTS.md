@@ -10,26 +10,22 @@
 ## CRITICAL_CONSTRAINTS
 
 1. **Window Buffer Lock**: Terminal windows MUST NEVER change buffers. The terminal window is locked to its terminal buffer only.
-2. **Proxy Split Navigation**: Navigation uses a proxy split window that redirects to the floating terminal window.
-3. **Split Synchronization**: Split and float windows must maintain bidirectional dimension synchronization.
-4. **No Split Buffer Loading**: The proxy split window NEVER loads any buffer content - it's purely for navigation.
-5. **Fullwidth Toggle**: When toggling to fullwidth, the split must be hidden; when restoring, it must be recreated.
+2. **Sidebar Vsplit Layout**: Sidebar mode uses a vsplit on the right side with winfixwidth=true
+3. **Fullwidth Float**: Fullwidth mode converts the sidebar to a centered float with rounded border
+4. **Terminal Buffer Lock**: The sidebar window MUST NEVER load any buffer content except the terminal buffer
+5. **Fullwidth Toggle**: When toggling to fullwidth, the vsplit closes and a float opens; when restoring, the float closes and vsplit reopens
 
 ### Canonical Window Terminology
 
 - **Integration Window**: The plugin's terminal window. Modes: `floating`, `sidebar`, `fullwidth` (fullwidth is a variant of the sidebar mode).
-- **Background Split**: The right-side vsplit that sits behind the Integration Window in sidebar mode. Also referred to as the `proxy split` or `bg window`. In informal contexts it may be called the "vsplit" when the meaning is clear.
+- **Sidebar Vsplit**: The right-side vsplit that contains the terminal in sidebar mode. Uses winfixwidth=true and normal panel colors.
 
 ### Window Invariants and Enforcement Rules
 
-- The Background Split is inert: it never contains real buffers, it is not buflisted, and it must never become a normal editable window.
-- The Background Split must never take focus. If focus moves to it, code must immediately redirect focus to the Integration Window (or a safe normal window if the Integration Window is not visible).
-- Synchronization is bidirectional:
-  - If the Background Split width/position changes (manual resize or external layout change), the Integration Window must update width and column (X) to remain visually aligned.
-  - If the Integration Window is resized (programmatically or by restoring from fullwidth), the Background Split must be updated to match.
-- Fullwidth toggle semantics:
-  - sidebar -> fullwidth: the Background Split is closed/hidden and the Integration Window expands to full editor width.
-  - fullwidth -> sidebar: the Background Split is recreated and the Integration Window is restored to synchronized geometry.
+- The Sidebar Vsplit is the integration window in sidebar mode: it contains the terminal buffer and uses normal panel colors
+- The Sidebar Vsplit uses winfixwidth=true to maintain its configured width
+- Fullwidth mode converts the vsplit to a centered float with rounded border
+- Toggle restores by closing the float and recreating the vsplit
 
 ## SPECIFICATION DIRECTORY
 
