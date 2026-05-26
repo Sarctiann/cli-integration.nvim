@@ -86,6 +86,9 @@ end
 --- Track if resize autocmd is setup
 M.resized_autocmd_setup = false
 
+--- Suppress stopinsert during toggle operations
+M._suppress_stopinsert = false
+
 --- Track last known editor width to distinguish editor resize from manual split resize
 M._last_editor_width = vim.o.columns
 
@@ -499,7 +502,7 @@ function M.create_float_window(buf, win_opts)
 	return win
 end
 
---- Create the Sidebar layout (floating terminal)
+--- Create the Sidebar layout (floating terminal on right side, no proxy split)
 --- @param buf number Terminal buffer
 --- @param win_opts table Window options
 --- @return number|nil The floating window handle
@@ -554,6 +557,9 @@ function M.create_sidebar_layout(buf, win_opts)
 	vim.api.nvim_create_autocmd("WinLeave", {
 		buffer = buf,
 		callback = function()
+			if M._suppress_stopinsert then
+				return
+			end
 			vim.schedule(function()
 				vim.cmd("stopinsert")
 			end)
