@@ -43,13 +43,6 @@ local function is_integration_float_win(win, term_buf)
 	return data ~= nil and data.terminal_buf == term_buf
 end
 
---- Check if a window is an integration window for a given terminal buffer
---- @param win number Window handle
---- @param term_buf number Terminal buffer
---- @return boolean
-local function is_integration_window(win, term_buf)
-	return is_integration_float_win(win, term_buf)
-end
 
 local function is_valid_win(win)
 	return type(win) == "number" and win > 0 and vim.api.nvim_win_is_valid(win)
@@ -341,7 +334,7 @@ function M.create_terminal(cmd, opts)
 			local mouse_pos = vim.fn.getmousepos()
 			local current_win = vim.api.nvim_get_current_win()
 			-- Enter insert only if click is inside current window AND current window is integration window for this buf
-			if mouse_pos.winid == current_win and is_integration_window(current_win, buf) then
+			if mouse_pos.winid == current_win and is_integration_float_win(current_win, buf) then
 				return "i"
 			else
 				return "<LeftMouse>"
@@ -600,8 +593,6 @@ function M.update_sidebar_geometry(float_win, is_expanded, should_focus)
 	if not data or not is_valid_win(float_win) then
 		return
 	end
-
-	local padding = data.padding or 0
 
 	local term_buf = data.terminal_buf
 
