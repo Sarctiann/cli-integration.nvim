@@ -288,20 +288,6 @@ function M.create_terminal(cmd, opts)
 
 	terminal.job_id = job_id
 
-	-- Enable bracketed paste mode in the terminal job.
-	-- Tells TUI applications (e.g. opencode via crossterm) that the terminal
-	-- supports bracketed paste sequences (\e[200~...\e[201~). When the user
-	-- pastes text, the terminal emulator should wrap it in these sequences,
-	-- allowing the TUI app to distinguish pasted text from typed input.
-	-- NOTE: This only works if the outer terminal (tmux -> Ghostty) also
-	-- supports and propagates bracketed paste. If the outer terminal does not
-	-- wrap pasted text in bracketed paste sequences, this has no effect.
-	vim.defer_fn(function()
-		if vim.api.nvim_buf_is_valid(buf) and job_id > 0 then
-			vim.fn.chansend(job_id, "\x1b[?2004h")
-		end
-	end, 500)
-
 	-- List buffer in bufferline if configured (must be after termopen so buftype=terminal is set)
 	if opts.win and opts.win.list_buffer then
 		vim.bo[buf].buflisted = true

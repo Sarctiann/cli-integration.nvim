@@ -42,7 +42,7 @@ Creates terminal buffer, window, job, and protection autocmds.
 3. Call `create_sidebar_layout()` or `create_float_window()`
 4. Start terminal job (jobstart/termopen) with calculated COLUMNS/LINES
 5. Re-apply buffer name after termopen (Neovim overwrites it)
-6. Enable bracketed paste mode in the job via `chansend(job_id, "\e[?2004h")` after a short delay, so TUI applications know the terminal supports bracketed paste sequences
+6. List buffer in bufferline if configured
 7. Set up navigation keymaps (`<C-h/j/k/l>`)
 8. Set up BufWinEnter protection autocmd
 9. Set up auto-insert autocmd
