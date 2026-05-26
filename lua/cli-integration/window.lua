@@ -10,35 +10,24 @@
 local M = {}
 
 --- Store active sidebar configurations
---- Format: [float_win] = {
+--- Format: [sidebar_win] = {
+---   sidebar_win = number,      -- Vsplit window handle (or float in fullwidth mode)
 ---   terminal_buf = number,
 ---   width_config = number,
 ---   win_opts = table,
 ---   padding = number,
----   is_expanded = boolean,
+---   is_expanded = boolean,     -- true = fullwidth/float mode
 ---   list_buffer = boolean,
 --- }
 M.sidebars = {}
 
 --- Helper predicates for window classification
 
---- Find sidebar float by terminal buffer
---- @param term_buf number Terminal buffer
---- @return number|nil float_win or nil if not found
-local function find_sidebar_float_by_term_buf(term_buf)
-	for float_win, data in pairs(M.sidebars) do
-		if data.terminal_buf == term_buf then
-			return float_win
-		end
-	end
-	return nil
-end
-
---- Check if a window is an integration float window for a given terminal buffer
+--- Check if a window is an integration sidebar window for a given terminal buffer
 --- @param win number Window handle
 --- @param term_buf number Terminal buffer
 --- @return boolean
-local function is_integration_float_win(win, term_buf)
+local function is_integration_sidebar_win(win, term_buf)
 	local data = M.sidebars[win]
 	return data ~= nil and data.terminal_buf == term_buf
 end
@@ -333,7 +322,7 @@ function M.create_terminal(cmd, opts)
 			local mouse_pos = vim.fn.getmousepos()
 			local current_win = vim.api.nvim_get_current_win()
 			-- Enter insert only if click is inside current window AND current window is integration window for this buf
-			if mouse_pos.winid == current_win and is_integration_float_win(current_win, buf) then
+			if mouse_pos.winid == current_win and is_integration_sidebar_win(current_win, buf) then
 				return "i"
 			else
 				return "<LeftMouse>"
@@ -414,12 +403,19 @@ function M.create_terminal(cmd, opts)
 
 			-- Case 2: current_win is regular window and args.buf is terminal buffer
 			if args.buf == buf then
-				local float_win = find_sidebar_float_by_term_buf(buf)
-				-- If visible integration float exists, focus it and start insert
-				if float_win and vim.api.nvim_win_is_valid(float_win) then
-					vim.api.nvim_set_current_win(float_win)
+				-- Find the sidebar window for this terminal buffer via direct M.sidebars access
+				local sidebar_win = nil
+				for win_handle, data in pairs(M.sidebars) do
+					if data.terminal_buf == buf then
+						sidebar_win = win_handle
+						break
+					end
+				end
+				-- If visible integration sidebar exists, focus it and start insert
+				if sidebar_win and vim.api.nvim_win_is_valid(sidebar_win) then
+					vim.api.nvim_set_current_win(sidebar_win)
 					vim.schedule(function()
-						if vim.api.nvim_win_is_valid(float_win) then
+						if vim.api.nvim_win_is_valid(sidebar_win) then
 							vim.cmd("startinsert")
 						end
 					end)
@@ -432,12 +428,12 @@ function M.create_terminal(cmd, opts)
 
 	-- Secondary guard: if somehow a wrong buffer ends up in the terminal window
 	-- on WinEnter, restore the terminal buffer immediately.
-	-- Apply only when current window is the integration FLOAT window for this buf.
+	-- Apply only when current window is the integration sidebar window for this buf.
 	vim.api.nvim_create_autocmd("WinEnter", {
 		callback = function()
 			local current_win = vim.api.nvim_get_current_win()
-			-- Only guard if current window is the integration float window.
-			if not is_integration_float_win(current_win, buf) then
+			-- Only guard if current window is the integration sidebar window.
+			if not is_integration_sidebar_win(current_win, buf) then
 				return
 			end
 
