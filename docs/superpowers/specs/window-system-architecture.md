@@ -5,30 +5,24 @@
 ### Sidebar Mode (default)
 
 ```
-+---------------------+------------------+
-|                     |  Proxy Split     |  <- Empty buffer, winfixwidth=true
-|   Normal Windows    |  (navigation)    |  <- WinEnter -> redirects to float
-|                     |                  |  <- QuitPre -> closes float instead
-|                     +------------------+
-|                     |                  |
-|                     |  Float Window    |  <- Terminal buffer (locked)
-|                     |  (terminal)      |  <- zindex=45, covers split area
-|                     |                  |  <- BufWinEnter protection
-|                     |                  |
-+---------------------+------------------+
++----------------+------------------------+
+|                |                        |
+|   Normal       |  Float Window          |  <- Terminal buffer (locked)
+|   Windows      |  (directo a la derecha)|
+|                |                        |
++----------------+------------------------+
 ```
 
 **Components:**
 
 - **Normal Windows** — Regular editor windows (left side)
-- **Proxy Split** — Inert vsplit (right side top), never loads content
-- **Float Window** — Terminal window (right side bottom), covers proxy split area
+- **No aplica (eliminado)**
+- **Float Window** — Terminal window positioned on the right side of the editor
 
 **Key properties:**
 
-- Proxy split: `buftype=nofile`, `modifiable=false`, `winfixwidth=true`
-- Float window: `zindex=45`, `relative="editor"`, `style="minimal"`
-- Border: "none" by default, "rounded" when expanded
+- Float window: `zindex=45`, `relative="editor"`, `style="minimal"`, anchored to the right edge
+- No border by default, "rounded" when expanded
 
 ### Fullwidth Mode (toggle)
 
@@ -44,8 +38,8 @@
 
 **Behavior:**
 
-- Sidebar -> fullwidth: proxy split is closed/hidden, float expands to full width
-- Fullwidth -> sidebar: proxy split is recreated, float restores to synchronized geometry
+- Sidebar -> fullwidth: float expands to full editor width
+- Fullwidth -> sidebar: float restores to right-side position
 - Window navigation keymaps disabled (no other windows to navigate to)
 
 ### Float Mode (floating=true)
@@ -68,18 +62,15 @@
 
 ## Window Invariants
 
-1. **Terminal Buffer Lock**: Terminal windows MUST NEVER change buffers
-2. **Proxy Split Inert**: Never contains real buffers, never takes focus
-3. **Bidirectional Sync**: Split and float maintain synchronized dimensions
-4. **No Split Buffer Loading**: Proxy split NEVER loads buffer content
-5. **Fullwidth Toggle**: Split hidden in fullwidth, recreated on restore
+1. **Terminal Buffer Lock**: Terminal window MUST NEVER change buffers
+2. **No Proxy Split**: No background vsplit exists; float is positioned directly
+3. **Float Geometry**: Float dimensions and position managed directly by plugin
+4. **Fullwidth Toggle**: Float expands to full width or restores to right side
 
 ## Focus Behavior
 
-- **Proxy Split WinEnter**: Redirects focus to float window
-- **Proxy Split QuitPre**: Redirects close to float window
-- **Navigation from float**: `<C-h>` skips proxy split, focuses left window
-- **Click on proxy split**: Redirects to float via dynamic lookup
+- **Navigation from float**: `<C-h>` focuses the nearest normal window to the left
+- **Float focus management**: Focus stays in float or moves to normal windows; no proxy split to redirect
 
 ## Geometry Engine
 
