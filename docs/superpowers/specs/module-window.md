@@ -75,7 +75,7 @@ Handles fullwidth toggle between sidebar vsplit and centered float.
 
 **Expanded mode (fullwidth):**
 
-- Closes vsplit if valid
+- Closes vsplit properly (instead of collapsing to width 0)
 - Opens centered float with rounded border containing the terminal buffer
 - Updates `M.sidebars` to point to the new float window
 - **Resizes pty via `resize_pty()`** so TUI apps receive correct dimensions and mouse coordinates work
