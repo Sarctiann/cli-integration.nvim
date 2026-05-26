@@ -26,8 +26,7 @@ Table mapping `float_win` → sidebar data:
 ### Window Classification Helpers
 
 - `is_sidebar_split_win(win)` — Checks if window is a proxy split
-- `find_sidebar_float_by_term_buf(term_buf)` — Finds float window by terminal buffer
-- `is_integration_float_win(win, term_buf)` — Checks if window is integration float
+- `is_integration_sidebar_win(win, term_buf)` — Checks if window is integration sidebar
 - `is_integration_proxy_split(win, term_buf)` — Checks if window is proxy split for buffer
 - `is_integration_window(win, term_buf)` — Checks if window is any integration window
 
