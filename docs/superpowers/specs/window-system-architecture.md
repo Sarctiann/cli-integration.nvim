@@ -28,7 +28,7 @@
 ```
 +------------------------------------------+
 |                                          |
-|         Float Window (terminal)          |  <- Centered, rounded border
+|         Float Window (terminal)          |  <- Full editor coverage, no border
 |         Full editor width                |  <- is_expanded=true
 |                                          |
 +------------------------------------------+
@@ -36,7 +36,7 @@
 
 **Behavior:**
 
-- Sidebar -> fullwidth: vsplit closes, float opens centered at full editor width
+- Sidebar -> fullwidth: vsplit closes, float opens covering full editor width
 - Fullwidth -> sidebar: float closes, vsplit is recreated on the right side
 - Window navigation keymaps disabled (no other windows to navigate to)
 
@@ -62,7 +62,7 @@
 
 1. **Terminal Buffer Lock**: Terminal window MUST NEVER change buffers
 2. **Vsplit Layout**: Sidebar mode uses vsplit on the right side with `winfixwidth=true`
-3. **Float Geometry**: Fullwidth mode uses centered float with `rounded` border
+3. **Fullwidth Float**: Fullwidth mode uses a float covering the full editor width with no border
 4. **Fullwidth Toggle**: vsplit closes, float opens (and vice versa)
 
 ## Focus Behavior

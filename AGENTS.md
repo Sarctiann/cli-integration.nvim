@@ -11,7 +11,7 @@
 
 1. **Window Buffer Lock**: Terminal windows MUST NEVER change buffers. The terminal window is locked to its terminal buffer only.
 2. **Sidebar Vsplit Layout**: Sidebar mode uses a vsplit on the right side with winfixwidth=true
-3. **Fullwidth Float**: Fullwidth mode converts the sidebar to a centered float with rounded border
+3. **Fullwidth Float**: Fullwidth mode converts the sidebar to a float covering the full editor width with no border
 4. **Terminal Buffer Lock**: The sidebar window MUST NEVER load any buffer content except the terminal buffer
 5. **Fullwidth Toggle**: When toggling to fullwidth, the vsplit closes and a float opens; when restoring, the float closes and vsplit reopens
 
@@ -24,7 +24,7 @@
 
 - The Sidebar Vsplit is the integration window in sidebar mode: it contains the terminal buffer and uses normal panel colors
 - The Sidebar Vsplit uses winfixwidth=true to maintain its configured width
-- Fullwidth mode converts the vsplit to a centered float with rounded border
+- Fullwidth mode converts the vsplit to a float covering the full editor width with no border
 - Toggle restores by closing the float and recreating the vsplit
 
 ## SPECIFICATION DIRECTORY

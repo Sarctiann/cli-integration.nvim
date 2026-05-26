@@ -613,7 +613,7 @@ function M.update_sidebar_geometry(sidebar_win, is_expanded, should_focus)
 	local win_opts = data.win_opts
 
 	if is_expanded then
-		-- Fullwidth mode: close vsplit, open centered float with rounded border
+		-- Fullwidth mode: close vsplit, open float covering full editor width
 		-- First check if we have a valid vsplit to close
 		if is_valid_win(sidebar_win) then
 			local cfg = vim.api.nvim_win_get_config(sidebar_win)
@@ -623,15 +623,15 @@ function M.update_sidebar_geometry(sidebar_win, is_expanded, should_focus)
 			end
 		end
 
-		-- Create centered float with rounded border
+		-- Create fullwidth float (no border, full editor coverage)
 		local float_opts = {
 			relative = "editor",
-			width = win_opts.width or math.floor(vim.o.columns * 0.8),
-			height = win_opts.height or math.floor(vim.o.lines * 0.8),
-			row = math.floor((vim.o.lines - (win_opts.height or math.floor(vim.o.lines * 0.8))) / 2),
-			col = math.floor((vim.o.columns - (win_opts.width or math.floor(vim.o.columns * 0.8))) / 2),
+			width = vim.o.columns,
+			height = vim.o.lines - vim.o.cmdheight - 1,
+			row = 0,
+			col = 0,
 			style = "minimal",
-			border = "rounded",
+			border = "none",
 			title = win_opts.title or "",
 			title_pos = "center",
 		}
@@ -708,20 +708,15 @@ function M.resize_sidebars()
 			local is_float = cfg.relative ~= ""
 
 			if data.is_expanded then
-				-- Fullwidth/float mode: resize float to stay centered
-				local win_opts = data.win_opts or {}
-				local width = win_opts.width or math.floor(vim.o.columns * 0.8)
-				local height = win_opts.height or math.floor(vim.o.lines * 0.8)
-				local row = math.floor((vim.o.lines - height) / 2)
-				local col = math.floor((vim.o.columns - width) / 2)
+				-- Fullwidth mode: resize float to full editor coverage
 				pcall(vim.api.nvim_win_set_config, sidebar_win, {
 					relative = "editor",
-					width = width,
-					height = height,
-					row = row,
-					col = col,
+					width = vim.o.columns,
+					height = vim.o.lines - vim.o.cmdheight - 1,
+					row = 0,
+					col = 0,
 					style = "minimal",
-					border = "rounded",
+					border = "none",
 				})
 			elseif editor_resized then
 				-- Editor was resized: recalculate vsplit width
