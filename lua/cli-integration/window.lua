@@ -490,36 +490,75 @@ function M.create_float_window(buf, win_opts)
 	return win
 end
 
---- Create the Sidebar layout (floating terminal on right side, no proxy split)
+--- Find a safe anchor window in the normal layout for creating splits
+--- @return number|nil
+function M.find_layout_anchor_window()
+	-- First pass: prefer a normal file buffer window (buftype == "")
+	for _, win in ipairs(vim.api.nvim_list_wins()) do
+		if vim.api.nvim_win_is_valid(win) and not M.sidebars[win] then
+			local cfg = vim.api.nvim_win_get_config(win)
+			if cfg.relative == "" then
+				local buf = vim.api.nvim_win_get_buf(win)
+				local bt = vim.bo[buf].buftype
+				if bt == "" then
+					return win
+				end
+			end
+		end
+	end
+
+	-- Second pass: any non-floating window
+	for _, win in ipairs(vim.api.nvim_list_wins()) do
+		if vim.api.nvim_win_is_valid(win) and not M.sidebars[win] then
+			local cfg = vim.api.nvim_win_get_config(win)
+			if cfg.relative == "" then
+				return win
+			end
+		end
+	end
+
+	return nil
+end
+
+--- Create the Sidebar layout (vsplit terminal on right side)
 --- @param buf number Terminal buffer
 --- @param win_opts table Window options
---- @return number|nil The floating window handle
+--- @return number|nil The vsplit window handle
 function M.create_sidebar_layout(buf, win_opts)
 	local width_config = win_opts.min_width or win_opts.width or 34
 	local padding = win_opts.padding or 0
 	local configured_width = calculate_width(width_config)
 
-	-- Calculate float width accounting for padding
-	local float_width = configured_width - (padding * 2)
+	-- Calculate vsplit width accounting for padding
+	local vsplit_width = configured_width - (padding * 2)
 
-	-- Create floating window
-	local float_opts = {
-		relative = "editor",
-		width = float_width,
-		height = 10, -- Will be updated by update_sidebar_geometry
-		row = 0,
-		col = vim.o.columns - float_width,
-		style = "minimal",
-		border = win_opts.border or "none",
-		title = win_opts.title or "",
-		title_pos = "center",
-		zindex = 45,
-	}
+	-- Create vsplit on the right side
+	local anchor_win = M.find_layout_anchor_window()
+	if anchor_win and vim.api.nvim_win_is_valid(anchor_win) then
+		pcall(vim.api.nvim_set_current_win, anchor_win)
+	end
+	vim.cmd("botright vsplit")
+	local sidebar_win = vim.api.nvim_get_current_win()
 
-	local float_win = vim.api.nvim_open_win(buf, true, float_opts)
+	-- Set the terminal buffer
+	vim.api.nvim_win_set_buf(sidebar_win, buf)
+
+	-- Configure vsplit window
+	vim.wo[sidebar_win].winfixwidth = true
+	vim.wo[sidebar_win].number = false
+	vim.wo[sidebar_win].relativenumber = false
+	vim.wo[sidebar_win].signcolumn = "no"
+	vim.wo[sidebar_win].cursorline = false
+	vim.wo[sidebar_win].spell = false
+
+	-- Apply padding via foldcolumn
+	if padding > 0 then
+		vim.wo[sidebar_win].foldcolumn = tostring(padding)
+	end
 
 	-- Store sidebar configuration
-	M.sidebars[float_win] = {
+	M.sidebars[sidebar_win] = {
+		sidebar_win = sidebar_win,
 		terminal_buf = buf,
 		width_config = width_config,
 		win_opts = win_opts,
@@ -528,35 +567,17 @@ function M.create_sidebar_layout(buf, win_opts)
 		list_buffer = win_opts.list_buffer or false,
 	}
 
-	-- Update geometry to correct dimensions
-	M.update_sidebar_geometry(float_win, false, true)
-
-	-- Cleanup when float closes
+	-- Cleanup when vsplit closes
 	vim.api.nvim_create_autocmd("WinClosed", {
-		pattern = tostring(float_win),
+		pattern = tostring(sidebar_win),
 		callback = function()
-			M.sidebars[float_win] = nil
+			M.sidebars[sidebar_win] = nil
 		end,
 		once = true,
-		desc = "Cleanup sidebar on float close",
+		desc = "Cleanup sidebar on vsplit close",
 	})
 
-	-- Exit insert mode when focus is lost
-	vim.api.nvim_create_autocmd("WinLeave", {
-		buffer = buf,
-		callback = function()
-			if M._suppress_stopinsert then
-				return
-			end
-			vim.schedule(function()
-				vim.cmd("stopinsert")
-			end)
-		end,
-		desc = "Exit insert mode when leaving sidebar terminal",
-	})
-
-	-- Setup resize handling (bidirectional sync)
-	-- Refresh cached editor width so resize detection starts from the current state.
+	-- Setup resize handling
 	M._last_editor_width = vim.o.columns
 	if not M.resized_autocmd_setup then
 		local group = vim.api.nvim_create_augroup("CliIntegrationResize", { clear = true })
@@ -564,19 +585,18 @@ function M.create_sidebar_layout(buf, win_opts)
 			group = group,
 			callback = function()
 				M.resize_sidebars()
-				-- Cleanup if no sidebars remain
 				if vim.tbl_count(M.sidebars) == 0 then
 					pcall(vim.api.nvim_del_augroup_by_name, "CliIntegrationResize")
 					M.resized_autocmd_setup = false
 				end
 			end,
-			desc = "Sync sidebar and float dimensions on resize",
+			desc = "Resize sidebar on editor resize",
 		})
 		M.resized_autocmd_setup = true
 	end
 
 	vim.cmd("startinsert")
-	return float_win
+	return sidebar_win
 end
 
 --- Update sidebar geometry (handles fullwidth toggle and resize sync)
