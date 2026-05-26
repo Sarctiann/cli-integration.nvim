@@ -3,6 +3,7 @@
 ## Problem Statement
 
 Currently, when an integration defines `terminal_keys`, `vim.tbl_deep_extend` merges them with global defaults. This means that if a user configures:
+
 - Global: `insert_file_path = {"<C-p>"}`
 - Integration: `insert_file_path = {"<C-o>"}`
 
@@ -10,11 +11,11 @@ The integration should NOT respond to `<C-p>` (it should only respond to `<C-o>`
 
 ## Expected Behavior
 
-| Level | `terminal_keys` defined | Result |
-|-------|------------------|-------|
-| Plugin (global) | Yes | Used as base defaults |
-| Integration | No | Inherits all from plugin |
-| Integration | Yes (partial) | Replaces entire sub-section (terminal_mode or normal_mode), then merges key-by-key within that section |
+| Level           | `terminal_keys` defined | Result                                                                                                 |
+| --------------- | ----------------------- | ------------------------------------------------------------------------------------------------------ |
+| Plugin (global) | Yes                     | Used as base defaults                                                                                  |
+| Integration     | No                      | Inherits all from plugin                                                                               |
+| Integration     | Yes (partial)           | Replaces entire sub-section (terminal_mode or normal_mode), then merges key-by-key within that section |
 
 ## Implementation
 
@@ -23,17 +24,20 @@ The integration should NOT respond to `<C-p>` (it should only respond to `<C-o>`
 Change the merge strategy in `M.setup()`:
 
 **Current (line 219):**
+
 ```lua
 M.options.integrations[i] = vim.tbl_deep_extend("force", default_integration, integration)
 ```
 
 **New approach:**
+
 1. Separate handling for `terminal_keys` - don't use `tbl_deep_extend`
 2. For each integration, check if `terminal_keys` is defined
 3. If yes: replace entire `terminal_mode` and/or `normal_mode` sub-sections
 4. Then merge key-by-key within each sub-section
 
 Pseudo-code:
+
 ```lua
 -- Get plugin defaults
 local plugin_tkeys = M.options.terminal_keys

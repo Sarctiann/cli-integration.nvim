@@ -43,7 +43,6 @@ local function is_integration_float_win(win, term_buf)
 	return data ~= nil and data.terminal_buf == term_buf
 end
 
-
 local function is_valid_win(win)
 	return type(win) == "number" and win > 0 and vim.api.nvim_win_is_valid(win)
 end
