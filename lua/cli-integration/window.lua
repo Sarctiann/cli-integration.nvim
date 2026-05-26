@@ -623,7 +623,7 @@ function M.update_sidebar_geometry(sidebar_win, is_expanded, should_focus)
 			end
 		end
 
-		-- Create fullwidth float (no border, full editor coverage)
+		-- Create fullwidth float with single border
 		local float_opts = {
 			relative = "editor",
 			width = vim.o.columns,
@@ -631,7 +631,7 @@ function M.update_sidebar_geometry(sidebar_win, is_expanded, should_focus)
 			row = 0,
 			col = 0,
 			style = "minimal",
-			border = "none",
+			border = "single",
 			title = win_opts.title or "",
 			title_pos = "center",
 		}
@@ -716,7 +716,7 @@ function M.resize_sidebars()
 					row = 0,
 					col = 0,
 					style = "minimal",
-					border = "none",
+					border = "single",
 				})
 			elseif editor_resized then
 				-- Editor was resized: recalculate vsplit width
@@ -740,10 +740,20 @@ function M.toggle_terminal(terminal)
 		return
 	end
 
-	if terminal.win and vim.api.nvim_win_is_valid(terminal.win) then
+	-- Find current sidebar window for this terminal's buffer
+	local current_sidebar_win = nil
+	for win, data in pairs(M.sidebars) do
+		if data.terminal_buf == terminal.buf then
+			current_sidebar_win = win
+			break
+		end
+	end
+
+	if current_sidebar_win and vim.api.nvim_win_is_valid(current_sidebar_win) then
 		-- Close the terminal window
-		vim.api.nvim_win_close(terminal.win, false)
+		vim.api.nvim_win_close(current_sidebar_win, false)
 		terminal.win = nil
+		-- M.sidebars cleanup happens via WinClosed autocmd
 	else
 		-- Reopen the terminal window
 		local win_opts = terminal.opts.win or {}
