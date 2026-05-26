@@ -16,7 +16,7 @@
 12. **Sidebar Left Navigation**: Press <C-h> in sidebar vsplit -> focuses code window to the left (if exists)
 13. **Sidebar Return**: Click on sidebar vsplit -> focuses the vsplit directly (no intermediate window)
 14. **No TUI garbage on open**: Open opencode or lazygit inside the integration terminal from Ghostty + tmux -> no `?1016$p` or similar garbage characters appear at startup (requires Ghostty identity vars stripped from job env)
-15. **Mouse paste works**: Select text with mouse in host tmux, click inside integration terminal -> selected text does NOT appear as bracketed-paste escape sequences (`\e[200~...\e[201~`) in the TUI input
+15. **Mouse paste works**: Select text with mouse in host tmux, click inside integration terminal -> pasted text appears as plain text in the TUI input (requires bracketed paste mode enabled in both tmux and the job)
 
 ## Must Never Happen
 
