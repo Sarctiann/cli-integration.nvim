@@ -695,41 +695,44 @@ function M.update_sidebar_geometry(sidebar_win, is_expanded, should_focus)
 	end
 end
 
---- Resize all sidebar floats (handles editor resize and fullwidth)
+--- Resize all sidebar windows (handles editor resize and fullwidth)
 function M.resize_sidebars()
 	local editor_resized = vim.o.columns ~= M._last_editor_width
 	if editor_resized then
 		M._last_editor_width = vim.o.columns
 	end
 
-	for float_win, data in pairs(M.sidebars) do
-		if is_valid_win(float_win) then
+	for sidebar_win, data in pairs(M.sidebars) do
+		if is_valid_win(sidebar_win) then
+			local cfg = vim.api.nvim_win_get_config(sidebar_win)
+			local is_float = cfg.relative ~= ""
+
 			if data.is_expanded then
-				-- Fullwidth mode: always recompute from editor dimensions
-				local geom = compute_fullwidth_geometry()
-				apply_float_geometry(float_win, geom)
+				-- Fullwidth/float mode: resize float to stay centered
+				local win_opts = data.win_opts or {}
+				local width = win_opts.width or math.floor(vim.o.columns * 0.8)
+				local height = win_opts.height or math.floor(vim.o.lines * 0.8)
+				local row = math.floor((vim.o.lines - height) / 2)
+				local col = math.floor((vim.o.columns - width) / 2)
+				pcall(vim.api.nvim_win_set_config, sidebar_win, {
+					relative = "editor",
+					width = width,
+					height = height,
+					row = row,
+					col = col,
+					style = "minimal",
+					border = "rounded",
+				})
 			elseif editor_resized then
-				-- Editor was resized: recalculate from configured width_config
+				-- Editor was resized: recalculate vsplit width
 				local padding = data.padding or 0
 				local configured_width = calculate_width(data.width_config)
 				local target_width = configured_width - (padding * 2)
-				local border = data.win_opts and data.win_opts.border or "none"
-				local border_offset = (border == "none" or border == "") and 0 or 2
-				local geom = {
-					width = target_width,
-					height = vim.o.lines - vim.o.cmdheight - border_offset - 1,
-					col = vim.o.columns - target_width,
-					row = 0,
-					border = border,
-				}
-				apply_float_geometry(float_win, geom)
-			else
-				-- No editor resize, no fullwidth: keep current geometry
-				-- (user may have resized the float manually - trust it)
+				pcall(vim.api.nvim_win_set_width, sidebar_win, target_width)
 			end
 		else
 			-- Cleanup invalid windows
-			M.sidebars[float_win] = nil
+			M.sidebars[sidebar_win] = nil
 		end
 	end
 end
