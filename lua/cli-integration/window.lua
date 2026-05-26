@@ -613,13 +613,15 @@ function M.update_sidebar_geometry(sidebar_win, is_expanded, should_focus)
 	local win_opts = data.win_opts
 
 	if is_expanded then
-		-- Fullwidth mode: close vsplit, open float covering full editor width
-		-- First check if we have a valid vsplit to close
+		-- Fullwidth mode: hide vsplit, show fullscreen float
+		-- Check if we have a vsplit to hide
 		if is_valid_win(sidebar_win) then
 			local cfg = vim.api.nvim_win_get_config(sidebar_win)
 			if cfg.relative == "" then
-				-- It's a vsplit, close it
-				vim.api.nvim_win_close(sidebar_win, true)
+				-- It's a vsplit - hide it by setting width to 0
+				vim.api.nvim_win_set_width(sidebar_win, 0)
+				-- Mark it as hidden in our data
+				data.vsplit_hidden = true
 			end
 		end
 
@@ -670,8 +672,9 @@ function M.update_sidebar_geometry(sidebar_win, is_expanded, should_focus)
 			end
 		end
 	else
-		-- Sidebar mode: close float, open vsplit
+		-- Sidebar mode: close float, restore vsplit
 		-- Check if current window is a float
+		local hidden_vsplit_win = nil
 		if is_valid_win(sidebar_win) then
 			local cfg = vim.api.nvim_win_get_config(sidebar_win)
 			if cfg.relative ~= "" then
@@ -680,16 +683,42 @@ function M.update_sidebar_geometry(sidebar_win, is_expanded, should_focus)
 			end
 		end
 
-		-- Create new vsplit
-		local vsplit_win = M.create_sidebar_layout(term_buf, win_opts)
-		if vsplit_win then
+		-- Find the hidden vsplit and restore it
+		for win, win_data in pairs(M.sidebars) do
+			if win_data.vsplit_hidden and is_valid_win(win) then
+				hidden_vsplit_win = win
+				break
+			end
+		end
+
+		if hidden_vsplit_win then
+			-- Restore the hidden vsplit
+			local padding = data.padding or 0
+			local configured_width = calculate_width(data.width_config)
+			local target_width = configured_width - (padding * 2)
+			vim.api.nvim_win_set_width(hidden_vsplit_win, target_width)
+			data.vsplit_hidden = nil
+
 			if should_focus then
-				vim.api.nvim_set_current_win(vsplit_win)
+				vim.api.nvim_set_current_win(hidden_vsplit_win)
 				vim.schedule(function()
-					if is_valid_win(vsplit_win) then
+					if is_valid_win(hidden_vsplit_win) then
 						vim.cmd("startinsert")
 					end
 				end)
+			end
+		else
+			-- No hidden vsplit found, create new one
+			local vsplit_win = M.create_sidebar_layout(term_buf, win_opts)
+			if vsplit_win then
+				if should_focus then
+					vim.api.nvim_set_current_win(vsplit_win)
+					vim.schedule(function()
+						if is_valid_win(vsplit_win) then
+							vim.cmd("startinsert")
+						end
+					end)
+				end
 			end
 		end
 	end
