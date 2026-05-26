@@ -63,6 +63,22 @@ local function build_job_env(opts, cols, lines)
 	env.COLUMNS = tostring(cols)
 	env.LINES = tostring(lines)
 
+	-- NOTE: Normalize TERM/COLORTERM to safe defaults for Neovim's :terminal.
+	-- Host terminals like Ghostty set TERM=xterm-ghostty, whose terminfo
+	-- declares capabilities (e.g. SGR mouse mode 1016) that Neovim's internal
+	-- terminal emulator does not fully handle. This causes TUI apps to emit
+	-- escape sequences that appear as literal garbage characters (e.g.
+	-- "?1016$p") and break mouse-based bracketed paste. We override to a
+	-- universally compatible terminfo unless the user explicitly sets TERM
+	-- via opts.env. Do NOT remove this normalization without testing inside
+	-- Ghostty + tmux + Neovim :terminal with opencode/lazygit.
+	if not (type(opts.env) == "table" and opts.env.TERM ~= nil) then
+		env.TERM = "xterm-256color"
+	end
+	if not (type(opts.env) == "table" and opts.env.COLORTERM ~= nil) then
+		env.COLORTERM = "truecolor"
+	end
+
 	-- Optional explicit overrides (can re-add any of the above if needed)
 	if type(opts.env) == "table" then
 		env = vim.tbl_extend("force", env, opts.env)
@@ -95,8 +111,6 @@ local function calculate_width(width_config)
 	end
 	return width_config
 end
-
-
 
 --- Calculate the usable content dimensions of a terminal window,
 --- subtracting border cells and padding.

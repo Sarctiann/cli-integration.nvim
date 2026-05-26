@@ -15,6 +15,8 @@
 11. **Focus Mode Exit**: Click on bufferline or another window while in terminal insert mode -> focus changes and mode is Normal
 12. **Sidebar Left Navigation**: Press <C-h> in sidebar vsplit -> focuses code window to the left (if exists)
 13. **Sidebar Return**: Click on sidebar vsplit -> focuses the vsplit directly (no intermediate window)
+14. **No TUI garbage on open**: Open opencode or lazygit inside the integration terminal (especially from Ghostty + tmux) -> no `?1016$p` or similar escape sequences appear at startup
+15. **Mouse paste works**: Select text with mouse in host tmux, click inside integration terminal -> selected text does NOT appear as bracketed-paste escape sequences (`\e[200~...\e[201~`) in the TUI input
 
 ## Must Never Happen
 

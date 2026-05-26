@@ -105,5 +105,5 @@ AskData = {
 1. Global defaults apply to all integrations
 2. Per-integration values override global defaults
 3. `terminal_keys`: per-section override with key-by-key merge within section
-4. `env`: merged via `vim.tbl_extend("force", process_env, global_env, integration_env)`
+4. `env`: merged via `vim.tbl_extend("force", process_env, global_env, integration_env)`. NOTE: `TERM` and `COLORTERM` are normalized to safe defaults (`xterm-256color` / `truecolor`) before the merge, unless explicitly provided in `env`.
 5. `unset_env`: applied after merge, removes specified keys

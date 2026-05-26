@@ -123,21 +123,22 @@ Pure helper functions for dimension calculations:
 - `apply_float_geometry(float_win, geom)` — Applies geometry to float
 - `apply_split_width(split_win, width)` — Sets split width
 - `calculate_width(width_config)` — Supports percentage (1-100) or absolute (>100)
-- `calculate_content_dimensions(win, border, padding, list_buffer)` — Usable cols/lines
+- `calculate_content_dimensions(win, border, padding)` — Usable cols/lines
 
 ### Environment Building
 
 `build_job_env(opts, cols, lines)`:
 
 1. Inherit full process env via `vim.fn.environ()`
-2. Set `COLUMNS`/`LINES` from finalized geometry
-3. Apply optional `env` overrides
-4. Apply optional `unset_env` removals
+2. Strip tmux identity vars (`TMUX`, `TMUX_PANE`, `TERM_PROGRAM`, `TERM_PROGRAM_VERSION`) to prevent bracketed-paste leakage
+3. Set `COLUMNS`/`LINES` from finalized geometry
+4. **Normalize `TERM` to `xterm-256color` and `COLORTERM` to `truecolor` unless explicitly overridden in `opts.env`** — this prevents host terminal-specific terminfo (e.g. Ghostty's `xterm-ghostty`) from emitting escape sequences that Neovim's `:terminal` cannot handle, which appear as visible garbage characters like `?1016$p`
+5. Apply optional `env` overrides
+6. Apply optional `unset_env` removals
 
 ## State Management
 
 - `M.resized_autocmd_setup` — Track if resize autocmd is registered
-- `M._suppress_stopinsert` — Suppress stopinsert during fullwidth toggle recreation
 - `M._last_editor_width` — Track editor width to distinguish resize types
 
 ## Source Location
