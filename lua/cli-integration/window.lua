@@ -599,55 +599,99 @@ function M.create_sidebar_layout(buf, win_opts)
 	return sidebar_win
 end
 
---- Update sidebar geometry (handles fullwidth toggle and resize sync)
---- @param float_win number The floating window handle
---- @param is_expanded boolean Whether to show at maximum width (fullwidth mode)
+--- Update sidebar geometry (handles fullwidth toggle)
+--- @param sidebar_win number The sidebar window handle
+--- @param is_expanded boolean Whether to show in fullwidth/float mode
 --- @param should_focus boolean|nil Whether to focus the window (default: false)
-function M.update_sidebar_geometry(float_win, is_expanded, should_focus)
-	local data = M.sidebars[float_win]
-	if not data or not is_valid_win(float_win) then
+function M.update_sidebar_geometry(sidebar_win, is_expanded, should_focus)
+	local data = M.sidebars[sidebar_win]
+	if not data then
 		return
 	end
 
 	local term_buf = data.terminal_buf
+	local win_opts = data.win_opts
 
 	if is_expanded then
-		-- Fullwidth mode: expand float to full editor width
-		local geom = compute_fullwidth_geometry()
-		apply_float_geometry(float_win, geom)
-		data.is_expanded = true
-
-		-- Disable window-navigation keymaps (no other windows to navigate to)
-		pcall(vim.keymap.del, "t", "<C-h>", { buffer = term_buf })
-		pcall(vim.keymap.del, "t", "<C-j>", { buffer = term_buf })
-		pcall(vim.keymap.del, "t", "<C-k>", { buffer = term_buf })
-		pcall(vim.keymap.del, "t", "<C-l>", { buffer = term_buf })
-	else
-		-- Normal sidebar mode: restore to configured width on right side
-		local geom = compute_sidebar_target_geometry(data)
-		apply_float_geometry(float_win, geom)
-		data.is_expanded = false
-
-		-- Re-enable window-navigation keymaps
-		local nav_opts = { buffer = term_buf, noremap = true, silent = true }
-		vim.keymap.set("t", "<C-h>", [[<C-\><C-n><Cmd>wincmd h<CR>]], nav_opts)
-		vim.keymap.set("t", "<C-j>", [[<C-\><C-n><Cmd>wincmd j<CR>]], nav_opts)
-		vim.keymap.set("t", "<C-k>", [[<C-\><C-n><Cmd>wincmd k<CR>]], nav_opts)
-		vim.keymap.set("t", "<C-l>", [[<C-\><C-n><Cmd>wincmd l<CR>]], nav_opts)
-	end
-
-	-- Focus if requested or already focused
-	local current_win = vim.api.nvim_get_current_win()
-	if (should_focus or current_win == float_win) and is_valid_win(float_win) then
-		vim.api.nvim_set_current_win(float_win)
-		-- Schedule startinsert so it runs after any pending stopinsert.
-		-- vim.schedule is FIFO, so this enqueues after any stopinsert
-		-- already in the queue and wins.
-		vim.schedule(function()
-			if is_valid_win(float_win) then
-				vim.cmd("startinsert")
+		-- Fullwidth mode: close vsplit, open centered float with rounded border
+		-- First check if we have a valid vsplit to close
+		if is_valid_win(sidebar_win) then
+			local cfg = vim.api.nvim_win_get_config(sidebar_win)
+			if cfg.relative == "" then
+				-- It's a vsplit, close it
+				vim.api.nvim_win_close(sidebar_win, true)
 			end
-		end)
+		end
+
+		-- Create centered float with rounded border
+		local float_opts = {
+			relative = "editor",
+			width = win_opts.width or math.floor(vim.o.columns * 0.8),
+			height = win_opts.height or math.floor(vim.o.lines * 0.8),
+			row = math.floor((vim.o.lines - (win_opts.height or math.floor(vim.o.lines * 0.8))) / 2),
+			col = math.floor((vim.o.columns - (win_opts.width or math.floor(vim.o.columns * 0.8))) / 2),
+			style = "minimal",
+			border = "rounded",
+			title = win_opts.title or "",
+			title_pos = "center",
+		}
+
+		local float_win = vim.api.nvim_open_win(term_buf, true, float_opts)
+
+		if float_win then
+			-- Configure float window
+			vim.wo[float_win].number = false
+			vim.wo[float_win].relativenumber = false
+			vim.wo[float_win].signcolumn = "no"
+			vim.wo[float_win].spell = false
+			vim.wo[float_win].cursorline = false
+
+			-- Update sidebar data for float
+			M.sidebars[float_win] = {
+				sidebar_win = float_win,
+				terminal_buf = term_buf,
+				width_config = data.width_config,
+				win_opts = win_opts,
+				padding = data.padding,
+				is_expanded = true,
+				list_buffer = data.list_buffer,
+			}
+
+			-- Remove old sidebar entry
+			M.sidebars[sidebar_win] = nil
+
+			if should_focus then
+				vim.api.nvim_set_current_win(float_win)
+				vim.schedule(function()
+					if is_valid_win(float_win) then
+						vim.cmd("startinsert")
+					end
+				end)
+			end
+		end
+	else
+		-- Sidebar mode: close float, open vsplit
+		-- Check if current window is a float
+		if is_valid_win(sidebar_win) then
+			local cfg = vim.api.nvim_win_get_config(sidebar_win)
+			if cfg.relative ~= "" then
+				-- It's a float, close it
+				vim.api.nvim_win_close(sidebar_win, true)
+			end
+		end
+
+		-- Create new vsplit
+		local vsplit_win = M.create_sidebar_layout(term_buf, win_opts)
+		if vsplit_win then
+			if should_focus then
+				vim.api.nvim_set_current_win(vsplit_win)
+				vim.schedule(function()
+					if is_valid_win(vsplit_win) then
+						vim.cmd("startinsert")
+					end
+				end)
+			end
+		end
 	end
 end
 
