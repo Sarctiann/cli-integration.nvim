@@ -106,42 +106,6 @@ local function build_job_env(opts, cols, lines)
 	return env
 end
 
---- Setup event-driven sanitizer for terminal buffer input
---- Detects OSC 52 sequences in terminal output and forces TUI redraw
---- @param buf number Terminal buffer handle
---- @param job_id number Job ID for chansend
-local function setup_terminal_sanitizer(buf, job_id)
-	local timer = nil
-
-	vim.api.nvim_create_autocmd("TextChanged", {
-		buffer = buf,
-		callback = function()
-			-- Debounce: only check 150ms after last change
-			if timer then
-				vim.fn.timer_stop(timer)
-			end
-			timer = vim.fn.timer_start(150, function()
-				timer = nil
-				if not vim.api.nvim_buf_is_valid(buf) then
-					return
-				end
-
-				-- Check last 10 lines for OSC 52 clipboard sequences
-				local lines = vim.api.nvim_buf_get_lines(buf, -10, -1, false)
-				local text = table.concat(lines, "\n")
-
-				-- OSC 52 pattern: ESC ] 52 ; <params> ; <base64> BEL
-				if text:match("\027]52;") then
-					-- Force TUI redraw by sending Device Status Report
-					-- The TUI application will respond with Device Attributes,
-					-- triggering a screen redraw that discards the garbage output
-					vim.fn.chansend(job_id, "\027[c")
-				end
-			end)
-		end,
-	})
-end
-
 --- Track if resize autocmd is setup
 M.resized_autocmd_setup = false
 
@@ -476,9 +440,6 @@ function M.create_terminal(cmd, opts)
 		end,
 		desc = "Secondary guard: restore terminal buffer on WinEnter in integration window",
 	})
-
-	-- Setup terminal input sanitizer to filter OSC 52 sequences
-	setup_terminal_sanitizer(buf, job_id)
 
 	return terminal
 end

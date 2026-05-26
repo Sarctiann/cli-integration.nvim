@@ -28,7 +28,6 @@ Table mapping `sidebar_win` → sidebar data:
 - `is_valid_win(win)` — Checks if window handle is valid
 - `find_layout_anchor_window()` — Finds a safe anchor window for creating the vsplit
 - `is_terminal_visible(terminal)` — Checks if terminal window is visible
-- `setup_terminal_sanitizer(buf, job_id)` — Event-driven OSC 52 sequence detection and TUI redraw
 
 ## Public API
 
@@ -47,7 +46,6 @@ Creates terminal buffer, window, job, and protection autocmds.
 7. Set up navigation keymaps (`<C-h/j/k/l>`)
 8. Set up BufWinEnter protection autocmd
 9. Set up auto-insert autocmd
-10. Set up OSC 52 sanitizer (`setup_terminal_sanitizer`)
 
 ### `M.create_float_window(buf, win_opts)`
 
