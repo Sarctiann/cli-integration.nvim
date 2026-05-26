@@ -325,17 +325,14 @@ function M.toggle_width(term_buf)
 		return
 	end
 
-	-- Get the terminal window
-	local term_win = nil
-	for _, win in ipairs(vim.api.nvim_list_wins()) do
-		if vim.api.nvim_win_get_buf(win) == term_buf then
-			term_win = win
+	-- Find the active sidebar entry for this buffer (preferred over raw window search
+	-- to avoid picking up the hidden vsplit when in fullwidth mode).
+	local sidebar_win = nil
+	for win, sidebar_data in pairs(window.sidebars) do
+		if sidebar_data.terminal_buf == term_buf then
+			sidebar_win = win
 			break
 		end
-	end
-
-	if not term_win or not vim.api.nvim_win_is_valid(term_win) then
-		return
 	end
 
 	local integration = term_data.integration
@@ -368,10 +365,20 @@ function M.toggle_width(term_buf)
 	local is_expanded = not term_data.is_expanded
 
 	-- Handle sidebar mode if applicable
-	if window.sidebars[term_win] then
-		window.update_sidebar_geometry(term_win, is_expanded, true)
+	if sidebar_win then
+		window.update_sidebar_geometry(sidebar_win, is_expanded, true)
 	else
-		-- Normal split window logic
+		-- Fallback: find window by buffer and resize directly
+		local term_win = nil
+		for _, win in ipairs(vim.api.nvim_list_wins()) do
+			if vim.api.nvim_win_get_buf(win) == term_buf then
+				term_win = win
+				break
+			end
+		end
+		if not term_win or not vim.api.nvim_win_is_valid(term_win) then
+			return
+		end
 		local width
 		if is_expanded then
 			width = editor_width - 2

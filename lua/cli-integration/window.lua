@@ -38,6 +38,12 @@ end
 
 --- Build terminal job environment starting from inherited process env,
 --- then applying explicit overrides and removals.
+---
+--- TMUX/TERM_PROGRAM are stripped by default: the job runs inside a Neovim
+--- pseudo-terminal, not inside tmux. Keeping them causes TUI apps (opencode,
+--- lazygit, etc.) to enable tmux-specific behaviour such as bracketed paste
+--- mode, which makes mouse selections in the host tmux session inject escape
+--- sequences (\e[200~...\e[201~) as literal text into the application input.
 --- @param opts table
 --- @param cols number
 --- @param lines number
@@ -45,11 +51,19 @@ end
 local function build_job_env(opts, cols, lines)
 	local env = vim.fn.environ()
 
+	-- Strip tmux identity vars: the job's pty is owned by Neovim, not tmux.
+	-- Leaving TMUX/TERM_PROGRAM=tmux active causes bracketed-paste sequences
+	-- from mouse selections to leak into the running TUI as literal text.
+	env.TMUX = nil
+	env.TMUX_PANE = nil
+	env.TERM_PROGRAM = nil
+	env.TERM_PROGRAM_VERSION = nil
+
 	-- Always refresh dimensions from finalized geometry
 	env.COLUMNS = tostring(cols)
 	env.LINES = tostring(lines)
 
-	-- Optional explicit overrides
+	-- Optional explicit overrides (can re-add any of the above if needed)
 	if type(opts.env) == "table" then
 		env = vim.tbl_extend("force", env, opts.env)
 	end
@@ -67,9 +81,6 @@ end
 --- Track if resize autocmd is setup
 M.resized_autocmd_setup = false
 
---- Suppress stopinsert during toggle operations
-M._suppress_stopinsert = false
-
 --- Track last known editor width to distinguish editor resize from manual split resize
 M._last_editor_width = vim.o.columns
 
@@ -85,57 +96,16 @@ local function calculate_width(width_config)
 	return width_config
 end
 
--- Geometry engine helpers (local, internal)
-local function compute_fullwidth_geometry()
-	local border_offset = 2
-	local width = vim.o.columns - border_offset
-	local col = 1
-	local height = vim.o.lines - vim.o.cmdheight - border_offset - 1
-	local row = 0
-	return { width = width, height = height, col = col, row = row, border = "rounded", border_offset = border_offset }
-end
 
-local function compute_sidebar_target_geometry(data)
-	-- data: M.sidebars[sidebar_win]
-	local padding = data.padding or 0
-	local border = data.win_opts and data.win_opts.border or "none"
-	local border_offset = (border == "none" or border == "") and 0 or 2
-
-	local configured = calculate_width(data.width_config)
-	local width = configured - (padding * 2)
-
-	local col = vim.o.columns - width
-	local height = vim.o.lines - vim.o.cmdheight - border_offset - 1
-	local row = 0
-	return { width = width, height = height, col = col, row = row, border = border, border_offset = border_offset }
-end
-
-local function apply_float_geometry(win, geom)
-	if not vim.api.nvim_win_is_valid(win) then
-		return
-	end
-	local cfg = {
-		relative = "editor",
-		width = geom.width,
-		height = geom.height,
-		row = geom.row or 0,
-		col = geom.col or 0,
-		style = "minimal",
-		border = geom.border or "none",
-		zindex = 45,
-	}
-	pcall(vim.api.nvim_win_set_config, win, cfg)
-end
 
 --- Calculate the usable content dimensions of a terminal window,
---- subtracting border cells, padding, and optional list_buffer row offset.
+--- subtracting border cells and padding.
 --- @param win number Window handle (must be valid and sized)
 --- @param border string|table Border style ("none"|"single"|"double"|"rounded"|"solid"|"shadow") or 8-element array
 --- @param padding number Horizontal padding in columns (foldcolumn)
---- @param list_buffer boolean Whether the list_buffer row offset is active
 --- @return number cols  Usable columns (COLUMNS env var)
 --- @return number lines Usable lines  (LINES env var)
-local function calculate_content_dimensions(win, border, padding, list_buffer)
+local function calculate_content_dimensions(win, border, padding)
 	local w = vim.api.nvim_win_get_width(win)
 	local h = vim.api.nvim_win_get_height(win)
 	local border_offset
@@ -144,9 +114,8 @@ local function calculate_content_dimensions(win, border, padding, list_buffer)
 	else
 		border_offset = (border == nil or border == "none" or border == "") and 0 or 2
 	end
-	local row_offset = (list_buffer == true) and 1 or 0
 	local cols = math.max(1, w - border_offset - (padding * 2))
-	local lines = math.max(1, h - border_offset - row_offset)
+	local lines = math.max(1, h - border_offset)
 	return cols, lines
 end
 
@@ -213,13 +182,11 @@ function M.create_terminal(cmd, opts)
 	end
 
 	-- Read final content dimensions AFTER geometry is established.
-	-- create_sidebar_layout calls update_sidebar_geometry before returning, so
-	-- win dimensions are correct here. Using calculate_content_dimensions ensures
-	-- we subtract border cells, padding, and list_buffer row offset.
+	-- create_sidebar_layout sets the vsplit width before returning, so
+	-- win dimensions are correct here.
 	local padding = win_opts.padding or 0
 	local border = win_opts.border or (is_float and "rounded" or "none")
-	local list_buf_flag = win_opts.list_buffer or false
-	local cols, lines = calculate_content_dimensions(win, border, padding, list_buf_flag)
+	local cols, lines = calculate_content_dimensions(win, border, padding)
 
 	-- Start terminal job
 	local job_id
@@ -543,6 +510,12 @@ function M.create_sidebar_layout(buf, win_opts)
 	-- Set the terminal buffer
 	vim.api.nvim_win_set_buf(sidebar_win, buf)
 
+	-- Apply the configured width BEFORE returning so that calculate_content_dimensions
+	-- in create_terminal reads the correct (final) width, not whatever Neovim assigned
+	-- from the botright vsplit (which is half the available space by default).
+	-- This is the vsplit equivalent of the old float's update_sidebar_geometry() call.
+	vim.api.nvim_win_set_width(sidebar_win, vsplit_width)
+
 	-- Configure vsplit window
 	vim.wo[sidebar_win].winfixwidth = true
 	vim.wo[sidebar_win].number = false
@@ -550,6 +523,8 @@ function M.create_sidebar_layout(buf, win_opts)
 	vim.wo[sidebar_win].signcolumn = "no"
 	vim.wo[sidebar_win].cursorline = false
 	vim.wo[sidebar_win].spell = false
+	-- Use panel/sidebar highlight groups so background matches Snacks.terminal, neo-tree, etc.
+	vim.wo[sidebar_win].winhighlight = "Normal:NormalSB,NormalNC:NormalSB,EndOfBuffer:NormalSB"
 
 	-- Apply padding via foldcolumn
 	if padding > 0 then
@@ -620,8 +595,6 @@ function M.update_sidebar_geometry(sidebar_win, is_expanded, should_focus)
 			if cfg.relative == "" then
 				-- It's a vsplit - hide it by setting width to 0
 				vim.api.nvim_win_set_width(sidebar_win, 0)
-				-- Mark it as hidden in our data
-				data.vsplit_hidden = true
 			end
 		end
 
@@ -648,7 +621,8 @@ function M.update_sidebar_geometry(sidebar_win, is_expanded, should_focus)
 			vim.wo[new_win].spell = false
 			vim.wo[new_win].cursorline = false
 
-			-- Update sidebar data for float
+			-- Update sidebar data for float, preserving hidden vsplit reference
+			-- so collapse can find it when toggling back to sidebar mode.
 			M.sidebars[new_win] = {
 				sidebar_win = new_win,
 				terminal_buf = term_buf,
@@ -657,10 +631,28 @@ function M.update_sidebar_geometry(sidebar_win, is_expanded, should_focus)
 				padding = data.padding,
 				is_expanded = true,
 				list_buffer = data.list_buffer,
+				-- Carry the hidden vsplit handle forward so it survives the entry swap
+				hidden_vsplit_win = is_valid_win(sidebar_win) and sidebar_win or nil,
 			}
 
-			-- Remove old sidebar entry
+			-- Remove old sidebar entry (vsplit handle kept in hidden_vsplit_win above)
 			M.sidebars[sidebar_win] = nil
+
+			-- When the float is closed from outside (e.g. :q), also close the hidden vsplit
+			-- so it doesn't remain as a width-0 phantom split.
+			vim.api.nvim_create_autocmd("WinClosed", {
+				pattern = tostring(new_win),
+				callback = function()
+					local float_data = M.sidebars[new_win]
+					local hidden = float_data and float_data.hidden_vsplit_win
+					if hidden and is_valid_win(hidden) then
+						pcall(vim.api.nvim_win_close, hidden, true)
+					end
+					M.sidebars[new_win] = nil
+				end,
+				once = true,
+				desc = "Cleanup fullwidth float and hidden vsplit on close",
+			})
 
 			if should_focus then
 				vim.api.nvim_set_current_win(new_win)
@@ -673,31 +665,35 @@ function M.update_sidebar_geometry(sidebar_win, is_expanded, should_focus)
 		end
 	else
 		-- Sidebar mode: close float, restore vsplit
-		-- Check if current window is a float
-		local hidden_vsplit_win = nil
+		local hidden_vsplit_win = data.hidden_vsplit_win
+
 		if is_valid_win(sidebar_win) then
 			local cfg = vim.api.nvim_win_get_config(sidebar_win)
 			if cfg.relative ~= "" then
-				-- It's a float, close it
+				-- Clear the sidebar entry BEFORE closing the float so the WinClosed autocmd
+				-- sees an empty entry and does NOT close the hidden vsplit we are about to restore.
+				M.sidebars[sidebar_win] = nil
 				vim.api.nvim_win_close(sidebar_win, true)
 			end
 		end
 
-		-- Find the hidden vsplit and restore it
-		for win, win_data in pairs(M.sidebars) do
-			if win_data.vsplit_hidden and is_valid_win(win) then
-				hidden_vsplit_win = win
-				break
-			end
-		end
-
-		if hidden_vsplit_win then
-			-- Restore the hidden vsplit
+		if hidden_vsplit_win and is_valid_win(hidden_vsplit_win) then
+			-- Restore the hidden vsplit to its configured width
 			local padding = data.padding or 0
 			local configured_width = calculate_width(data.width_config)
 			local target_width = configured_width - (padding * 2)
 			vim.api.nvim_win_set_width(hidden_vsplit_win, target_width)
-			data.vsplit_hidden = nil
+
+			-- Re-register the vsplit as the active sidebar entry
+			M.sidebars[hidden_vsplit_win] = {
+				sidebar_win = hidden_vsplit_win,
+				terminal_buf = term_buf,
+				width_config = data.width_config,
+				win_opts = win_opts,
+				padding = data.padding,
+				is_expanded = false,
+				list_buffer = data.list_buffer,
+			}
 
 			if should_focus then
 				vim.api.nvim_set_current_win(hidden_vsplit_win)
@@ -708,7 +704,7 @@ function M.update_sidebar_geometry(sidebar_win, is_expanded, should_focus)
 				end)
 			end
 		else
-			-- No hidden vsplit found, create new one
+			-- No hidden vsplit found (e.g. it was closed externally), create new one
 			local vsplit_win = M.create_sidebar_layout(term_buf, win_opts)
 			if vsplit_win then
 				if should_focus then
@@ -733,9 +729,6 @@ function M.resize_sidebars()
 
 	for sidebar_win, data in pairs(M.sidebars) do
 		if is_valid_win(sidebar_win) then
-			local cfg = vim.api.nvim_win_get_config(sidebar_win)
-			local is_float = cfg.relative ~= ""
-
 			if data.is_expanded then
 				-- Fullwidth mode: resize float to full editor coverage
 				pcall(vim.api.nvim_win_set_config, sidebar_win, {

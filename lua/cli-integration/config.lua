@@ -61,7 +61,7 @@
 --- @field start_insert_on_click boolean|nil # In normal mode, clicking inside the terminal window re-enters insert mode. Has no effect when clicking from another window (WinEnter already handles that). (default: false)
 --- @field on_ask_submit nil|fun(data: Cli-Integration.AskData, actions: Cli-Integration.AskActions) # Callback invoked when the user submits a question. Receives context data and an actions table with methods to send text, submit, add newlines, and focus the file window. If not set, a built-in default handler is used that sends a formatted question and submits it. The callback does not return a value — it calls actions imperatively.
 --- @field ask_title string|nil # Custom title for the floating input window (default: integration name)
---- @field list_buffer boolean|nil # Show the terminal buffer in bufferline with name "[integration.name]". Sidebar windows start 1 row lower to avoid overlapping bufferline. Row offset does not apply to floating windows. (default: false)
+--- @field list_buffer boolean|nil # Show the terminal buffer in bufferline with name "[integration.name]". (default: false)
 --- @field env table<string, string>|nil # Environment variable overrides passed to the terminal job. Merged on top of inherited environment.
 --- @field unset_env string[]|nil # Environment variable names to remove from the terminal job environment after merging.
 
