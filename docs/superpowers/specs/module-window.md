@@ -75,7 +75,7 @@ Handles fullwidth toggle between sidebar vsplit and centered float.
 
 **Expanded mode (fullwidth):**
 
-- Hides vsplit by setting width to 0
+- Hides vsplit using `nvim_win_hide()` (removes from layout, keeps buffer)
 - Opens centered float with rounded border containing the terminal buffer
 - Updates `M.sidebars` to point to the new float window
 - **Resizes pty via `resize_pty()`** so TUI apps receive correct dimensions and mouse coordinates work
