@@ -11,30 +11,16 @@ local M = {}
 
 --- Store active sidebar configurations
 --- Format: [float_win] = {
----   split_win = number,
----   split_buf = number,
 ---   terminal_buf = number,
 ---   width_config = number,
----   padding = number,
 ---   win_opts = table,
+---   padding = number,
 ---   is_expanded = boolean,
 ---   list_buffer = boolean,
 --- }
 M.sidebars = {}
 
 --- Helper predicates for window classification
-
---- Check if a window is a sidebar proxy split (navigation-only, no content)
---- @param win number Window handle
---- @return boolean
-local function is_sidebar_split_win(win)
-	for _, data in pairs(M.sidebars) do
-		if data.split_win == win then
-			return true
-		end
-	end
-	return false
-end
 
 --- Find sidebar float by terminal buffer
 --- @param term_buf number Terminal buffer
@@ -57,33 +43,16 @@ local function is_integration_float_win(win, term_buf)
 	return data ~= nil and data.terminal_buf == term_buf
 end
 
---- Check if a window is an integration proxy split for a given terminal buffer
---- @param win number Window handle
---- @param term_buf number Terminal buffer
---- @return boolean
-local function is_integration_proxy_split(win, term_buf)
-	local float_win = find_sidebar_float_by_term_buf(term_buf)
-	if float_win then
-		local data = M.sidebars[float_win]
-		return data ~= nil and data.split_win == win
-	end
-	return false
-end
-
---- Check if a window is any integration window (float or proxy split) for a given terminal buffer
+--- Check if a window is an integration window for a given terminal buffer
 --- @param win number Window handle
 --- @param term_buf number Terminal buffer
 --- @return boolean
 local function is_integration_window(win, term_buf)
-	return is_integration_float_win(win, term_buf) or is_integration_proxy_split(win, term_buf)
+	return is_integration_float_win(win, term_buf)
 end
 
 local function is_valid_win(win)
 	return type(win) == "number" and win > 0 and vim.api.nvim_win_is_valid(win)
-end
-
-local function is_valid_buf(buf)
-	return type(buf) == "number" and buf > 0 and vim.api.nvim_buf_is_valid(buf)
 end
 
 --- Build terminal job environment starting from inherited process env,
@@ -114,40 +83,8 @@ local function build_job_env(opts, cols, lines)
 	return env
 end
 
---- Find a safe anchor window in the normal layout (non-float/non-proxy)
---- for creating/recreating sidebar proxy splits.
---- @return number|nil
-local function find_layout_anchor_window()
-	for _, win in ipairs(vim.api.nvim_list_wins()) do
-		if vim.api.nvim_win_is_valid(win) and not M.sidebars[win] and not is_sidebar_split_win(win) then
-			local cfg = vim.api.nvim_win_get_config(win)
-			if cfg.relative == "" then
-				local buf = vim.api.nvim_win_get_buf(win)
-				local bt = vim.bo[buf].buftype
-				if bt == "" then
-					return win
-				end
-			end
-		end
-	end
-
-	for _, win in ipairs(vim.api.nvim_list_wins()) do
-		if vim.api.nvim_win_is_valid(win) and not M.sidebars[win] and not is_sidebar_split_win(win) then
-			local cfg = vim.api.nvim_win_get_config(win)
-			if cfg.relative == "" then
-				return win
-			end
-		end
-	end
-
-	return nil
-end
-
 --- Track if resize autocmd is setup
 M.resized_autocmd_setup = false
-
---- Suppress stopinsert scheduling during proxy split recreation to preserve insert mode
-M._suppress_stopinsert = false
 
 --- Track last known editor width to distinguish editor resize from manual split resize
 M._last_editor_width = vim.o.columns
@@ -174,20 +111,14 @@ local function compute_fullwidth_geometry()
 	return { width = width, height = height, col = col, row = row, border = "rounded", border_offset = border_offset }
 end
 
-local function compute_sidebar_target_geometry(data, split_win)
+local function compute_sidebar_target_geometry(data)
 	-- data: M.sidebars[float_win]
 	local padding = data.padding or 0
 	local border = data.win_opts and data.win_opts.border or "none"
 	local border_offset = (border == "none" or border == "") and 0 or 2
 
-	local width
-	if split_win and vim.api.nvim_win_is_valid(split_win) then
-		-- Use observed split width as source of truth
-		width = vim.api.nvim_win_get_width(split_win)
-	else
-		local configured = calculate_width(data.width_config)
-		width = configured - (padding * 2)
-	end
+	local configured = calculate_width(data.width_config)
+	local width = configured - (padding * 2)
 
 	local col = vim.o.columns - width
 	local height = vim.o.lines - vim.o.cmdheight - border_offset - 1
@@ -212,34 +143,6 @@ local function apply_float_geometry(float_win, geom)
 	pcall(vim.api.nvim_win_set_config, float_win, cfg)
 end
 
-local function apply_split_width(split_win, width)
-	if split_win and vim.api.nvim_win_is_valid(split_win) then
-		pcall(vim.api.nvim_win_set_width, split_win, width)
-	end
-end
-
-local function ensure_split_inert(split_win, split_buf)
-	if not split_buf or not vim.api.nvim_buf_is_valid(split_buf) then
-		return
-	end
-	-- Buffer properties
-	vim.bo[split_buf].bufhidden = "wipe"
-	vim.bo[split_buf].buflisted = false
-	vim.bo[split_buf].buftype = "nofile"
-	vim.bo[split_buf].swapfile = false
-	vim.bo[split_buf].modifiable = false
-	-- Window properties
-	if split_win and vim.api.nvim_win_is_valid(split_win) then
-		vim.wo[split_win].winfixwidth = true
-		vim.wo[split_win].number = false
-		vim.wo[split_win].relativenumber = false
-		vim.wo[split_win].statuscolumn = ""
-		vim.wo[split_win].signcolumn = "no"
-		vim.wo[split_win].cursorline = false
-		vim.wo[split_win].cursorcolumn = false
-	end
-end
-
 --- Calculate the usable content dimensions of a terminal window,
 --- subtracting border cells, padding, and optional list_buffer row offset.
 --- @param win number Window handle (must be valid and sized)
@@ -261,135 +164,6 @@ local function calculate_content_dimensions(win, border, padding, list_buffer)
 	local cols = math.max(1, w - border_offset - (padding * 2))
 	local lines = math.max(1, h - border_offset - row_offset)
 	return cols, lines
-end
-
---- Create a proxy split window (no buffer, just for navigation)
---- @param width number Width of the split
---- @param float_win number Associated floating window
---- @return number split_win The split window handle
---- @return number split_buf The split buffer handle
-local function create_proxy_split(width, float_win)
-	-- Create split on the right from a stable layout window to avoid
-	-- competing with special sidebars (e.g. neo-tree) when restoring.
-	local prev_layout_win = vim.api.nvim_get_current_win()
-	local anchor_win = find_layout_anchor_window()
-	if anchor_win and vim.api.nvim_win_is_valid(anchor_win) then
-		pcall(vim.api.nvim_set_current_win, anchor_win)
-	end
-	vim.cmd("botright vsplit")
-	local split_win = vim.api.nvim_get_current_win()
-
-	-- Create an empty scratch buffer
-	local split_buf = vim.api.nvim_create_buf(false, true)
-	vim.api.nvim_win_set_buf(split_win, split_buf)
-	vim.api.nvim_win_set_width(split_win, width)
-
-	-- Configure split window to be a navigation proxy
-	vim.wo[split_win].winfixwidth = true
-	vim.wo[split_win].number = false
-	vim.wo[split_win].relativenumber = false
-	vim.wo[split_win].statuscolumn = ""
-	vim.wo[split_win].signcolumn = "no"
-	vim.wo[split_win].cursorline = false
-	vim.wo[split_win].cursorcolumn = false
-
-	-- Configure buffer to prevent any content
-	vim.bo[split_buf].bufhidden = "wipe"
-	vim.bo[split_buf].buflisted = false
-	vim.bo[split_buf].buftype = "nofile"
-	vim.bo[split_buf].swapfile = false
-	vim.bo[split_buf].modifiable = false
-	ensure_split_inert(split_win, split_buf)
-
-	if is_valid_win(prev_layout_win) then
-		pcall(vim.api.nvim_set_current_win, prev_layout_win)
-	end
-
-	-- Navigation: entering the split redirects to the float
-	vim.api.nvim_create_autocmd("WinEnter", {
-		buffer = split_buf,
-		callback = function()
-			local current_win = vim.api.nvim_get_current_win()
-			local target_float = float_win
-
-			-- If float_win was not provided or is invalid, try to find it in M.sidebars
-			if not target_float or target_float == 0 or not vim.api.nvim_win_is_valid(target_float) then
-				for fw, data in pairs(M.sidebars) do
-					if data.split_win == current_win then
-						target_float = fw
-						break
-					end
-				end
-			end
-
-			if target_float and vim.api.nvim_win_is_valid(target_float) then
-				local ok_prev, prev_win_id = pcall(function()
-					return vim.fn.win_getid(vim.fn.winnr("#"))
-				end)
-				if not ok_prev then
-					prev_win_id = nil
-				end
-				if prev_win_id == target_float then
-					-- We came from the float, move left to avoid getting stuck
-					-- Check if there's a window to the left
-					local ok2, left_winnr = pcall(function()
-						return vim.fn.winnr("h")
-					end)
-					if ok2 and left_winnr ~= vim.fn.winnr() then
-						pcall(vim.cmd.wincmd, "h")
-					else
-						-- Nowhere to go, return to float
-						pcall(vim.api.nvim_set_current_win, target_float)
-						vim.schedule(function()
-							if is_valid_win(target_float) then
-								vim.cmd("startinsert")
-							end
-						end)
-					end
-				else
-					-- We came from elsewhere, go to float
-					pcall(vim.api.nvim_set_current_win, target_float)
-					vim.schedule(function()
-						if is_valid_win(target_float) then
-							vim.cmd("startinsert")
-						end
-					end)
-				end
-			end
-		end,
-		desc = "Redirect split navigation to float window",
-	})
-
-	-- Prevent closing the split directly - close the float instead
-	vim.api.nvim_create_autocmd("QuitPre", {
-		buffer = split_buf,
-		callback = function()
-			local current_win = vim.api.nvim_get_current_win()
-			local target_float = float_win
-
-			-- Dynamic lookup if float_win is not set
-			if not target_float or target_float == 0 or not vim.api.nvim_win_is_valid(target_float) then
-				for fw, data in pairs(M.sidebars) do
-					if data.split_win == current_win then
-						target_float = fw
-						break
-					end
-				end
-			end
-
-			if target_float and vim.api.nvim_win_is_valid(target_float) then
-				vim.schedule(function()
-					if vim.api.nvim_win_is_valid(target_float) then
-						vim.api.nvim_win_close(target_float, false)
-					end
-				end)
-				return true -- Cancel the quit of the split
-			end
-		end,
-		desc = "Redirect split close to float close",
-	})
-
-	return split_win, split_buf
 end
 
 --- Create a new terminal window
@@ -613,20 +387,17 @@ function M.create_terminal(cmd, opts)
 
 					-- Find a window to redirect the new buffer to.
 					-- Priority: normal file window > any non-terminal/nofile window > new split.
-					-- Skip sidebar proxy splits using is_sidebar_split_win.
 					local target_win = nil
 					local fallback_win = nil
 					for _, w in ipairs(vim.api.nvim_list_wins()) do
 						if w ~= current_win and vim.api.nvim_win_is_valid(w) then
 							local b = vim.api.nvim_win_get_buf(w)
 							local bt = vim.bo[b].buftype
-							if not is_sidebar_split_win(w) then
-								if bt == "" then
-									target_win = w
-									break
-								elseif not fallback_win and bt ~= "terminal" and bt ~= "nofile" then
-									fallback_win = w
-								end
+							if bt == "" then
+								target_win = w
+								break
+							elseif not fallback_win and bt ~= "terminal" and bt ~= "nofile" then
+								fallback_win = w
 							end
 						end
 					end
@@ -667,12 +438,10 @@ function M.create_terminal(cmd, opts)
 	-- Secondary guard: if somehow a wrong buffer ends up in the terminal window
 	-- on WinEnter, restore the terminal buffer immediately.
 	-- Apply only when current window is the integration FLOAT window for this buf.
-	-- Never force terminal buffer into proxy split windows.
 	vim.api.nvim_create_autocmd("WinEnter", {
 		callback = function()
 			local current_win = vim.api.nvim_get_current_win()
 			-- Only guard if current window is the integration float window.
-			-- Proxy split must stay inert/nofile and never receive terminal buffer.
 			if not is_integration_float_win(current_win, buf) then
 				return
 			end
@@ -719,9 +488,6 @@ function M.create_float_window(buf, win_opts)
 	vim.api.nvim_create_autocmd("WinLeave", {
 		buffer = buf,
 		callback = function()
-			if M._suppress_stopinsert then
-				return
-			end
 			vim.schedule(function()
 				vim.cmd("stopinsert")
 			end)
@@ -733,7 +499,7 @@ function M.create_float_window(buf, win_opts)
 	return win
 end
 
---- Create the Sidebar layout (proxy split + floating terminal)
+--- Create the Sidebar layout (floating terminal)
 --- @param buf number Terminal buffer
 --- @param win_opts table Window options
 --- @return number|nil The floating window handle
@@ -742,20 +508,16 @@ function M.create_sidebar_layout(buf, win_opts)
 	local padding = win_opts.padding or 0
 	local configured_width = calculate_width(width_config)
 
-	-- Calculate widths: float width accounts for padding
+	-- Calculate float width accounting for padding
 	local float_width = configured_width - (padding * 2)
-	local split_width = float_width
 
-	-- Step 1: Create proxy split (reserves space, handles navigation)
-	local split_win, split_buf = create_proxy_split(split_width, 0) -- Placeholder, will update
-
-	-- Step 2: Create floating window over the split
+	-- Create floating window
 	local float_opts = {
 		relative = "editor",
 		width = float_width,
 		height = 10, -- Will be updated by update_sidebar_geometry
 		row = 0,
-		col = vim.o.columns - split_width,
+		col = vim.o.columns - float_width,
 		style = "minimal",
 		border = win_opts.border or "none",
 		title = win_opts.title or "",
@@ -765,10 +527,8 @@ function M.create_sidebar_layout(buf, win_opts)
 
 	local float_win = vim.api.nvim_open_win(buf, true, float_opts)
 
-	-- Step 3: Store sidebar configuration
+	-- Store sidebar configuration
 	M.sidebars[float_win] = {
-		split_win = split_win,
-		split_buf = split_buf,
 		terminal_buf = buf,
 		width_config = width_config,
 		win_opts = win_opts,
@@ -777,35 +537,23 @@ function M.create_sidebar_layout(buf, win_opts)
 		list_buffer = win_opts.list_buffer or false,
 	}
 
-	-- Step 4: Update geometry to correct dimensions
+	-- Update geometry to correct dimensions
 	M.update_sidebar_geometry(float_win, false, true)
 
-	-- Step 5: Cleanup when float closes
+	-- Cleanup when float closes
 	vim.api.nvim_create_autocmd("WinClosed", {
 		pattern = tostring(float_win),
 		callback = function()
-			local data = M.sidebars[float_win]
-			if data then
-				if is_valid_win(data.split_win) then
-					vim.api.nvim_win_close(data.split_win, true)
-				end
-				if is_valid_buf(data.split_buf) then
-					vim.api.nvim_buf_delete(data.split_buf, { force = true })
-				end
-				M.sidebars[float_win] = nil
-			end
+			M.sidebars[float_win] = nil
 		end,
 		once = true,
 		desc = "Cleanup sidebar on float close",
 	})
 
-	-- Step 6: Exit insert mode when focus is lost
+	-- Exit insert mode when focus is lost
 	vim.api.nvim_create_autocmd("WinLeave", {
 		buffer = buf,
 		callback = function()
-			if M._suppress_stopinsert then
-				return
-			end
 			vim.schedule(function()
 				vim.cmd("stopinsert")
 			end)
@@ -813,7 +561,7 @@ function M.create_sidebar_layout(buf, win_opts)
 		desc = "Exit insert mode when leaving sidebar terminal",
 	})
 
-	-- Step 7: Setup resize handling (bidirectional sync)
+	-- Setup resize handling (bidirectional sync)
 	-- Refresh cached editor width so resize detection starts from the current state.
 	M._last_editor_width = vim.o.columns
 	if not M.resized_autocmd_setup then
@@ -852,14 +600,7 @@ function M.update_sidebar_geometry(float_win, is_expanded, should_focus)
 	local term_buf = data.terminal_buf
 
 	if is_expanded then
-		-- Fullwidth mode: hide split, expand float to full editor width
-
-		-- Hide the proxy split
-		if is_valid_win(data.split_win) then
-			vim.api.nvim_win_close(data.split_win, true)
-		end
-		data.split_win = nil
-		data.split_buf = nil
+		-- Fullwidth mode: expand float to full editor width
 
 		-- Disable window-navigation keymaps (no other windows to navigate to)
 		pcall(vim.keymap.del, "t", "<C-h>", { buffer = term_buf })
@@ -872,21 +613,7 @@ function M.update_sidebar_geometry(float_win, is_expanded, should_focus)
 		apply_float_geometry(float_win, geom)
 		data.is_expanded = true
 	else
-		-- Normal sidebar mode: show split, sync dimensions
-		-- Recreate split if it was closed (e.g., after fullwidth toggle)
-		if not is_valid_win(data.split_win) then
-			local configured_width = calculate_width(data.width_config)
-			local split_width = configured_width - (padding * 2)
-			-- Suppress stopinsert while the split is being created: botright vsplit
-			-- fires WinLeave on the float, which would otherwise schedule stopinsert
-			-- and leave the terminal in normal mode after the toggle.
-			M._suppress_stopinsert = true
-			local split_win, split_buf = create_proxy_split(split_width, float_win)
-			M._suppress_stopinsert = false
-			data.split_win = split_win
-			data.split_buf = split_buf
-			ensure_split_inert(split_win, split_buf)
-		end
+		-- Normal sidebar mode: sync dimensions
 
 		-- Re-enable window-navigation keymaps
 		local nav_opts = { buffer = term_buf, noremap = true, silent = true }
@@ -895,10 +622,8 @@ function M.update_sidebar_geometry(float_win, is_expanded, should_focus)
 		vim.keymap.set("t", "<C-k>", [[<C-\><C-n><Cmd>wincmd k<CR>]], nav_opts)
 		vim.keymap.set("t", "<C-l>", [[<C-\><C-n><Cmd>wincmd l<CR>]], nav_opts)
 
-		-- Compute geometry anchored to split and apply consistently
-		local geom = compute_sidebar_target_geometry(data, data.split_win)
-		-- synchronize split and float explicitly
-		apply_split_width(data.split_win, geom.width)
+		-- Compute geometry from width_config and apply
+		local geom = compute_sidebar_target_geometry(data)
 		apply_float_geometry(float_win, geom)
 		data.is_expanded = false
 	end
@@ -907,9 +632,9 @@ function M.update_sidebar_geometry(float_win, is_expanded, should_focus)
 	local current_win = vim.api.nvim_get_current_win()
 	if (should_focus or current_win == float_win) and is_valid_win(float_win) then
 		vim.api.nvim_set_current_win(float_win)
-		-- Schedule startinsert so it runs after any pending stopinsert (e.g. from
-		-- WinLeave fired during create_proxy_split). vim.schedule is FIFO, so this
-		-- enqueues after the stopinsert already in the queue and wins.
+		-- Schedule startinsert so it runs after any pending stopinsert.
+		-- vim.schedule is FIFO, so this enqueues after any stopinsert
+		-- already in the queue and wins.
 		vim.schedule(function()
 			if is_valid_win(float_win) then
 				vim.cmd("startinsert")
@@ -918,9 +643,8 @@ function M.update_sidebar_geometry(float_win, is_expanded, should_focus)
 	end
 end
 
---- Resize all sidebars (bidirectional sync)
---- Distinguishes editor resize (recalculate from width_config) from
---- manual split resize (use observed split width as source of truth).
+--- Resize all sidebars
+--- Distinguishes editor resize (recalculate from width_config) from other events.
 function M.resize_sidebars()
 	local editor_resized = vim.o.columns ~= M._last_editor_width
 	if editor_resized then
@@ -929,33 +653,14 @@ function M.resize_sidebars()
 
 	for float_win, data in pairs(M.sidebars) do
 		if is_valid_win(float_win) then
-			local is_expanded = not is_valid_win(data.split_win)
-
-			if is_expanded then
+			if data.is_expanded then
 				-- Fullwidth mode: always recompute from editor dimensions
 				local geom = compute_fullwidth_geometry()
 				apply_float_geometry(float_win, geom)
-			elseif editor_resized then
-				-- Editor was resized: recalculate from configured width_config (percentage or absolute)
-				local padding = data.padding or 0
-				local configured_width = calculate_width(data.width_config)
-				local target_width = configured_width - (padding * 2)
-				local border = data.win_opts and data.win_opts.border or "none"
-				local border_offset = (border == "none" or border == "") and 0 or 2
-				local geom = {
-					width = target_width,
-					height = vim.o.lines - vim.o.cmdheight - border_offset - 1,
-					col = vim.o.columns - target_width,
-					row = 0,
-					border = border,
-				}
-				apply_split_width(data.split_win, target_width)
-				apply_float_geometry(float_win, geom)
 			else
-				-- Manual split resize: use observed split width as source of truth
-				local geom = compute_sidebar_target_geometry(data, data.split_win)
+				-- Sidebar mode: recalculate from configured width_config
+				local geom = compute_sidebar_target_geometry(data)
 				apply_float_geometry(float_win, geom)
-				apply_split_width(data.split_win, geom.width)
 			end
 		else
 			-- Cleanup invalid windows
