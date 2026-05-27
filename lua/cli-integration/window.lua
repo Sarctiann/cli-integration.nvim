@@ -730,8 +730,11 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
 				float_win = data.float_win,
 			}
 		end)
+		-- Collapse vsplit to width 1 instead of hiding/closing.
+		-- nvim_win_hide does not work for splits; closing destroys the window.
+		-- Keeping it alive avoids recreation artifacts (dashes) on restore.
 		if data.sidebar_win and is_valid_win(data.sidebar_win) then
-			pcall(vim.api.nvim_win_hide, data.sidebar_win)
+			pcall(vim.api.nvim_win_set_width, data.sidebar_win, 1)
 		end
 		remove_bufferline_offset(term_buf)
 
@@ -804,28 +807,29 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
 			data.float_win = nil
 		end
 
-		local restored = false
-		if data.sidebar_win and is_valid_win(data.sidebar_win) then
-			pcall(vim.api.nvim_set_current_win, data.sidebar_win)
-			restored = true
-		end
-
-		if not restored then
+		-- Expand the collapsed vsplit back to its configured width.
+		local sidebar_win = data.sidebar_win
+		if sidebar_win and is_valid_win(sidebar_win) then
+			local configured_width = calculate_width(data.width_config)
+			local target_width = configured_width - (data.padding or 0) * 2
+			pcall(vim.api.nvim_win_set_width, sidebar_win, target_width)
+			-- vsplit restored
+		else
 			-- Fallback: recreate if the window was closed externally
-			local vsplit_win = M.create_sidebar_layout(data.term_buf, data.win_opts)
-			if vsplit_win then
-				data.sidebar_win = vsplit_win
+			local fallback_win = M.create_sidebar_layout(data.term_buf, data.win_opts)
+			if fallback_win then
+				data.sidebar_win = fallback_win
 			end
 		end
 
-		-- Resize pty to match the new sidebar dimensions
-		local current_win = data.sidebar_win
-		if current_win and is_valid_win(current_win) then
-			resize_pty(data.term_buf, current_win, "none", data.padding or 0)
+		sidebar_win = data.sidebar_win
+		if sidebar_win and is_valid_win(sidebar_win) then
+			inject_bufferline_offset(data.term_buf, data.win_opts.title or "")
+			resize_pty(data.term_buf, sidebar_win, "none", data.padding or 0)
 			if should_focus then
-				vim.api.nvim_set_current_win(current_win)
+				vim.api.nvim_set_current_win(sidebar_win)
 				vim.schedule(function()
-					if is_valid_win(current_win) then
+					if is_valid_win(sidebar_win) then
 						vim.cmd("startinsert")
 					end
 				end)

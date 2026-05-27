@@ -6,13 +6,47 @@ local config = require("cli-integration.config")
 local M = {}
 
 --- Format a timestamp string in YYYY-MM-DD HH:MM:SS format
---- @return string
+--- @return string|osdate
 local function get_timestamp()
-	return os.date("%Y-%m-%d %H:%M:%S") or ""
+	return os.date("%Y-%m-%d %H:%M:%S")
+end
+
+--- Alias tracking for long cli_cmd values to reduce log verbosity.
+--- First occurrence stores full value and assigns alias "[cmd:1]", "[cmd:2]", etc.
+--- Subsequent occurrences show only the alias.
+M._cmd_aliases = {}
+M._cmd_alias_counter = 0
+
+--- Replace long cmd/cli_cmd strings with aliases.
+--- @param data table
+--- @return table
+local function maybe_alias_cmd(data)
+	if not data then
+		return data
+	end
+	local result = {}
+	for k, v in pairs(data) do
+		if type(v) == "string" and (k == "cmd" or k == "cli_cmd") and #v > 80 then
+			local alias = M._cmd_aliases[v]
+			if not alias then
+				M._cmd_alias_counter = M._cmd_alias_counter + 1
+				alias = string.format("[cmd:%d]", M._cmd_alias_counter)
+				M._cmd_aliases[v] = alias
+				-- First occurrence: show alias + truncated preview
+				result[k] = alias .. " " .. v:sub(1, 60) .. "..."
+			else
+				-- Subsequent: alias only
+				result[k] = alias
+			end
+		else
+			result[k] = v
+		end
+	end
+	return result
 end
 
 --- Format a data table into key=value pairs separated by spaces
---- @param data table Key-value data to format
+--- @param data table|nil Key-value data to format
 --- @return string
 local function format_data(data)
 	if not data then
@@ -49,6 +83,8 @@ function M.log(event, data_fn)
 	if not ok then
 		return
 	end
+
+	data = maybe_alias_cmd(data)
 
 	local timestamp = get_timestamp()
 	local data_str = format_data(data)

@@ -72,7 +72,8 @@ local function show_input(title, screen_row, screen_col, on_submit, on_cancel)
 	vim.bo[outer_buf].bufhidden = "wipe"
 	vim.api.nvim_buf_set_lines(outer_buf, 0, -1, false, { " " .. icon })
 	vim.bo[outer_buf].modifiable = false
-	vim.api.nvim_buf_add_highlight(outer_buf, -1, "Keyword", 0, 1, 3)
+	local ns = vim.api.nvim_create_namespace("cli-integration-ask")
+	vim.api.nvim_buf_set_extmark(outer_buf, ns, 0, 1, { hl_group = "Keyword", end_col = 3 })
 
 	local outer_win = vim.api.nvim_open_win(outer_buf, false, {
 		relative = "editor",
@@ -113,12 +114,18 @@ local function show_input(title, screen_row, screen_col, on_submit, on_cancel)
 	end
 
 	vim.keymap.set("i", "<CR>", function()
-		if submitted then return end
+		if submitted then
+			return
+		end
 		submitted = true
 		local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
 		local text = vim.trim(table.concat(lines, "\n"))
 		close_all()
-		if text ~= "" then on_submit(text) else on_cancel() end
+		if text ~= "" then
+			on_submit(text)
+		else
+			on_cancel()
+		end
 	end, opts)
 
 	vim.keymap.set("i", "<Esc>", function()
@@ -141,7 +148,9 @@ local function show_input(title, screen_row, screen_col, on_submit, on_cancel)
 	vim.api.nvim_create_autocmd("WinClosed", {
 		pattern = tostring(win),
 		once = true,
-		callback = function() pcall(vim.api.nvim_win_close, outer_win, true) end,
+		callback = function()
+			pcall(vim.api.nvim_win_close, outer_win, true)
+		end,
 	})
 
 	vim.cmd("startinsert")
@@ -176,7 +185,9 @@ local function lookup_integration(identifier)
 			end
 		end
 		for _, integration in ipairs(integrations) do
-			if integration.cli_cmd == identifier then return integration, nil end
+			if integration.cli_cmd == identifier then
+				return integration, nil
+			end
 		end
 		return nil, "Integration '" .. identifier .. "' not found"
 	end
@@ -207,7 +218,9 @@ local function open_integration(integration)
 		local working_dir = vim.fn.systemlist("git rev-parse --show-toplevel")[1]
 		if not working_dir or working_dir == "" then
 			working_dir = vim.fn.expand("%:p:h")
-			if working_dir == "" then working_dir = vim.fn.getcwd() end
+			if working_dir == "" then
+				working_dir = vim.fn.getcwd()
+			end
 		end
 		terminal.open_terminal(integration, nil, integration.keep_open, working_dir)
 	end
@@ -230,7 +243,9 @@ local function _handle_submit(integration, context, question)
 
 	local terminal = require("cli-integration.terminal")
 	local term_data = terminal.terminals[integration.name]
-	if not term_data or not term_data.term_buf then return end
+	if not term_data or not term_data.term_buf then
+		return
+	end
 	local term_buf = term_data.term_buf
 	local focused_file = false
 	local co = nil
@@ -266,7 +281,9 @@ local function _handle_submit(integration, context, question)
 					local b = vim.api.nvim_win_get_buf(w)
 					if vim.bo[b].buftype == "" and vim.bo[b].buflisted then
 						pcall(vim.api.nvim_set_current_win, w)
-						pcall(function() vim.cmd("stopinsert") end)
+						pcall(function()
+							vim.cmd("stopinsert")
+						end)
 						return
 					end
 				end
@@ -281,7 +298,9 @@ local function _handle_submit(integration, context, question)
 					local b = vim.api.nvim_win_get_buf(w)
 					if vim.bo[b].buftype == "" and vim.bo[b].buflisted then
 						pcall(vim.api.nvim_set_current_win, w)
-						pcall(function() vim.cmd("stopinsert") end)
+						pcall(function()
+							vim.cmd("stopinsert")
+						end)
 						return
 					end
 				end
@@ -305,7 +324,9 @@ local function _handle_submit(integration, context, question)
 			coroutine.resume(co)
 		else
 			local default_fn = require("cli-integration.config").options.on_ask_submit
-			if default_fn then default_fn(context, actions) end
+			if default_fn then
+				default_fn(context, actions)
+			end
 			apply_focus_file()
 		end
 	end
@@ -320,11 +341,12 @@ function M.ask(integration_identifier)
 	local screen_cap = {}
 	local context = capture_context(screen_cap)
 
+	local integration, err = lookup_integration(integration_identifier)
+
 	debug.log("ask_open", function()
 		return { integration_name = integration and integration.name or "unknown" }
 	end)
 
-	local integration, err = lookup_integration(integration_identifier)
 	if not integration then
 		vim.notify("cli-integration.nvim: " .. (err or "integration not found"), vim.log.levels.WARN)
 		return

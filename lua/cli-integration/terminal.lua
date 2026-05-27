@@ -351,63 +351,7 @@ function M.toggle_fullscreen(term_buf)
 	local data = window.sidebars[term_buf]
 
 	if data and data.origin == "sidebar" then
-		if is_fullscreen then
-			-- Expand: hide sidebar, open fullscreen float
-			M.hide_terminal(term_buf)
-
-			local float_opts = {
-				relative = "editor",
-				width = vim.o.columns,
-				height = vim.o.lines - vim.o.cmdheight - 1,
-				row = 0,
-				col = 0,
-				style = "minimal",
-				border = "none",
-			}
-
-			local float_win = vim.api.nvim_open_win(term_buf, true, float_opts)
-			if not float_win or not vim.api.nvim_win_is_valid(float_win) then
-				return
-			end
-
-			data.float_win = float_win
-			data.mode = "fullscreen"
-
-			vim.api.nvim_create_autocmd("WinClosed", {
-				pattern = tostring(float_win),
-				callback = function()
-					if data.float_win == float_win then
-						data.float_win = nil
-						data.mode = "sidebar"
-					end
-				end,
-				once = true,
-				desc = "Clear fullscreen state on float close",
-			})
-
-			vim.api.nvim_set_current_win(float_win)
-			vim.schedule(function()
-				if float_win and vim.api.nvim_win_is_valid(float_win) then
-					vim.cmd("startinsert")
-				end
-			end)
-		else
-			-- Restore: close float, recreate sidebar via toggle
-			if data.fullscreen_autocmd_id then
-				pcall(vim.api.nvim_del_autocmd, data.fullscreen_autocmd_id)
-				data.fullscreen_autocmd_id = nil
-			end
-
-			if data.float_win and vim.api.nvim_win_is_valid(data.float_win) then
-				pcall(vim.api.nvim_win_close, data.float_win, true)
-			end
-			data.float_win = nil
-			data.mode = "sidebar"
-
-			if term_data.cli_term and term_data.cli_term.toggle then
-				term_data.cli_term:toggle()
-			end
-		end
+		window.update_sidebar_geometry(term_buf, is_fullscreen, true)
 	elseif data and data.origin == "float" then
 		window.update_float_geometry(term_buf, is_fullscreen, true)
 	else
