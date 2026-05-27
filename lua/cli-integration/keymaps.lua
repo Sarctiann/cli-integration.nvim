@@ -3,6 +3,7 @@ local terminal = require("cli-integration.terminal")
 local buffers = require("cli-integration.buffers")
 local help = require("cli-integration.help")
 local config = require("cli-integration.config")
+local debug = require("cli-integration.debug")
 
 local M = {}
 
@@ -72,6 +73,9 @@ function M.setup_terminal_keymaps(known_integration)
 
 	if keys.terminal_mode.insert_file_path and type(keys.terminal_mode.insert_file_path) == "table" then
 		set_keymaps("t", keys.terminal_mode.insert_file_path, function()
+			debug.log("keymap_insert_file_path", function()
+				return { name = integration and integration.name or "unknown", buf = current_buf }
+			end)
 			if term_data and term_data.current_file then
 				local path = term_data.current_file
 				local formatted_path = integration
@@ -86,6 +90,9 @@ function M.setup_terminal_keymaps(known_integration)
 
 	if keys.terminal_mode.insert_all_buffers and type(keys.terminal_mode.insert_all_buffers) == "table" then
 		set_keymaps("t", keys.terminal_mode.insert_all_buffers, function()
+			debug.log("keymap_insert_all_buffers", function()
+				return { name = integration and integration.name or "unknown", buf = current_buf }
+			end)
 			local working_dir = term_data and term_data.working_dir or nil
 			local paths = buffers.get_open_buffers_paths(working_dir)
 			for _, path in ipairs(paths) do
@@ -108,6 +115,9 @@ function M.setup_terminal_keymaps(known_integration)
 
 	if keys.terminal_mode.submit and type(keys.terminal_mode.submit) == "table" then
 		set_keymaps({ "n", "t" }, keys.terminal_mode.submit, function()
+			debug.log("keymap_submit", function()
+				return { name = integration and integration.name or "unknown", buf = current_buf }
+			end)
 			vim.fn.feedkeys(vim.api.nvim_replace_termcodes("<Enter>", true, false, true), "n")
 		end, opts)
 	end
@@ -119,29 +129,46 @@ function M.setup_terminal_keymaps(known_integration)
 	end
 
 	if keys.terminal_mode.help and type(keys.terminal_mode.help) == "table" then
-		set_keymaps("t", keys.terminal_mode.help, help.show_help, opts)
+		set_keymaps("t", keys.terminal_mode.help, function()
+			debug.log("keymap_help", function()
+				return { name = integration and integration.name or "unknown", buf = current_buf }
+			end)
+			help.show_help()
+		end, opts)
 	end
 
 	if keys.terminal_mode.hide and type(keys.terminal_mode.hide) == "table" then
 		set_keymaps("t", keys.terminal_mode.hide, function()
+			debug.log("keymap_hide", function()
+				return { name = integration and integration.name or "unknown", buf = current_buf, mode = "T" }
+			end)
 			terminal.hide_terminal(current_buf)
 		end, opts)
 	end
 
 	if keys.terminal_mode.close and type(keys.terminal_mode.close) == "table" then
 		set_keymaps("t", keys.terminal_mode.close, function()
+			debug.log("keymap_close", function()
+				return { name = integration and integration.name or "unknown", buf = current_buf, mode = "T" }
+			end)
 			terminal.close_terminal(current_buf)
 		end, opts)
 	end
 
 	if keys.normal_mode.hide and type(keys.normal_mode.hide) == "table" then
 		set_keymaps("n", keys.normal_mode.hide, function()
+			debug.log("keymap_hide", function()
+				return { name = integration and integration.name or "unknown", buf = current_buf, mode = "N" }
+			end)
 			terminal.hide_terminal(current_buf)
 		end, opts)
 	end
 
 	if keys.normal_mode.close and type(keys.normal_mode.close) == "table" then
 		set_keymaps("n", keys.normal_mode.close, function()
+			debug.log("keymap_close", function()
+				return { name = integration and integration.name or "unknown", buf = current_buf, mode = "N" }
+			end)
 			terminal.close_terminal(current_buf)
 		end, opts)
 	end
@@ -149,17 +176,29 @@ function M.setup_terminal_keymaps(known_integration)
 	local toggle_opts = { buffer = 0, silent = true }
 	if keys.terminal_mode.toggle_fullscreen and type(keys.terminal_mode.toggle_fullscreen) == "table" then
 		set_keymaps("i", keys.terminal_mode.toggle_fullscreen, function()
+			debug.log("keymap_toggle_fullscreen", function()
+				return { name = integration and integration.name or "unknown", buf = current_buf, mode = "I" }
+			end)
 			terminal.toggle_fullscreen(current_buf)
 		end, toggle_opts)
 		set_keymaps("t", keys.terminal_mode.toggle_fullscreen, function()
+			debug.log("keymap_toggle_fullscreen", function()
+				return { name = integration and integration.name or "unknown", buf = current_buf, mode = "T" }
+			end)
 			terminal.toggle_fullscreen(current_buf)
 		end, toggle_opts)
 	end
 	if keys.normal_mode.toggle_fullscreen and type(keys.normal_mode.toggle_fullscreen) == "table" then
 		set_keymaps("n", keys.normal_mode.toggle_fullscreen, function()
+			debug.log("keymap_toggle_fullscreen", function()
+				return { name = integration and integration.name or "unknown", buf = current_buf, mode = "N" }
+			end)
 			terminal.toggle_fullscreen(current_buf)
 		end, toggle_opts)
 		set_keymaps("v", keys.normal_mode.toggle_fullscreen, function()
+			debug.log("keymap_toggle_fullscreen", function()
+				return { name = integration and integration.name or "unknown", buf = current_buf, mode = "V" }
+			end)
 			terminal.toggle_fullscreen(current_buf)
 		end, toggle_opts)
 	end
