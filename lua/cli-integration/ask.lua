@@ -1,5 +1,6 @@
 --- Ask hook module — captures context, shows input, sends to terminal
 local M = {}
+local debug = require("cli-integration.debug")
 
 --- Capture current editing context (file, cursor, visual selection)
 --- Must be called BEFORE any window/mode changes.
@@ -121,12 +122,18 @@ local function show_input(title, screen_row, screen_col, on_submit, on_cancel)
 	end, opts)
 
 	vim.keymap.set("i", "<Esc>", function()
+		debug.log("ask_cancel", function()
+			return { title = title }
+		end)
 		close_all()
 		vim.cmd("stopinsert")
 		on_cancel()
 	end, opts)
 
 	vim.keymap.set("n", "<Esc>", function()
+		debug.log("ask_cancel", function()
+			return { title = title }
+		end)
 		close_all()
 		on_cancel()
 	end, opts)
@@ -212,6 +219,14 @@ end
 --- @param question string
 local function _handle_submit(integration, context, question)
 	context.question = question
+
+	debug.log("ask_submit", function()
+		return {
+			integration_name = integration and integration.name or "unknown",
+			question_length = #question,
+			has_selection = context.selection ~= nil,
+		}
+	end)
 
 	local terminal = require("cli-integration.terminal")
 	local term_data = terminal.terminals[integration.name]
@@ -304,6 +319,10 @@ end
 function M.ask(integration_identifier)
 	local screen_cap = {}
 	local context = capture_context(screen_cap)
+
+	debug.log("ask_open", function()
+		return { integration_name = integration and integration.name or "unknown" }
+	end)
 
 	local integration, err = lookup_integration(integration_identifier)
 	if not integration then
