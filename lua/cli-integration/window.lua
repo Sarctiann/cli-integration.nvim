@@ -769,6 +769,8 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
 		-- to preserve width_config, padding, list_buffer, etc.
 		local vsplit_win = M.create_sidebar_layout(data.term_buf, data.win_opts)
 		if vsplit_win then
+			-- Resize pty to match the new sidebar dimensions
+			resize_pty(data.term_buf, vsplit_win, "none", data.padding or 0)
 			if should_focus then
 				vim.api.nvim_set_current_win(vsplit_win)
 				vim.schedule(function()
