@@ -78,6 +78,7 @@
 --- @field list_buffer boolean|nil # Default: show terminal buffer in bufferline (applied to all integrations)
 --- @field env table<string, string>|nil # Default: environment variable overrides passed to all integration jobs
 --- @field unset_env string[]|nil # Default: environment variable names removed from all integration jobs
+--- @field debug boolean|nil # Enable debug logging (default: false)
 
 local M = {}
 
@@ -108,6 +109,7 @@ M.defaults = {
 	ask_title = nil,
 	env = {},
 	unset_env = {},
+	debug = false,
 	terminal_keys = {
 		terminal_mode = {
 			normal_mode = { "<M-q>" },
