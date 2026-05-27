@@ -1,6 +1,8 @@
 --- Terminal management module
 local M = {}
 local window = require("cli-integration.window")
+local debug = require("cli-integration.debug")
+local config = require("cli-integration.config")
 
 M.terminals = {}
 M.buf_to_name = {}
@@ -12,6 +14,12 @@ M.buf_to_name = {}
 function M.insert_text(text, term_buf)
 	term_buf = term_buf or M.get_current_terminal_buf()
 	if term_buf then
+		if config.options.debug then
+			local name = M.buf_to_name[term_buf] or "unknown"
+			debug.log("insert_text", function()
+				return { name = name, text_length = #text }
+			end)
+		end
 		local job_id = vim.b.terminal_job_id or vim.api.nvim_buf_get_var(term_buf, "terminal_job_id")
 		if job_id and vim.fn.jobwait({ job_id }, 10)[1] == -1 then
 			vim.fn.chansend(job_id, text)
@@ -88,6 +96,10 @@ function M.attach_text_when_ready(integration, term_buf, tries, visual_text)
 		end
 
 		if found then
+			debug.log("attach_text_ready", function()
+				return { name = integration.name or integration.cli_cmd, term_buf = term_buf, tries = tries }
+			end)
+
 			---@type string|nil
 			local text_to_insert = nil
 
@@ -173,8 +185,14 @@ local function create_new_terminal(integration, args, keep_open, working_dir, vi
 	if base_dir and base_dir ~= "" and current_file_abs ~= "" then
 		current_file = vim.fs.relpath(base_dir, current_file_abs) or vim.fn.fnamemodify(current_file_abs, ":.")
 	end
+	debug.log("open_terminal", function()
+		return { name = name, cli_cmd = cli_cmd, working_dir = base_dir }
+	end)
 
 	-- Run pre-launch hook if configured
+	debug.log("hook_on_open", function()
+		return { name = name, working_dir = base_dir }
+	end)
 	if integration.on_open then
 		local ok, err = pcall(integration.on_open, integration, base_dir)
 		if not ok then
@@ -202,11 +220,17 @@ local function create_new_terminal(integration, args, keep_open, working_dir, vi
 			integration_name = name,
 			on_close = function()
 				local stored_data = M.terminals[name]
+				debug.log("hook_on_close", function()
+					return {
+						name = name,
+						working_dir = M.terminals[name] and M.terminals[name].working_dir or "unknown",
+					}
+				end)
 				M.terminals[name] = nil
 				if stored_data and stored_data.term_buf then
 					M.buf_to_name[stored_data.term_buf] = nil
 				end
-			if integration.on_close then
+				if integration.on_close then
 					local ok, err = pcall(integration.on_close, integration, base_dir)
 					if not ok then
 						vim.notify(
@@ -270,6 +294,9 @@ function M.open_terminal(integration, args, keep_open, working_dir, visual_text)
 
 	if term_data and term_data.cli_term and term_data.cli_term.toggle then
 		if term_data.term_buf and vim.api.nvim_buf_is_valid(term_data.term_buf) then
+			debug.log("toggle_terminal", function()
+				return { name = name, term_buf = term_data.term_buf }
+			end)
 			term_data.cli_term:toggle()
 			return
 		else
@@ -313,6 +340,14 @@ function M.toggle_fullscreen(term_buf)
 	end
 
 	local is_fullscreen = not (term_data.is_fullscreen or false)
+	debug.log("toggle_fullscreen", function()
+		return {
+			name = name,
+			buf = term_buf,
+			from_mode = term_data.is_fullscreen and "fullscreen" or "sidebar",
+			to_mode = is_fullscreen and "fullscreen" or "sidebar",
+		}
+	end)
 	local data = window.sidebars[term_buf]
 
 	if data and data.origin == "sidebar" then
@@ -420,6 +455,9 @@ function M.hide_terminal(term_buf)
 
 	local name = M.buf_to_name[term_buf]
 	local term_data = name and M.terminals[name]
+	debug.log("hide_terminal", function()
+		return { name = name, term_buf = term_buf }
+	end)
 
 	if not term_data or not term_data.cli_term then
 		return
@@ -448,6 +486,9 @@ function M.close_terminal(term_buf)
 	end
 
 	local name = M.buf_to_name[term_buf]
+	debug.log("close_terminal", function()
+		return { name = name, term_buf = term_buf }
+	end)
 	local term_data = name and M.terminals[name]
 
 	if not term_data or not term_data.cli_term then
@@ -538,6 +579,9 @@ end
 --- @param term_buf number The terminal buffer handle
 function M.focus_terminal_window(term_buf)
 	local win = M.find_terminal_window(term_buf)
+	debug.log("focus_terminal", function()
+		return { buf = term_buf, valid = win ~= nil }
+	end)
 	if win and vim.api.nvim_win_is_valid(win) then
 		vim.api.nvim_set_current_win(win)
 		pcall(function()
