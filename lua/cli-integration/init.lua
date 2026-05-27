@@ -5,6 +5,7 @@ local commands = require("cli-integration.commands")
 local autocmds = require("cli-integration.autocmds")
 local ask = require("cli-integration.ask")
 local hooks = require("cli-integration.hooks")
+local debug = require("cli-integration.debug")
 
 local M = {}
 
@@ -16,6 +17,13 @@ M.hooks.ask = ask.ask
 --- @return nil
 function M.setup(user_config)
 	local configs = config.setup(user_config)
+
+	debug.log("setup", function()
+		return {
+			integrations_count = #(configs.integrations or {}),
+			debug_enabled = configs.debug or false,
+		}
+	end)
 
 	vim.api.nvim_create_user_command("CLIIntegration", function(opts)
 		local integrations = configs.integrations or {}
