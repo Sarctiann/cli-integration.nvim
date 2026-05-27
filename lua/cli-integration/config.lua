@@ -6,13 +6,13 @@
 --- @field submit string[]|nil # Keys to submit command/message
 --- @field enter string[]|nil # Keys to send Enter key
 --- @field help string[]|nil # Keys to show help
---- @field toggle_width string[]|nil # Keys to toggle window width
+--- @field toggle_fullscreen string[]|nil # Keys to toggle window width
 --- @field hide string[]|nil # Keys to hide terminal (keeps process alive)
 --- @field close string[]|nil # Keys to close the terminal window and kill process
 
 --- @class Cli-Integration.NormalModeKeys
 --- @field hide string[]|nil # Keys to hide terminal (keeps process alive)
---- @field toggle_width string[]|nil # Keys to toggle window width
+--- @field toggle_fullscreen string[]|nil # Keys to toggle window width
 --- @field close string[]|nil # Keys to close the terminal window and kill process
 
 --- @class Cli-Integration.TerminalKeys
@@ -117,12 +117,12 @@ M.defaults = {
 			submit = { "<C-s>", "<C-CR>" },
 			enter = { "<CR>" },
 			help = { "<M-?>", "??", "\\\\" },
-			toggle_width = { "<C-f>" },
+			toggle_fullscreen = { "<C-f>" },
 			hide = { "<C-q>" },
 			close = { "<C-S-q>" },
 		},
 		normal_mode = {
-      toggle_width = { "<C-f>" },
+      toggle_fullscreen = { "<C-f>" },
 			hide = { "<C-q>" },
 			close = { "<C-S-q>" },
 		},

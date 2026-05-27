@@ -15,11 +15,9 @@ function M.get_open_buffers_paths(working_dir)
 
 	for _, buf in ipairs(buffers) do
 		if vim.api.nvim_buf_is_valid(buf) then
-			-- Only include buffers that are listed (visible in bufline)
 			local is_listed = vim.api.nvim_get_option_value("buflisted", { buf = buf })
 			local buftype = vim.api.nvim_get_option_value("buftype", { buf = buf })
 
-			-- Only include listed buffers with empty buftype (normal files)
 			if is_listed and buftype == "" then
 				local buf_name = vim.api.nvim_buf_get_name(buf)
 
@@ -35,13 +33,11 @@ function M.get_open_buffers_paths(working_dir)
 					local file_path = vim.fn.fnamemodify(buf_name, ":p")
 					if file_path ~= "" then
 						if working_dir and working_dir ~= "" then
-							-- Validate working_dir exists before using relpath
 							local stat = vim.uv.fs_stat(working_dir)
 							if stat and stat.type == "directory" then
 								file_path = vim.fs.relpath(working_dir, file_path)
 									or vim.fn.fnamemodify(file_path, ":.")
 							else
-								-- Fallback to relative path from current directory
 								file_path = vim.fn.fnamemodify(file_path, ":.")
 							end
 						else

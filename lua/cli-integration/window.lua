@@ -10,26 +10,40 @@
 local M = {}
 
 --- Store active sidebar configurations
---- Format: [sidebar_win] = {
----   sidebar_win = number,      -- Vsplit window handle (or float in fullwidth mode)
----   terminal_buf = number,
----   width_config = number,
----   win_opts = table,
----   padding = number,
----   is_expanded = boolean,     -- true = fullwidth/float mode
----   list_buffer = boolean,
+--- Keyed by term_buf (stable across toggles)
+--- Format: [term_buf] = {
+---   term_buf              = number,        -- stable key
+---   mode                  = string,        -- "sidebar" | "float" | "fullscreen"
+---   origin                = string,        -- "sidebar" | "float" (never changes)
+---   sidebar_win           = number|nil,    -- vsplit handle; valid but hidden when mode == "fullscreen"
+---   float_win             = number|nil,    -- float handle; active when mode == "fullscreen" or origin == "float"
+---   float_original        = table|nil,     -- saved float config for float-origin restore
+---   fullscreen_autocmd_id = number|nil,    -- autocmd id of WinClosed guard on fullscreen float
+---   width_config          = number,
+---   win_opts              = table,
+---   padding               = number,
+---   list_buffer           = boolean,
 --- }
 M.sidebars = {}
 
---- Helper predicates for window classification
-
---- Check if a window is an integration sidebar window for a given terminal buffer
+--- Check if a window is an integration window for a given terminal buffer
 --- @param win number Window handle
 --- @param term_buf number Terminal buffer
 --- @return boolean
-local function is_integration_sidebar_win(win, term_buf)
-	local data = M.sidebars[win]
-	return data ~= nil and data.terminal_buf == term_buf
+local function is_integration_window(win, term_buf)
+	local data = M.sidebars[term_buf]
+	return data ~= nil and (data.sidebar_win == win or data.float_win == win)
+end
+
+--- @param w number Window handle
+--- @return boolean
+local function is_any_integration_win(w)
+	for _, d in pairs(M.sidebars) do
+		if d.sidebar_win == w or d.float_win == w then
+			return true
+		end
+	end
+	return false
 end
 
 local function is_valid_win(win)
@@ -62,12 +76,6 @@ end
 
 --- Build terminal job environment starting from inherited process env,
 --- then applying explicit overrides and removals.
----
---- TMUX/TERM_PROGRAM are stripped by default: the job runs inside a Neovim
---- pseudo-terminal, not inside tmux. Keeping them causes TUI apps (opencode,
---- lazygit, etc.) to enable tmux-specific behaviour such as bracketed paste
---- mode, which makes mouse selections in the host tmux session inject escape
---- sequences (\e[200~...\e[201~) as literal text into the application input.
 --- @param opts table
 --- @param cols number
 --- @param lines number
@@ -76,38 +84,25 @@ local function build_job_env(opts, cols, lines)
 	local env = vim.fn.environ()
 
 	-- Strip tmux identity vars: the job's pty is owned by Neovim, not tmux.
-	-- Leaving TMUX/TERM_PROGRAM=tmux active causes bracketed-paste sequences
-	-- from mouse selections to leak into the running TUI as literal text.
 	env.TMUX = nil
 	env.TMUX_PANE = nil
 	env.TERM_PROGRAM = nil
 	env.TERM_PROGRAM_VERSION = nil
 
-	-- Strip Ghostty identity vars: the job runs inside Neovim :terminal, not Ghostty.
-	-- Ghostty sets GHOSTTY_RESOURCES_DIR and TERMINFO pointing to its own terminfo.
-	-- If the TUI library (e.g. crossterm via opencode) detects Ghostty through these
-	-- vars, it enables Ghostty-specific escape sequences (e.g. SGR mouse mode 1016
-	-- queries like ?1016$p) that Neovim's internal terminal emulator does not handle,
-	-- resulting in visible garbage characters on startup. We also clear TERMINFO to
-	-- prevent the job from loading Ghostty's custom terminfo directory.
+	-- Strip Ghostty identity vars: if detected, TUI libs enable Ghostty-specific
+	-- escape sequences that Neovim's terminal emulator doesn't handle (garbage chars).
 	env.GHOSTTY_RESOURCES_DIR = nil
 	env.GHOSTTY_SHELL_FEATURES = nil
 	env.GHOSTTY_BIN_DIR = nil
 	env.TERMINFO = nil
 
-	-- Always refresh dimensions from finalized geometry
+	-- Normalize TERM/COLORTERM: host terminals like Ghostty set TERM=xterm-ghostty
+	-- which causes TUI apps to enable capabilities Neovim's terminal doesn't handle.
 	env.COLUMNS = tostring(cols)
 	env.LINES = tostring(lines)
 
-	-- NOTE: Normalize TERM/COLORTERM to safe defaults for Neovim's :terminal.
-	-- Host terminals like Ghostty set TERM=xterm-ghostty and expose identity vars
-	-- (GHOSTTY_RESOURCES_DIR, etc.) that cause TUI apps to enable Ghostty-specific
-	-- capabilities (e.g. SGR mouse mode 1016) that Neovim's internal terminal
-	-- emulator does not fully handle. This causes visible garbage characters (e.g.
-	-- "?1016$p") and can break mouse-based bracketed paste. We override to a
-	-- universally compatible terminfo and strip Ghostty identity vars unless the
-	-- user explicitly sets them via opts.env. Do NOT remove this normalization
-	-- without testing inside Ghostty + tmux + Neovim :terminal with opencode/lazygit.
+	-- Override TERM/COLORTERM to safe defaults unless user sets them explicitly.
+	-- Do NOT remove without testing Ghostty + tmux + Neovim :terminal with opencode/lazygit.
 	if not (type(opts.env) == "table" and opts.env.TERM ~= nil) then
 		env.TERM = "xterm-256color"
 	end
@@ -115,12 +110,10 @@ local function build_job_env(opts, cols, lines)
 		env.COLORTERM = "truecolor"
 	end
 
-	-- Optional explicit overrides (can re-add any of the above if needed)
 	if type(opts.env) == "table" then
 		env = vim.tbl_extend("force", env, opts.env)
 	end
 
-	-- Optional removals after merge
 	if type(opts.unset_env) == "table" then
 		for _, key in ipairs(opts.unset_env) do
 			env[key] = nil
@@ -130,7 +123,6 @@ local function build_job_env(opts, cols, lines)
 	return env
 end
 
---- Track if resize autocmd is setup
 M.resized_autocmd_setup = false
 
 --- Track last known editor width to distinguish editor resize from manual split resize
@@ -179,7 +171,6 @@ function M.create_terminal(cmd, opts)
 	local cwd = opts.cwd or vim.fn.getcwd()
 	local auto_close = opts.auto_close ~= false
 
-	-- Create terminal buffer
 	local buf = vim.api.nvim_create_buf(false, true)
 	if not buf or buf == 0 then
 		return nil
@@ -194,7 +185,6 @@ function M.create_terminal(cmd, opts)
 		vim.api.nvim_buf_set_var(buf, "cli_integration_name", win_opts.integration_name)
 	end
 
-	-- Create window based on position
 	local is_float = win_opts.position == "float"
 	local win
 
@@ -209,14 +199,12 @@ function M.create_terminal(cmd, opts)
 		return nil
 	end
 
-	-- Configure window options
 	vim.wo[win].number = false
 	vim.wo[win].relativenumber = false
 	vim.wo[win].signcolumn = "no"
 	vim.wo[win].spell = false
 	vim.wo[win].cursorline = false
 
-	-- Create terminal object
 	---@type TerminalWindow
 	local terminal = {
 		buf = buf,
@@ -238,7 +226,6 @@ function M.create_terminal(cmd, opts)
 	local border = win_opts.border or (is_float and "rounded" or "none")
 	local cols, lines = calculate_content_dimensions(win, border, padding)
 
-	-- Start terminal job
 	local job_id
 	vim.api.nvim_buf_call(buf, function()
 		local original_cwd = vim.fn.getcwd()
@@ -299,7 +286,6 @@ function M.create_terminal(cmd, opts)
 		vim.cmd("lcd " .. vim.fn.fnameescape(original_cwd))
 	end)
 
-	-- Apply padding
 	if padding > 0 then
 		vim.wo[win].foldcolumn = tostring(padding)
 	end
@@ -322,24 +308,20 @@ function M.create_terminal(cmd, opts)
 		pcall(vim.api.nvim_buf_set_name, buf, win_opts.buffer_name)
 	end
 
-	-- Setup terminal navigation keymaps (Ctrl+hjkl to navigate between windows)
 	local keymap_opts = { buffer = buf, noremap = true, silent = true }
 	vim.keymap.set("t", "<C-h>", [[<C-\><C-n><Cmd>wincmd h<CR>]], keymap_opts)
 	vim.keymap.set("t", "<C-j>", [[<C-\><C-n><Cmd>wincmd j<CR>]], keymap_opts)
 	vim.keymap.set("t", "<C-k>", [[<C-\><C-n><Cmd>wincmd k<CR>]], keymap_opts)
 	vim.keymap.set("t", "<C-l>", [[<C-\><C-n><Cmd>wincmd l<CR>]], keymap_opts)
 
-	-- Force insert mode on mouse click (if configured)
-	-- Uses expr=true to check click position: only enter insert if click is inside
-	-- this terminal window. If clicking outside, fall through to default mouse behavior
-	-- (window focus change) by returning the built-in <LeftMouse> (noremap prevents recursion).
+	-- Only enter insert on click inside this terminal window; otherwise let
+	-- default mouse behavior handle window focus change.
 	if opts.win and opts.win.start_insert_on_click then
 		local click_opts = { buffer = buf, noremap = true, silent = true, expr = true }
 		local click_fn = function()
 			local mouse_pos = vim.fn.getmousepos()
 			local current_win = vim.api.nvim_get_current_win()
-			-- Enter insert only if click is inside current window AND current window is integration window for this buf
-			if mouse_pos.winid == current_win and is_integration_sidebar_win(current_win, buf) then
+			if mouse_pos.winid == current_win and is_integration_window(current_win, buf) then
 				return "i"
 			else
 				return "<LeftMouse>"
@@ -349,7 +331,6 @@ function M.create_terminal(cmd, opts)
 		vim.keymap.set("n", "<2-LeftMouse>", click_fn, click_opts)
 	end
 
-	-- Auto-enter insert mode when entering terminal
 	vim.api.nvim_create_autocmd({ "BufEnter", "WinEnter" }, {
 		buffer = buf,
 		callback = function()
@@ -360,12 +341,9 @@ function M.create_terminal(cmd, opts)
 		desc = "Auto-enter insert mode in terminal",
 	})
 
-	-- CRITICAL: Prevent buffer switching in this window
-	-- This ensures the terminal window ONLY shows the terminal buffer.
-	-- NOTE: `win` can become stale after a toggle (create_sidebar_layout creates a new float ID),
-	-- so we also check M.sidebars dynamically for the current window.
-	-- Also handles list_buffer edge case: if integration window is hidden and user selects buffer
-	-- from bufferline, allow load in regular window without forcing insert mode.
+	-- Prevent buffer switching: terminal window must only show its terminal buffer.
+	-- Also handles list_buffer edge case: allow load in regular window when integration
+	-- window is hidden in bufferline.
 	vim.api.nvim_create_autocmd("BufWinEnter", {
 		callback = function(args)
 			if args.buf == buf then
@@ -373,8 +351,11 @@ function M.create_terminal(cmd, opts)
 			end
 
 			local current_win = vim.api.nvim_get_current_win()
-			local sidebar_data = M.sidebars[current_win]
-			local is_our_win = current_win == win or (sidebar_data ~= nil and sidebar_data.terminal_buf == buf)
+			local data = M.sidebars[buf]
+			local is_our_win = data ~= nil and (
+				current_win == data.sidebar_win or
+				current_win == data.float_win
+			)
 
 			-- Case 1: current_win is integration window and different buffer loaded
 			if is_our_win then
@@ -383,11 +364,8 @@ function M.create_terminal(cmd, opts)
 						return
 					end
 
-					-- Restore the terminal buffer
 					pcall(vim.api.nvim_win_set_buf, current_win, buf)
 
-					-- Find a window to redirect the new buffer to.
-					-- Priority: normal file window > any non-terminal/nofile window > new split.
 					local target_win = nil
 					local fallback_win = nil
 					for _, w in ipairs(vim.api.nvim_list_wins()) do
@@ -405,7 +383,6 @@ function M.create_terminal(cmd, opts)
 
 					local dest = target_win or fallback_win
 					if not dest then
-						-- Last resort: open a new split to host the buffer
 						vim.cmd("vsplit")
 						dest = vim.api.nvim_get_current_win()
 					end
@@ -420,37 +397,33 @@ function M.create_terminal(cmd, opts)
 
 			-- Case 2: current_win is regular window and args.buf is terminal buffer
 			if args.buf == buf then
-				-- Find the sidebar window for this terminal buffer via direct M.sidebars access
-				local sidebar_win = nil
-				for win_handle, data in pairs(M.sidebars) do
-					if data.terminal_buf == buf then
-						sidebar_win = win_handle
-						break
+				local integration_win = nil
+				local data = M.sidebars[buf]
+				if data then
+					if data.sidebar_win and vim.api.nvim_win_is_valid(data.sidebar_win) then
+						integration_win = data.sidebar_win
+					elseif data.float_win and vim.api.nvim_win_is_valid(data.float_win) then
+						integration_win = data.float_win
 					end
 				end
-				-- If visible integration sidebar exists, focus it and start insert
-				if sidebar_win and vim.api.nvim_win_is_valid(sidebar_win) then
-					vim.api.nvim_set_current_win(sidebar_win)
+				if integration_win then
+					vim.api.nvim_set_current_win(integration_win)
 					vim.schedule(function()
-						if vim.api.nvim_win_is_valid(sidebar_win) then
+						if vim.api.nvim_win_is_valid(integration_win) then
 							vim.cmd("startinsert")
 						end
 					end)
-					-- Otherwise allow (window already has the terminal buffer in regular window)
 				end
 			end
 		end,
 		desc = "Lock terminal window to terminal buffer only; handle list_buffer window separation",
 	})
 
-	-- Secondary guard: if somehow a wrong buffer ends up in the terminal window
-	-- on WinEnter, restore the terminal buffer immediately.
-	-- Apply only when current window is the integration sidebar window for this buf.
+	-- WinEnter guard: restore terminal buffer if a wrong buffer ends up here.
 	vim.api.nvim_create_autocmd("WinEnter", {
 		callback = function()
 			local current_win = vim.api.nvim_get_current_win()
-			-- Only guard if current window is the integration sidebar window.
-			if not is_integration_sidebar_win(current_win, buf) then
+			if not is_integration_window(current_win, buf) then
 				return
 			end
 
@@ -492,7 +465,29 @@ function M.create_float_window(buf, win_opts)
 
 	local win = vim.api.nvim_open_win(buf, true, float_opts)
 
-	-- Exit insert mode when focus is lost
+	M.sidebars[buf] = {
+		term_buf = buf,
+		mode = "float",
+		origin = "float",
+		sidebar_win = nil,
+		float_win = win,
+		float_original = { width = width, height = height, row = row, col = col },
+		fullscreen_autocmd_id = nil,
+		width_config = width,
+		win_opts = win_opts,
+		padding = 0,
+		list_buffer = win_opts.list_buffer or false,
+	}
+
+	vim.api.nvim_create_autocmd("WinClosed", {
+		pattern = tostring(win),
+		callback = function()
+			M.sidebars[buf] = nil
+		end,
+		once = true,
+		desc = "Cleanup float-origin entry on close",
+	})
+
 	vim.api.nvim_create_autocmd("WinLeave", {
 		buffer = buf,
 		callback = function()
@@ -512,7 +507,7 @@ end
 function M.find_layout_anchor_window()
 	-- First pass: prefer a normal file buffer window (buftype == "")
 	for _, win in ipairs(vim.api.nvim_list_wins()) do
-		if vim.api.nvim_win_is_valid(win) and not M.sidebars[win] then
+		if vim.api.nvim_win_is_valid(win) and not is_any_integration_win(win) then
 			local cfg = vim.api.nvim_win_get_config(win)
 			if cfg.relative == "" then
 				local buf = vim.api.nvim_win_get_buf(win)
@@ -526,7 +521,7 @@ function M.find_layout_anchor_window()
 
 	-- Second pass: any non-floating window
 	for _, win in ipairs(vim.api.nvim_list_wins()) do
-		if vim.api.nvim_win_is_valid(win) and not M.sidebars[win] then
+		if vim.api.nvim_win_is_valid(win) and not is_any_integration_win(win) then
 			local cfg = vim.api.nvim_win_get_config(win)
 			if cfg.relative == "" then
 				return win
@@ -546,10 +541,8 @@ function M.create_sidebar_layout(buf, win_opts)
 	local padding = win_opts.padding or 0
 	local configured_width = calculate_width(width_config)
 
-	-- Calculate vsplit width accounting for padding
 	local vsplit_width = configured_width - (padding * 2)
 
-	-- Create vsplit on the right side
 	local anchor_win = M.find_layout_anchor_window()
 	if anchor_win and vim.api.nvim_win_is_valid(anchor_win) then
 		pcall(vim.api.nvim_set_current_win, anchor_win)
@@ -557,16 +550,11 @@ function M.create_sidebar_layout(buf, win_opts)
 	vim.cmd("botright vsplit")
 	local sidebar_win = vim.api.nvim_get_current_win()
 
-	-- Set the terminal buffer
 	vim.api.nvim_win_set_buf(sidebar_win, buf)
 
-	-- Apply the configured width BEFORE returning so that calculate_content_dimensions
-	-- in create_terminal reads the correct (final) width, not whatever Neovim assigned
-	-- from the botright vsplit (which is half the available space by default).
-	-- This is the vsplit equivalent of the old float's update_sidebar_geometry() call.
+	-- Set width BEFORE returning so calculate_content_dimensions reads the final width.
 	vim.api.nvim_win_set_width(sidebar_win, vsplit_width)
 
-	-- Configure vsplit window
 	vim.wo[sidebar_win].winfixwidth = true
 	vim.wo[sidebar_win].number = false
 	vim.wo[sidebar_win].relativenumber = false
@@ -576,33 +564,36 @@ function M.create_sidebar_layout(buf, win_opts)
 	-- Use panel/sidebar highlight groups so background matches Snacks.terminal, neo-tree, etc.
 	vim.wo[sidebar_win].winhighlight = "Normal:NormalSB,NormalNC:NormalSB,EndOfBuffer:NormalSB"
 
-	-- Apply padding via foldcolumn
 	if padding > 0 then
 		vim.wo[sidebar_win].foldcolumn = tostring(padding)
 	end
 
-	-- Store sidebar configuration
-	M.sidebars[sidebar_win] = {
+	M.sidebars[buf] = {
+		term_buf = buf,
+		mode = "sidebar",
+		origin = "sidebar",
 		sidebar_win = sidebar_win,
-		terminal_buf = buf,
+		float_win = nil,
+		float_original = nil,
+		fullscreen_autocmd_id = nil,
 		width_config = width_config,
 		win_opts = win_opts,
 		padding = padding,
-		is_expanded = false,
 		list_buffer = win_opts.list_buffer or false,
 	}
 
-	-- Cleanup when vsplit closes
 	vim.api.nvim_create_autocmd("WinClosed", {
 		pattern = tostring(sidebar_win),
 		callback = function()
-			M.sidebars[sidebar_win] = nil
+			local data = M.sidebars[buf]
+			if data then
+				data.sidebar_win = nil
+			end
 		end,
 		once = true,
-		desc = "Cleanup sidebar on vsplit close",
+		desc = "Clear sidebar reference on vsplit close",
 	})
 
-	-- Setup resize handling
 	M._last_editor_width = vim.o.columns
 	if not M.resized_autocmd_setup then
 		local group = vim.api.nvim_create_augroup("CliIntegrationResize", { clear = true })
@@ -624,35 +615,25 @@ function M.create_sidebar_layout(buf, win_opts)
 	return sidebar_win
 end
 
---- Update sidebar geometry (handles fullwidth toggle)
---- @param sidebar_win number The sidebar window handle
---- @param is_expanded boolean Whether to show in fullwidth/float mode
+--- Update sidebar geometry (handles fullscreen toggle for sidebar-origin integrations)
+--- @param term_buf number The terminal buffer (key into M.sidebars)
+--- @param is_fullscreen boolean Whether to show in fullscreen mode
 --- @param should_focus boolean|nil Whether to focus the window (default: false)
-function M.update_sidebar_geometry(sidebar_win, is_expanded, should_focus)
-	local data = M.sidebars[sidebar_win]
-	if not data then
+function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
+	local data = M.sidebars[term_buf]
+	if not data or data.origin ~= "sidebar" then
 		return
 	end
 
-	local term_buf = data.terminal_buf
-	local win_opts = data.win_opts
-
-	if is_expanded then
-		-- Fullwidth mode: hide vsplit, show fullscreen float
-		-- Check if we have a vsplit to hide
-		if is_valid_win(sidebar_win) then
-			local cfg = vim.api.nvim_win_get_config(sidebar_win)
+	if is_fullscreen then
+		-- Fullscreen mode: hide vsplit, show fullscreen float
+		if data.sidebar_win and is_valid_win(data.sidebar_win) then
+			local cfg = vim.api.nvim_win_get_config(data.sidebar_win)
 			if cfg.relative == "" then
-				-- Hide the vsplit: removes from layout without closing.
-				-- Buffer stays loaded because bufhidden=hide is set.
-				-- Does NOT trigger WinClosed autocmd.
-				pcall(vim.api.nvim_win_hide, sidebar_win)
-				-- Clean up sidebar entry since the window is gone from layout
-				M.sidebars[sidebar_win] = nil
+				pcall(vim.api.nvim_win_hide, data.sidebar_win)
 			end
 		end
 
-		-- Create fullwidth float with single border
 		local float_opts = {
 			relative = "editor",
 			width = vim.o.columns,
@@ -661,55 +642,38 @@ function M.update_sidebar_geometry(sidebar_win, is_expanded, should_focus)
 			col = 0,
 			style = "minimal",
 			border = "single",
-			title = win_opts.title or "",
+			title = data.win_opts.title or "",
 			title_pos = "center",
 		}
 
-		local new_win = vim.api.nvim_open_win(term_buf, true, float_opts)
+		local new_win = vim.api.nvim_open_win(data.term_buf, true, float_opts)
 
 		if new_win then
-			-- Configure float window
 			vim.wo[new_win].number = false
 			vim.wo[new_win].relativenumber = false
 			vim.wo[new_win].signcolumn = "no"
 			vim.wo[new_win].spell = false
 			vim.wo[new_win].cursorline = false
 
-			-- Update sidebar data for float, preserving hidden vsplit reference
-			-- so collapse can find it when toggling back to sidebar mode.
-			M.sidebars[new_win] = {
-				sidebar_win = new_win,
-				terminal_buf = term_buf,
-				width_config = data.width_config,
-				win_opts = win_opts,
-				padding = data.padding,
-				is_expanded = true,
-				list_buffer = data.list_buffer,
-				-- Carry the hidden vsplit handle forward so it survives the entry swap
-				hidden_vsplit_win = is_valid_win(sidebar_win) and sidebar_win or nil,
-			}
+			data.float_win = new_win
+			data.mode = "fullscreen"
 
-			-- Remove old sidebar entry (vsplit handle kept in hidden_vsplit_win above)
-			M.sidebars[sidebar_win] = nil
-
-			-- Resize pty to match the new fullwidth content dimensions
-			resize_pty(term_buf, new_win, "single", data.padding or 0)
-
-			-- When the float is closed from outside (e.g. :q), also close the hidden vsplit
-			-- so it doesn't remain as a width-0 phantom split.
-			vim.api.nvim_create_autocmd("WinClosed", {
+			local autocmd_id = vim.api.nvim_create_autocmd("WinClosed", {
 				pattern = tostring(new_win),
 				callback = function()
-					local float_data = M.sidebars[new_win]
-					local hidden = float_data and float_data.hidden_vsplit_win
+					local d = M.sidebars[term_buf]
+					local hidden = d and d.sidebar_win
 					if hidden and is_valid_win(hidden) then
 						pcall(vim.api.nvim_win_close, hidden, true)
 					end
-					M.sidebars[new_win] = nil
+					M.sidebars[term_buf] = nil
 				end,
 				once = true,
-				desc = "Cleanup fullwidth float and hidden vsplit on close",
+				desc = "Cleanup fullscreen float and hidden vsplit on close",
 			})
+			data.fullscreen_autocmd_id = autocmd_id
+
+			resize_pty(data.term_buf, new_win, "single", data.padding or 0)
 
 			if should_focus then
 				vim.api.nvim_set_current_win(new_win)
@@ -722,51 +686,55 @@ function M.update_sidebar_geometry(sidebar_win, is_expanded, should_focus)
 		end
 	else
 		-- Sidebar mode: close float, restore vsplit
-		local hidden_vsplit_win = data.hidden_vsplit_win
+		local float_win = data.float_win
 
-		if is_valid_win(sidebar_win) then
-			local cfg = vim.api.nvim_win_get_config(sidebar_win)
-			if cfg.relative ~= "" then
-				-- Clear the sidebar entry BEFORE closing the float so the WinClosed autocmd
-				-- sees an empty entry and does NOT close the hidden vsplit we are about to restore.
-				M.sidebars[sidebar_win] = nil
-				vim.api.nvim_win_close(sidebar_win, true)
-			end
+		if data.fullscreen_autocmd_id then
+			pcall(vim.api.nvim_del_autocmd, data.fullscreen_autocmd_id)
+			data.fullscreen_autocmd_id = nil
 		end
 
-		if hidden_vsplit_win and is_valid_win(hidden_vsplit_win) then
-			-- Restore the hidden vsplit to its configured width
+		if float_win and is_valid_win(float_win) then
+			pcall(vim.api.nvim_win_close, float_win, true)
+			data.float_win = nil
+		end
+
+		if data.sidebar_win and is_valid_win(data.sidebar_win) then
 			local padding = data.padding or 0
 			local configured_width = calculate_width(data.width_config)
 			local target_width = configured_width - (padding * 2)
-			vim.api.nvim_win_set_width(hidden_vsplit_win, target_width)
+			vim.api.nvim_win_set_width(data.sidebar_win, target_width)
 
-			-- Resize pty to match the restored sidebar content dimensions
-			resize_pty(term_buf, hidden_vsplit_win, "none", data.padding or 0)
+			resize_pty(data.term_buf, data.sidebar_win, "none", data.padding or 0)
 
-			-- Re-register the vsplit as the active sidebar entry
-			M.sidebars[hidden_vsplit_win] = {
-				sidebar_win = hidden_vsplit_win,
-				terminal_buf = term_buf,
-				width_config = data.width_config,
-				win_opts = win_opts,
-				padding = data.padding,
-				is_expanded = false,
-				list_buffer = data.list_buffer,
-			}
+			data.mode = "sidebar"
 
 			if should_focus then
-				vim.api.nvim_set_current_win(hidden_vsplit_win)
+				vim.api.nvim_set_current_win(data.sidebar_win)
 				vim.schedule(function()
-					if is_valid_win(hidden_vsplit_win) then
+					if is_valid_win(data.sidebar_win) then
 						vim.cmd("startinsert")
 					end
 				end)
 			end
 		else
-			-- No hidden vsplit found (e.g. it was closed externally), create new one
-			local vsplit_win = M.create_sidebar_layout(term_buf, win_opts)
+			local vsplit_win = M.create_sidebar_layout(data.term_buf, data.win_opts)
 			if vsplit_win then
+				data.sidebar_win = vsplit_win
+				data.mode = "sidebar"
+				M.sidebars[term_buf] = vim.tbl_extend("force", M.sidebars[term_buf] or {}, {
+					term_buf = term_buf,
+					mode = "sidebar",
+					origin = "sidebar",
+					sidebar_win = vsplit_win,
+					float_win = nil,
+					float_original = nil,
+					fullscreen_autocmd_id = nil,
+					width_config = data.width_config,
+					win_opts = data.win_opts,
+					padding = data.padding,
+					list_buffer = data.list_buffer,
+				})
+
 				if should_focus then
 					vim.api.nvim_set_current_win(vsplit_win)
 					vim.schedule(function()
@@ -780,40 +748,126 @@ function M.update_sidebar_geometry(sidebar_win, is_expanded, should_focus)
 	end
 end
 
---- Resize all sidebar windows (handles editor resize and fullwidth)
+--- Update float geometry (handles fullscreen toggle for float-origin integrations)
+--- @param term_buf number The terminal buffer (key into M.sidebars)
+--- @param is_fullscreen boolean Whether to show in fullscreen mode
+--- @param should_focus boolean|nil Whether to focus the window (default: false)
+function M.update_float_geometry(term_buf, is_fullscreen, should_focus)
+	local data = M.sidebars[term_buf]
+	if not data or data.origin ~= "float" then
+		return
+	end
+
+	local float_win = data.float_win
+	if not float_win or not is_valid_win(float_win) then
+		return
+	end
+
+	if is_fullscreen then
+		local cfg = vim.api.nvim_win_get_config(float_win)
+		data.float_original = {
+			width = cfg.width,
+			height = cfg.height,
+			row = cfg.row,
+			col = cfg.col,
+			border = cfg.border,
+		}
+
+		pcall(vim.api.nvim_win_set_config, float_win, {
+			relative = "editor",
+			width = vim.o.columns,
+			height = vim.o.lines - vim.o.cmdheight - 1,
+			row = 0,
+			col = 0,
+			style = "minimal",
+			border = "single",
+		})
+
+		data.mode = "fullscreen"
+		resize_pty(data.term_buf, float_win, "single", data.padding or 0)
+	else
+		local orig = data.float_original
+		if orig then
+			local border = data.win_opts.border or "rounded"
+			pcall(vim.api.nvim_win_set_config, float_win, {
+				relative = "editor",
+				width = orig.width,
+				height = orig.height,
+				row = orig.row,
+				col = orig.col,
+				style = "minimal",
+				border = border,
+			})
+			data.float_original = nil
+		end
+
+		data.mode = "float"
+		local border = data.win_opts.border or "rounded"
+		resize_pty(data.term_buf, float_win, border, data.padding or 0)
+	end
+
+	if should_focus then
+		vim.api.nvim_set_current_win(float_win)
+		vim.schedule(function()
+			if is_valid_win(float_win) then
+				vim.cmd("startinsert")
+			end
+		end)
+	end
+end
+
+--- Enable or disable window-navigation keymaps for a terminal buffer.
+--- @param term_buf number Terminal buffer handle
+--- @param enabled boolean
+function M.set_nav_keymaps_enabled(term_buf, enabled)
+	if not vim.api.nvim_buf_is_valid(term_buf) then
+		return
+	end
+	local modes = { "t", "n" }
+	local opts = { buffer = term_buf, noremap = true, silent = true }
+
+	if enabled then
+		for _, mode in ipairs(modes) do
+			vim.keymap.set(mode, "<C-h>", [[<C-\><C-n><Cmd>wincmd h<CR>]], opts)
+			vim.keymap.set(mode, "<C-j>", [[<C-\><C-n><Cmd>wincmd j<CR>]], opts)
+			vim.keymap.set(mode, "<C-k>", [[<C-\><C-n><Cmd>wincmd k<CR>]], opts)
+			vim.keymap.set(mode, "<C-l>", [[<C-\><C-n><Cmd>wincmd l<CR>]], opts)
+		end
+	else
+		for _, mode in ipairs(modes) do
+			vim.keymap.set(mode, "<C-h>", "<Nop>", opts)
+			vim.keymap.set(mode, "<C-j>", "<Nop>", opts)
+			vim.keymap.set(mode, "<C-k>", "<Nop>", opts)
+			vim.keymap.set(mode, "<C-l>", "<Nop>", opts)
+		end
+	end
+end
+
+--- Resize all sidebar/float windows (handles editor resize and fullscreen)
 function M.resize_sidebars()
 	local editor_resized = vim.o.columns ~= M._last_editor_width
 	if editor_resized then
 		M._last_editor_width = vim.o.columns
 	end
 
-	for sidebar_win, data in pairs(M.sidebars) do
-		if is_valid_win(sidebar_win) then
-			if data.is_expanded then
-				-- Fullwidth mode: resize float to full editor coverage
-				pcall(vim.api.nvim_win_set_config, sidebar_win, {
-					relative = "editor",
-					width = vim.o.columns,
-					height = vim.o.lines - vim.o.cmdheight - 1,
-					row = 0,
-					col = 0,
-					style = "minimal",
-					border = "single",
-				})
-				-- Resize pty to match the new fullwidth content dimensions
-				resize_pty(data.terminal_buf, sidebar_win, "single", data.padding or 0)
-			elseif editor_resized then
-				-- Editor was resized: recalculate vsplit width
-				local padding = data.padding or 0
-				local configured_width = calculate_width(data.width_config)
-				local target_width = configured_width - (padding * 2)
-				pcall(vim.api.nvim_win_set_width, sidebar_win, target_width)
-				-- Resize pty to match the new sidebar content dimensions
-				resize_pty(data.terminal_buf, sidebar_win, "none", data.padding or 0)
-			end
-		else
-			-- Cleanup invalid windows
-			M.sidebars[sidebar_win] = nil
+	for term_buf, data in pairs(M.sidebars) do
+		if data.mode == "fullscreen" and data.float_win and is_valid_win(data.float_win) then
+			pcall(vim.api.nvim_win_set_config, data.float_win, {
+				relative = "editor",
+				width = vim.o.columns,
+				height = vim.o.lines - vim.o.cmdheight - 1,
+				row = 0,
+				col = 0,
+				style = "minimal",
+				border = "single",
+			})
+			resize_pty(data.term_buf, data.float_win, "single", data.padding or 0)
+		elseif data.mode == "sidebar" and editor_resized and data.sidebar_win and is_valid_win(data.sidebar_win) then
+			local padding = data.padding or 0
+			local configured_width = calculate_width(data.width_config)
+			local target_width = configured_width - (padding * 2)
+			pcall(vim.api.nvim_win_set_width, data.sidebar_win, target_width)
+			resize_pty(data.term_buf, data.sidebar_win, "none", data.padding or 0)
 		end
 	end
 end
@@ -826,33 +880,52 @@ function M.toggle_terminal(terminal)
 		return
 	end
 
-	-- Find current sidebar window for this terminal's buffer
-	local current_sidebar_win = nil
-	for win, data in pairs(M.sidebars) do
-		if data.terminal_buf == terminal.buf then
-			current_sidebar_win = win
-			break
-		end
-	end
+	local data = M.sidebars[terminal.buf]
 
-	if current_sidebar_win and vim.api.nvim_win_is_valid(current_sidebar_win) then
-		-- Close the terminal window
-		vim.api.nvim_win_close(current_sidebar_win, false)
-		terminal.win = nil
-		-- M.sidebars cleanup happens via WinClosed autocmd
-	else
-		-- Reopen the terminal window
-		local win_opts = terminal.opts.win or {}
-		local win
-
-		if win_opts.position == "float" then
-			win = M.create_float_window(terminal.buf, win_opts)
+	if data then
+		local win = data.sidebar_win or data.float_win
+		if win and is_valid_win(win) then
+			vim.api.nvim_win_close(win, false)
+			terminal.win = nil
 		else
-			win = M.create_sidebar_layout(terminal.buf, win_opts)
+			local win_opts = terminal.opts.win or {}
+			local new_win
+
+			if win_opts.position == "float" then
+				new_win = M.create_float_window(terminal.buf, win_opts)
+			else
+				new_win = M.create_sidebar_layout(terminal.buf, win_opts)
+			end
+
+			if new_win then
+				terminal.win = new_win
+			end
+		end
+	else
+		local current_win = nil
+		for _, w in ipairs(vim.api.nvim_list_wins()) do
+			if vim.api.nvim_win_get_buf(w) == terminal.buf then
+				current_win = w
+				break
+			end
 		end
 
-		if win then
-			terminal.win = win
+		if current_win and vim.api.nvim_win_is_valid(current_win) then
+			vim.api.nvim_win_close(current_win, false)
+			terminal.win = nil
+		else
+			local win_opts = terminal.opts.win or {}
+			local new_win
+
+			if win_opts.position == "float" then
+				new_win = M.create_float_window(terminal.buf, win_opts)
+			else
+				new_win = M.create_sidebar_layout(terminal.buf, win_opts)
+			end
+
+			if new_win then
+				terminal.win = new_win
+			end
 		end
 	end
 end
@@ -861,7 +934,15 @@ end
 --- @param terminal TerminalWindow Terminal object
 --- @return boolean
 function M.is_terminal_visible(terminal)
-	return terminal ~= nil and terminal.win ~= nil and vim.api.nvim_win_is_valid(terminal.win)
+	if not terminal or not terminal.buf or not vim.api.nvim_buf_is_valid(terminal.buf) then
+		return false
+	end
+	local data = M.sidebars[terminal.buf]
+	if not data then
+		return false
+	end
+	return (data.sidebar_win and is_valid_win(data.sidebar_win))
+		or (data.float_win and is_valid_win(data.float_win))
 end
 
 return M

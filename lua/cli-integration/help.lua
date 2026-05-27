@@ -82,7 +82,7 @@ local function generate_help_text()
 		{ keys = keys.terminal_mode.normal_mode, description = "Normal Mode" },
 		{ keys = keys.terminal_mode.insert_file_path, description = "Add Buffer File Path" },
 		{ keys = keys.terminal_mode.insert_all_buffers, description = "Add All Open Buffer File Paths" },
-		{ keys = keys.terminal_mode.toggle_width, description = "Toggle Window Width" },
+		{ keys = keys.terminal_mode.toggle_fullscreen, description = "Toggle Fullscreen" },
 		{ separator = true },
 		{ keys = keys.terminal_mode.new_lines, description = "New Line" },
 		{ keys = keys.terminal_mode.help, description = "Show Help" },
@@ -109,7 +109,7 @@ local function generate_help_text()
 	local norm_entries = {
 		{ keys = keys.normal_mode.hide, description = "Hide Window" },
 		{ keys = keys.normal_mode.close, description = "Close Window" },
-		{ keys = keys.normal_mode.toggle_width, description = "Toggle Window Width" },
+		{ keys = keys.normal_mode.toggle_fullscreen, description = "Toggle Fullscreen" },
 		{ key_str = "<...>", description = "(all other normal mode keys)" },
 	}
 	local norm_key_width = get_max_key_width(norm_entries)

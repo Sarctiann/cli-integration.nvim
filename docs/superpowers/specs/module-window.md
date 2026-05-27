@@ -8,25 +8,29 @@ Window and terminal lifecycle management. The core module responsible for creati
 
 ### `M.sidebars`
 
-Table mapping `sidebar_win` → sidebar data:
+Table mapping `term_buf` → sidebar data (stable key across toggles):
 
 ```lua
 {
-  sidebar_win = number,      -- Vsplit window handle (or float in fullwidth mode)
-  terminal_buf = number,     -- Terminal buffer handle
-  width_config = number,     -- Original width configuration
-  padding = number,          -- Horizontal padding in columns
-  win_opts = table,          -- Window options
-  is_expanded = boolean,     -- Fullwidth mode flag
-  list_buffer = boolean,     -- Bufferline listing flag
+  term_buf              = number,        -- stable key (never changes)
+  mode                  = string,        -- "sidebar" | "float" | "fullscreen"
+  origin                = string,        -- "sidebar" | "float" (never changes)
+  sidebar_win           = number|nil,    -- vsplit handle (hidden when fullscreen)
+  float_win             = number|nil,    -- float handle (active when fullscreen or float origin)
+  float_original        = table|nil,     -- saved float config for float-origin restore
+  fullscreen_autocmd_id = number|nil,    -- autocmd id of WinClosed guard on fullscreen float
+  width_config          = number,
+  win_opts              = table,
+  padding               = number,
+  list_buffer           = boolean,
 }
 ```
 
 ### Window Classification Helpers
 
-- `is_integration_sidebar_win(win, term_buf)` — Checks if window is the integration sidebar window
+- `is_integration_window(win, term_buf)` — Checks if window is an integration window (sidebar or float) for a given terminal buffer
 - `is_valid_win(win)` — Checks if window handle is valid
-- `resize_pty(term_buf, win, border, padding)` — Resizes terminal job pty to match window content dimensions, sending SIGWINCH so TUI apps update their size and mouse coordinates
+- `resize_pty(term_buf, win, border, padding)` — Resizes terminal job pty to match window content dimensions
 - `find_layout_anchor_window()` — Finds a safe anchor window for creating the vsplit
 - `is_terminal_visible(terminal)` — Checks if terminal window is visible
 
@@ -64,29 +68,55 @@ Creates vsplit on the right side with terminal buffer. Returns vsplit window han
 4. Set terminal buffer in the vsplit
 5. Configure vsplit (winfixwidth=true, no line numbers, no signcolumn, etc.)
 6. Apply padding via foldcolumn
-7. Register in `M.sidebars[sidebar_win]`
+7. Register in `M.sidebars[term_buf]`
 8. Set up WinClosed cleanup autocmd
 9. Set up VimResized/WinResized sync autocmd
 10. Enter insert mode (`startinsert`)
 
-### `M.update_sidebar_geometry(sidebar_win, is_expanded, should_focus)`
+### `M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)`
 
-Handles fullwidth toggle between sidebar vsplit and centered float.
+Handles fullscreen toggle for sidebar-origin integrations.
 
-**Expanded mode (fullwidth):**
+**Parameter change:** First parameter is now `term_buf` (not `sidebar_win`).
+
+**Expanded mode (fullscreen):**
 
 - Hides vsplit using `nvim_win_hide()` (removes from layout, keeps buffer)
-- Opens centered float with rounded border containing the terminal buffer
-- Updates `M.sidebars` to point to the new float window
-- **Resizes pty via `resize_pty()`** so TUI apps receive correct dimensions and mouse coordinates work
-- Enters insert mode if `should_focus` is true
+- Opens fullscreen float covering full editor width with single border
+- Updates `data.float_win` and `data.mode = "fullscreen"` in-place
+- Registers `WinClosed` guard on float, stores autocmd id in `data.fullscreen_autocmd_id`
+- **Resizes pty via `resize_pty()`**
 
 **Sidebar mode (restore):**
 
-- Closes float if valid
+- Deletes `WinClosed` guard via `nvim_del_autocmd(data.fullscreen_autocmd_id)`
+- Closes float
 - Restores hidden vsplit to configured width
-- **Resizes pty via `resize_pty()`** so TUI apps adapt back to sidebar width
-- Enters insert mode if `should_focus` is true
+- **Resizes pty via `resize_pty()`**
+
+### `M.update_float_geometry(term_buf, is_fullscreen, should_focus)`
+
+Handles fullscreen toggle for float-origin integrations.
+
+**Expanded mode (fullscreen):**
+
+- Saves current float config in `data.float_original`
+- Resizes float to full editor coverage via `nvim_win_set_config`
+- Sets `data.mode = "fullscreen"`
+- **Resizes pty via `resize_pty()`**
+
+**Float mode (restore):**
+
+- Restores float config from `data.float_original`
+- Sets `data.mode = "float"`
+- **Resizes pty via `resize_pty()`**
+
+### `M.set_nav_keymaps_enabled(term_buf, enabled)`
+
+Enables or disables `<C-h/j/k/l>` window navigation keymaps (modes `t` and `n`) for a terminal buffer. Called after every fullscreen toggle.
+
+- `enabled = true`: restores wincmd navigation
+- `enabled = false`: maps keys to `<Nop>` (no other windows to navigate to in fullscreen)
 
 ### `M.resize_sidebars()`
 
@@ -94,7 +124,7 @@ Bidirectional sync on VimResized/WinResized events.
 
 Distinguishes editor resize (recalculate from `width_config` percentage) from manual split resize (split as source of truth).
 
-**After any dimension change** (fullwidth float resize or sidebar vsplit resize), calls `resize_pty()` to send SIGWINCH to the terminal job so TUI apps update their internal size.
+**After any dimension change** (fullscreen float resize or sidebar vsplit resize), calls `resize_pty()` to send SIGWINCH to the terminal job so TUI apps update their internal size.
 
 ## Critical Implementation Details
 
@@ -124,7 +154,7 @@ The vsplit is created directly with the terminal buffer:
 
 Pure helper functions for dimension calculations:
 
-- `compute_fullwidth_geometry()` — Full editor width minus borders
+- `compute_fullscreen_geometry()` — Full editor width minus borders
 - `compute_sidebar_target_geometry(data, split_win)` — Calculates from split or config
 - `apply_float_geometry(float_win, geom)` — Applies geometry to float
 - `apply_split_width(split_win, width)` — Sets split width

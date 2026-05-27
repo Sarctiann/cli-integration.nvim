@@ -16,7 +16,6 @@ function M.setup(user_config)
 	local cli_integration_group = vim.api.nvim_create_augroup("CLI-Integration", { clear = true })
 	local cli_integration_opens_group = vim.api.nvim_create_augroup("CLI-Integration-Opens", { clear = true })
 
-	-- Build a lookup table: integration name -> integration config
 	local integrations_by_name = {}
 	for _, integration in ipairs(integrations) do
 		if integration.name and integration.name ~= "" then
@@ -24,8 +23,7 @@ function M.setup(user_config)
 		end
 	end
 
-	-- Use a single TermOpen/TermEnter autocmd that checks the buffer variable
-	-- b:cli_integration_name to identify which integration this terminal belongs to.
+	-- Use b:cli_integration_name to identify which integration a terminal belongs to.
 	-- This avoids pattern matching on buffer names (which Neovim overwrites during termopen).
 	vim.api.nvim_create_autocmd({ "TermOpen", "TermEnter" }, {
 		group = cli_integration_group,
@@ -53,7 +51,6 @@ function M.setup(user_config)
 		end,
 	})
 
-	-- Collect names that need help on open
 	local help_names = {}
 	for _, integration in ipairs(integrations) do
 		if integration.show_help_on_open and integration.name then
@@ -73,8 +70,6 @@ function M.setup(user_config)
 				end
 
 				if help_names[integration_name] then
-					-- Delay quick help slightly so the terminal has time to initialize
-					-- and won't have its early output interfered by UI notifications.
 					vim.defer_fn(function()
 						local ok, err = pcall(help.show_quick_help)
 						if not ok then

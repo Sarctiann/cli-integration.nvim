@@ -29,7 +29,7 @@ Sets up all keymaps for current terminal buffer. Called by autocmd on TermOpen/T
 | `submit`             | `<C-s>`, `<C-CR>`   | Submit command (sends Enter)                                |
 | `enter`              | `<CR>`              | Send Enter key                                              |
 | `help`               | `<M-?>`, `??`, `\\` | Show help                                                   |
-| `toggle_width`       | `<C-f>`             | Toggle fullwidth                                            |
+| `toggle_fullscreen`  | `<C-f>`             | Toggle fullscreen                                           |
 | `hide`               | `<C-q>`             | Hide window (keep process)                                  |
 | `close`              | `<C-S-q>`           | Close window (kill process)                                 |
 
@@ -37,7 +37,7 @@ Sets up all keymaps for current terminal buffer. Called by autocmd on TermOpen/T
 
 | Action         | Default Keys | Behavior         |
 | -------------- | ------------ | ---------------- |
-| `toggle_width` | `<C-f>`      | Toggle fullwidth |
+| `toggle_fullscreen` | `<C-f>`      | Toggle fullscreen |
 | `hide`         | `<C-q>`      | Hide window      |
 | `close`        | `<C-S-q>`    | Close window     |
 
@@ -52,7 +52,7 @@ Sets up all keymaps for current terminal buffer. Called by autocmd on TermOpen/T
 - Gets integration-specific keys or falls back to global `config.options.terminal_keys`
 - File path insertion uses `integration.format_paths(path)` if available, otherwise raw path
 - All buffers insertion gets paths via `buffers.get_open_buffers_paths(working_dir)`
-- Toggle width is mapped in modes: `i`, `t`, `n`, `v`
+- Toggle fullscreen is mapped in modes: `i`, `t`, `n`, `v`
 
 ## Helper Function
 

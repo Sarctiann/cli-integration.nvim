@@ -23,22 +23,37 @@
 - Vsplit window: `winfixwidth=true`, positioned on the right side of the editor
 - No border, behaves as a native split
 
-### Fullwidth Mode (toggle)
+### Fullscreen Mode (toggle)
+
+**Sidebar origin:**
 
 ```
 +------------------------------------------+
 |                                          |
-|         Float Window (terminal)          |  <- Full editor coverage, no border
-|         Full editor width                |  <- is_expanded=true
+|         Float Window (terminal)          |  <- Full editor coverage, single border
+|         Full editor width                |  <- mode="fullscreen", origin="sidebar"
+|                                          |  <- vsplit is hidden (not closed)
++------------------------------------------+
+```
+
+**Float origin:**
+
+```
++------------------------------------------+
 |                                          |
+|         Float Window (terminal)          |  <- Full editor coverage, single border
+|         Full editor width                |  <- mode="fullscreen", origin="float"
+|                                          |  <- same float, resized in-place
 +------------------------------------------+
 ```
 
 **Behavior:**
 
-- Sidebar -> fullwidth: vsplit closes, float opens covering full editor width
-- Fullwidth -> sidebar: float closes, vsplit is recreated on the right side
-- Window navigation keymaps disabled (no other windows to navigate to)
+- Sidebar → fullscreen: vsplit hides (`nvim_win_hide`), float opens
+- Fullscreen → sidebar: float closes, vsplit restores to layout
+- Float → fullscreen: same float resizes to full editor coverage
+- Fullscreen → float: same float restores original dimensions
+- Window navigation keymaps disabled in fullscreen (no other windows visible)
 
 ### Float Mode (floating=true)
 
@@ -62,8 +77,9 @@
 
 1. **Terminal Buffer Lock**: Terminal window MUST NEVER change buffers
 2. **Vsplit Layout**: Sidebar mode uses vsplit on the right side with `winfixwidth=true`
-3. **Fullwidth Float**: Fullwidth mode uses a float covering the full editor width with no border
-4. **Fullwidth Toggle**: vsplit closes, float opens (and vice versa)
+3. **Fullscreen Float**: Fullscreen mode uses a float covering the full editor width with single border
+4. **Fullscreen Toggle**: Vsplit is hidden (not closed) in fullscreen; restored on toggle back
+5. **Float Toggle**: Float resizes in-place for float-origin integrations
 
 ## Focus Behavior
 

@@ -8,21 +8,16 @@ local hooks = require("cli-integration.hooks")
 
 local M = {}
 
--- Expose hooks for easy access via require("cli-integration").hooks
 M.hooks = hooks
 
--- Expose ask hook
 M.hooks.ask = ask.ask
 --- Setup function for the plugin
 --- @param user_config Cli-Integration.Config
 --- @return nil
 function M.setup(user_config)
-	-- Setup configuration
 	local configs = config.setup(user_config)
 
-	-- Create user command to open CLI tool
 	vim.api.nvim_create_user_command("CLIIntegration", function(opts)
-		-- Validate integrations before executing
 		local integrations = configs.integrations or {}
 		if not integrations or #integrations == 0 then
 			vim.notify(
@@ -32,17 +27,14 @@ function M.setup(user_config)
 			return
 		end
 
-		-- Parse arguments: first is action, second is integration name, rest are CLI args
 		local fargs = opts.fargs or {}
 		local action = fargs[1] or ""
 		local integration_name = fargs[2]
 
-		-- Convert underscores back to spaces in integration name (for autocompletion compatibility)
 		if integration_name then
 			integration_name = integration_name:gsub("_", " ")
 		end
 
-		-- Extract CLI arguments (everything after integration name)
 		local cli_args = nil
 		if #fargs > 2 then
 			local args_table = {}
@@ -52,7 +44,6 @@ function M.setup(user_config)
 			cli_args = table.concat(args_table, " ")
 		end
 
-		-- Capture visual selection if range is provided
 		local visual_text = nil
 		if opts.range > 0 then
 			local start_line = opts.line1
@@ -63,7 +54,6 @@ function M.setup(user_config)
 			end
 		end
 
-		-- Execute command with error handling
 		local ok, err = pcall(function()
 			if action == "open_cwd" or action == "" or not action then
 				commands.open_cwd(integration_name, cli_args, visual_text)
@@ -93,49 +83,37 @@ function M.setup(user_config)
 		nargs = "*",
 		range = true,
 		complete = function(_, cmd_line, cursor_pos)
-			-- Parse the command line to determine which argument we're completing
-			-- cmd_line contains the full command line up to cursor_pos
-			-- Extract the substring up to cursor position
 			local cmd_substr = cmd_line:sub(1, cursor_pos)
 
-			-- Trim leading and trailing whitespace
 			cmd_substr = cmd_substr:match("^%s*(.-)%s*$") or ""
 
-			-- Split by one or more whitespace characters
-			-- Use a more robust splitting that handles multiple spaces correctly
 			local args = {}
 			for part in cmd_substr:gmatch("%S+") do
 				table.insert(args, part)
 			end
 
-			-- Remove the command name itself (first element: "CLIIntegration")
 			if #args > 0 and args[1] == "CLIIntegration" then
 				table.remove(args, 1)
 			end
 
-			-- If no arguments, show actions
 			if #args == 0 then
 				return { "open_cwd", "open_root" }
 			end
 
-			-- If first argument is a known action, show integration names
 			if args[1] == "open_cwd" or args[1] == "open_root" then
 				local integrations = configs.integrations or {}
 				local names = {}
 				for _, integration in ipairs(integrations) do
-					-- Replace spaces with underscores for autocompletion display
 					local display_name = integration.name:gsub(" ", "_")
 					table.insert(names, display_name)
 				end
 				return names
 			end
 
-			-- If first argument is not a known action and we're completing it, show actions
 			if #args == 1 then
 				return { "open_cwd", "open_root" }
 			end
 
-			-- If we already have two arguments, no more completions
 			return {}
 		end,
 		desc = "Open CLI Integration",

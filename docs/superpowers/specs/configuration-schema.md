@@ -44,12 +44,12 @@ terminal_keys = {
     submit = {"<C-s>", "<C-CR>"},               -- Submit command
     enter = {"<CR>"},                           -- Send Enter key
     help = {"<M-?>", "??", "\\"},             -- Show help
-    toggle_width = {"<C-f>"},                   -- Toggle fullwidth
+    toggle_fullscreen = {"<C-f>"},              -- Toggle fullscreen
     hide = {"<C-q>"},                           -- Hide window (keep process)
     close = {"<C-S-q>"}                         -- Close window (kill process)
   },
   normal_mode = {
-    toggle_width = {"<C-f>"},                   -- Toggle fullwidth
+    toggle_fullscreen = {"<C-f>"},              -- Toggle fullscreen
     hide = {"<C-q>"},                           -- Hide window (keep process)
     close = {"<C-S-q>"}                         -- Close window (kill process)
   }

@@ -84,36 +84,42 @@ M.resize_sidebars() iterates all sidebars
   v
 For each sidebar:
   1. Distinguishes editor resize (recalculate from width_config percentage) vs manual resize
-  2. Calls M.update_sidebar_geometry(sidebar_win, is_expanded, false)
+  2. Calls M.update_sidebar_geometry(term_buf, is_fullscreen, false)
   |
   v
 Result: Sidebar vsplit maintains correct width proportionally
 ```
 
-## Fullwidth Toggle
+## Fullscreen Toggle
 
 ```
-User presses toggle_width key (default: <C-f>)
+User presses toggle_fullscreen key (default: <C-f>)
   |
   v
-keymaps.lua calls terminal.toggle_width(term_buf)
+keymaps.lua calls terminal.toggle_fullscreen(term_buf)
   |
   v
-terminal.toggle_width():
-  1. Finds terminal window from term_buf
-  2. Gets current is_expanded state from M.terminals[name]
-  3. Calls window.update_sidebar_geometry(term_win, !is_expanded, true)
+terminal.toggle_fullscreen():
+  1. Finds term_data from M.terminals[name]
+  2. Gets sidebar data from M.sidebars[term_buf]
+  3. Checks data.origin:
+     - "sidebar" → window.update_sidebar_geometry(term_buf, is_fullscreen, true)
+     - "float"   → window.update_float_geometry(term_buf, is_fullscreen, true)
+  4. Updates term_data.is_fullscreen
+  5. Calls window.set_nav_keymaps_enabled(term_buf, not is_fullscreen)
   |
   v
-M.update_sidebar_geometry():
-  - If expanding: Closes vsplit, opens centered float with rounded border
-  - If restoring: Closes float, creates new vsplit via create_sidebar_layout()
+For sidebar origin (update_sidebar_geometry):
+  - If expanding: hides vsplit, opens fullscreen float
+  - If restoring: deletes WinClosed guard, closes float, restores vsplit
   |
   v
-Updates is_expanded state in M.terminals[name]
+For float origin (update_float_geometry):
+  - If expanding: resizes float to full editor coverage
+  - If restoring: restores float to original dimensions
   |
   v
-Result: Terminal toggles between sidebar and fullwidth modes
+Result: Terminal toggles between sidebar/float and fullscreen modes
 ```
 
 ## Ask Hook Flow

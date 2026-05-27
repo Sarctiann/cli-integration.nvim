@@ -16,7 +16,7 @@ Table mapping `integration.name` → terminal data:
   term_buf = number,           -- Terminal buffer handle
   working_dir = string,        -- Current working directory
   current_file = string,       -- Relative file path
-  is_expanded = boolean,       -- Fullwidth state
+  is_fullscreen = boolean,     -- Fullscreen state
   integration = Integration,    -- Integration configuration
 }
 ```
@@ -60,9 +60,9 @@ Polls terminal output for ready flag.
 - Max 30 tries, 500ms intervals
 - When found: evaluates `start_with_text` (string or function) and inserts
 
-### `M.toggle_width(term_buf)`
+### `M.toggle_fullscreen(term_buf)`
 
-Toggles between default and fullwidth. Delegates to `window.update_sidebar_geometry()`.
+Toggles between default and fullscreen. Delegates to `window.update_sidebar_geometry()` or `window.update_float_geometry()` depending on origin.
 
 ### `M.hide_terminal(term_buf)`
 
@@ -97,6 +97,7 @@ Focuses window containing terminal buffer and enters insert mode.
 - `start_with_text`: Can be string or function(visual_text, integration) → string
 - Visual text priority: `visual_text` overrides `start_with_text` string
 - Toggle behavior: If terminal exists and valid, toggles visibility; otherwise creates new
+- Fullscreen toggle supports both sidebar and float origins
 - Cleanup: `on_close` callback removes from `M.terminals` and `M.buf_to_name`
 - Ready detection polls every 500ms, max 30 tries (15 seconds timeout)
 

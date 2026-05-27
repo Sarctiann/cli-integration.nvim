@@ -128,13 +128,13 @@ require("cli-integration").setup({
       enter = { "<CR>" },
 
       help = { "<M-?>", "??", "\\\\" },
-      toggle_width = { "<C-f>" },
+      toggle_fullscreen = { "<C-f>" },
       hide = { "<C-q>" },  -- Hide terminal (keeps process alive)
       close = { "<C-S-q>" },  -- Close terminal and kill process
     },
     normal_mode = {
       hide = { "<C-q>" },  -- Hide terminal (keeps process alive)
-      toggle_width = { "<C-f>" },
+      toggle_fullscreen = { "<C-f>" },
       close = { "<C-S-q>" },  -- Close terminal and kill process
     },
   },
@@ -372,7 +372,7 @@ multiple key combinations for the same action.
 | `submit`             | `{ "<C-s>", "<C-CR>" }`     | Submit command/message              |
 | `enter`              | `{ "<CR>" }`                | Enter key                           |
 | `help`               | `{ "<M-?>", "??", "\\\\" }` | Show help (multiple keys supported) |
-| `toggle_width`       | `{ "<C-f>" }`               | Toggle window width                 |
+| `toggle_fullscreen`  | `{ "<C-f>" }`               | Toggle fullscreen                   |
 | `hide`               | `{ "<C-q>" }`               | Hide terminal (keeps process alive) |
 | `close`              | `{ "<C-S-q>" }`             | Close terminal and kill process     |
 
@@ -381,7 +381,7 @@ multiple key combinations for the same action.
 | Key            | Default         | Description                         |
 | -------------- | --------------- | ----------------------------------- |
 | `hide`         | `{ "<C-q>" }`   | Hide terminal (keeps process alive) |
-| `toggle_width` | `{ "<C-f>" }`   | Toggle window width                 |
+| `toggle_fullscreen` | `{ "<C-f>" }`   | Toggle fullscreen                   |
 | `close`        | `{ "<C-S-q>" }` | Close terminal and kill process     |
 
 #### Example: Custom Key Configuration
@@ -393,7 +393,7 @@ require("cli-integration").setup({
     terminal_mode = {
       submit = { "<C-s>", "<leader><CR>" },  -- Multiple keys for submit
       help = { "??", "F1" },                 -- Custom help keys
-      toggle_width = { "<C-f>", "<C-w>" },   -- Multiple toggle options
+      toggle_fullscreen = { "<C-f>", "<C-w>" },   -- Multiple toggle options
       hide = { "<C-q>", "<Esc>" },           -- Multiple hide options
       close = { "<C-S-q>", "<leader>q" },    -- Multiple close options
     },

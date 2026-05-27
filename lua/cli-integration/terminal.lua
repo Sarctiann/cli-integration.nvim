@@ -2,11 +2,7 @@
 local M = {}
 local window = require("cli-integration.window")
 
--- Terminals storage: indexed by integration name
--- Each entry contains: { cli_term, term_buf, working_dir, current_file, is_expanded, integration }
 M.terminals = {}
-
--- Index for fast lookup: term_buf -> integration name
 M.buf_to_name = {}
 
 --- Insert text into the terminal
@@ -70,7 +66,6 @@ function M.attach_text_when_ready(integration, term_buf, tries, visual_text)
 			return
 		end
 
-		-- Determine what flag to search for and where
 		local ready_flags = integration.cli_ready_flags or {}
 		local search_flag = (ready_flags.search_for and ready_flags.search_for ~= "") and ready_flags.search_for
 			or integration.cli_cmd
@@ -78,7 +73,6 @@ function M.attach_text_when_ready(integration, term_buf, tries, visual_text)
 		local from_line = ready_flags.from_line or 1
 		local lines_amt = ready_flags.lines_amt or 5
 
-		-- Search for the flag in the specified line range
 		local start_line = math.max(0, from_line - 1)
 		local end_line = start_line + lines_amt
 		local buf_lines = vim.api.nvim_buf_get_lines(term_buf, start_line, end_line, false)
@@ -94,14 +88,12 @@ function M.attach_text_when_ready(integration, term_buf, tries, visual_text)
 		end
 
 		if found then
-			-- Terminal is ready, now evaluate start_with_text (only once, when ready)
 			---@type string|nil
 			local text_to_insert = nil
 
 			local start_with_text = integration.start_with_text
 			if start_with_text ~= nil then
 				if type(start_with_text) == "function" then
-					-- Call the function with visual_text and integration as parameters
 					local ok, result = pcall(start_with_text, visual_text, integration)
 					if ok and type(result) == "string" then
 						text_to_insert = result
@@ -129,18 +121,15 @@ function M.attach_text_when_ready(integration, term_buf, tries, visual_text)
 					)
 				end
 			elseif visual_text then
-				-- If no start_with_text but there's visual_text, use it
 				text_to_insert = visual_text
 			end
 
-			-- Insert text if available
 			if text_to_insert and text_to_insert ~= "" then
 				M.insert_text(text_to_insert, term_buf)
 			end
 			return
 		end
 
-		-- Terminal not ready yet, retry
 		M.attach_text_when_ready(integration, term_buf, tries + 1, visual_text)
 	end, 500)
 end
@@ -217,8 +206,7 @@ local function create_new_terminal(integration, args, keep_open, working_dir, vi
 				if stored_data and stored_data.term_buf then
 					M.buf_to_name[stored_data.term_buf] = nil
 				end
-				-- Run post-exit hook if configured
-				if integration.on_close then
+			if integration.on_close then
 					local ok, err = pcall(integration.on_close, integration, base_dir)
 					if not ok then
 						vim.notify(
@@ -244,20 +232,17 @@ local function create_new_terminal(integration, args, keep_open, working_dir, vi
 		return
 	end
 
-	-- Store terminal data
 	M.terminals[name] = {
 		cli_term = cli_term,
 		term_buf = term_buf,
 		working_dir = base_dir,
 		current_file = current_file,
-		is_expanded = false,
+		is_fullscreen = false,
 		integration = integration,
 	}
 
-	-- Update index for fast lookup
 	M.buf_to_name[term_buf] = name
 
-	-- Attach text if new terminal (only if visual_text or start_with_text is set)
 	local start_with_text = integration.start_with_text
 	if
 		visual_text
@@ -283,13 +268,11 @@ function M.open_terminal(integration, args, keep_open, working_dir, visual_text)
 	local name = integration.name
 	local term_data = M.terminals[name]
 
-	-- Toggle if terminal already exists and is valid
 	if term_data and term_data.cli_term and term_data.cli_term.toggle then
 		if term_data.term_buf and vim.api.nvim_buf_is_valid(term_data.term_buf) then
 			term_data.cli_term:toggle()
 			return
 		else
-			-- Terminal buffer is invalid, clean it up
 			M.terminals[name] = nil
 			if term_data.term_buf then
 				M.buf_to_name[term_data.term_buf] = nil
@@ -297,7 +280,6 @@ function M.open_terminal(integration, args, keep_open, working_dir, visual_text)
 		end
 	end
 
-	-- Delay terminal creation if configured
 	local open_delay = integration.open_delay or 0
 	if open_delay > 0 then
 		vim.defer_fn(function()
@@ -309,10 +291,10 @@ function M.open_terminal(integration, args, keep_open, working_dir, visual_text)
 	create_new_terminal(integration, args, keep_open, working_dir, visual_text)
 end
 
---- Toggle terminal window width between default and maximum
+--- Toggle terminal window fullscreen between default and maximum
 --- @param term_buf number|nil The terminal buffer (if nil, uses current terminal)
 --- @return nil
-function M.toggle_width(term_buf)
+function M.toggle_fullscreen(term_buf)
 	term_buf = term_buf or M.get_current_terminal_buf()
 	if not term_buf then
 		return
@@ -325,50 +307,22 @@ function M.toggle_width(term_buf)
 		return
 	end
 
-	-- Find the active sidebar entry for this buffer (preferred over raw window search
-	-- to avoid picking up the hidden vsplit when in fullwidth mode).
-	local sidebar_win = nil
-	for win, sidebar_data in pairs(window.sidebars) do
-		if sidebar_data.terminal_buf == term_buf then
-			sidebar_win = win
-			break
-		end
-	end
-
 	local integration = term_data.integration
 	if not integration then
 		return
 	end
 
-	local width_config = integration.window_width or 34
-	local editor_width = vim.o.columns
-	local default_width
+	local is_fullscreen = not (term_data.is_fullscreen or false)
+	local data = window.sidebars[term_buf]
 
-	-- Calculate default width using the same logic as create_split_window
-	if width_config <= 100 then
-		-- Percentage mode: treat as percentage (e.g., 34 = 34%, 0.34 = 0.34%)
-		local percentage = width_config <= 1 and width_config or (width_config / 100)
-
-		-- Validate percentage range (10% - 90%)
-		if percentage < 0.10 then
-			percentage = 0.10
-		elseif percentage > 0.90 then
-			percentage = 0.90
+	if data then
+		if data.origin == "sidebar" then
+			window.update_sidebar_geometry(term_buf, is_fullscreen, true)
+		else
+			window.update_float_geometry(term_buf, is_fullscreen, true)
 		end
-
-		default_width = math.floor(editor_width * percentage)
 	else
-		-- Absolute mode: use the value directly (for very wide terminals)
-		default_width = width_config
-	end
-
-	local is_expanded = not term_data.is_expanded
-
-	-- Handle sidebar mode if applicable
-	if sidebar_win then
-		window.update_sidebar_geometry(sidebar_win, is_expanded, true)
-	else
-		-- Fallback: find window by buffer and resize directly
+		-- Fallback
 		local term_win = nil
 		for _, win in ipairs(vim.api.nvim_list_wins()) do
 			if vim.api.nvim_win_get_buf(win) == term_buf then
@@ -379,16 +333,26 @@ function M.toggle_width(term_buf)
 		if not term_win or not vim.api.nvim_win_is_valid(term_win) then
 			return
 		end
-		local width
-		if is_expanded then
-			width = editor_width - 2
+
+		local editor_width = vim.o.columns
+		local width_config = integration.window_width or 34
+		local default_width
+		if width_config <= 100 then
+			local percentage = width_config <= 1 and width_config or (width_config / 100)
+			default_width = math.floor(editor_width * percentage)
 		else
-			width = default_width
+			default_width = width_config
 		end
-		vim.api.nvim_win_set_width(term_win, width)
+
+		if is_fullscreen then
+			vim.api.nvim_win_set_width(term_win, editor_width - 2)
+		else
+			vim.api.nvim_win_set_width(term_win, default_width)
+		end
 	end
 
-	term_data.is_expanded = is_expanded
+	term_data.is_fullscreen = is_fullscreen
+	window.set_nav_keymaps_enabled(term_buf, not is_fullscreen)
 end
 
 --- Hide terminal window (keeps process alive)
@@ -407,7 +371,6 @@ function M.hide_terminal(term_buf)
 		return
 	end
 
-	-- Get the terminal window
 	local term_win = nil
 	for _, win in ipairs(vim.api.nvim_list_wins()) do
 		if vim.api.nvim_win_get_buf(win) == term_buf then
@@ -434,7 +397,6 @@ function M.close_terminal(term_buf)
 	local term_data = name and M.terminals[name]
 
 	if not term_data or not term_data.cli_term then
-		-- If we don't have term_data, just try to close the window and delete the buffer
 		local term_win = nil
 		for _, win in ipairs(vim.api.nvim_list_wins()) do
 			if vim.api.nvim_win_get_buf(win) == term_buf then
@@ -448,7 +410,6 @@ function M.close_terminal(term_buf)
 		end
 
 		if vim.api.nvim_buf_is_valid(term_buf) then
-			-- Try to get job_id and stop it
 			local ok, job_id = pcall(vim.api.nvim_buf_get_var, term_buf, "terminal_job_id")
 			if ok and job_id then
 				vim.fn.jobstop(job_id)
@@ -458,10 +419,8 @@ function M.close_terminal(term_buf)
 		return
 	end
 
-	-- Get job_id from the terminal
 	local job_id = term_data.cli_term.job_id
 
-	-- Close the window first
 	local term_win = nil
 	for _, win in ipairs(vim.api.nvim_list_wins()) do
 		if vim.api.nvim_win_get_buf(win) == term_buf then
@@ -474,17 +433,14 @@ function M.close_terminal(term_buf)
 		vim.api.nvim_win_close(term_win, true)
 	end
 
-	-- Stop the job/process
 	if job_id and job_id > 0 then
 		vim.fn.jobstop(job_id)
 	end
 
-	-- Delete the buffer
 	if vim.api.nvim_buf_is_valid(term_buf) then
 		vim.api.nvim_buf_delete(term_buf, { force = true })
 	end
 
-	-- Clean up terminal data (the on_close callback should handle this, but just in case)
 	M.terminals[name] = nil
 	M.buf_to_name[term_buf] = nil
 end

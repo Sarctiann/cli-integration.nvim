@@ -15,7 +15,6 @@ local function get_integration(identifier)
 	end
 
 	if not identifier then
-		-- Default to first integration
 		return integrations[1], nil
 	end
 
@@ -25,22 +24,18 @@ local function get_integration(identifier)
 		end
 		return integrations[identifier], nil
 	elseif type(identifier) == "string" then
-		-- Convert underscores to spaces for name matching (for autocompletion compatibility)
 		local normalized_identifier = identifier:gsub("_", " ")
 
-		-- First try to find by name (with normalized identifier)
 		for _, integration in ipairs(integrations) do
 			if integration.name == normalized_identifier then
 				return integration, nil
 			end
 		end
-		-- Also try with original identifier (in case name has underscores)
 		for _, integration in ipairs(integrations) do
 			if integration.name == identifier then
 				return integration, nil
 			end
 		end
-		-- If not found by name, try to find by cli_cmd (backward compatibility)
 		for _, integration in ipairs(integrations) do
 			if integration.cli_cmd == identifier then
 				return integration, nil
@@ -101,7 +96,6 @@ function M.open_git_root(integration_identifier, args, visual_text)
 		working_dir = vim.fn.fnamemodify(git_root, ":h")
 	else
 		working_dir = current_dir ~= "" and current_dir or vim.fn.getcwd()
-		-- Inform user that git root was not found
 		vim.notify(
 			"cli-integration.nvim: Git root not found, using current directory: " .. working_dir,
 			vim.log.levels.INFO
