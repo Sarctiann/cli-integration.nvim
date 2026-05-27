@@ -50,6 +50,67 @@ local function is_valid_win(win)
 	return type(win) == "number" and win > 0 and vim.api.nvim_win_is_valid(win)
 end
 
+--- Apply sidebar window options to a vsplit window.
+--- Called both on initial creation and after restoring a hidden vsplit to the layout.
+--- @param win number Window handle
+--- @param padding number Horizontal padding (foldcolumn)
+local function apply_sidebar_win_opts(win, padding)
+	vim.wo[win].winfixwidth = true
+	vim.wo[win].number = false
+	vim.wo[win].relativenumber = false
+	vim.wo[win].signcolumn = "no"
+	vim.wo[win].cursorline = false
+	vim.wo[win].spell = false
+	vim.wo[win].winhighlight = "Normal:NormalSB,NormalNC:NormalSB,EndOfBuffer:NormalSB"
+	if padding > 0 then
+		vim.wo[win].foldcolumn = tostring(padding)
+	end
+end
+
+--- Remove the bufferline offset entry for a given term_buf.
+--- @param term_buf number
+local function remove_bufferline_offset(term_buf)
+	local ok, bc = pcall(require, "bufferline.config")
+	if not ok then return end
+
+	local cfg = bc.get()
+	if not cfg or not cfg.options or not cfg.options.offsets then return end
+
+	for i, offset in ipairs(cfg.options.offsets) do
+		if offset._cli_integration_buf == term_buf then
+			table.remove(cfg.options.offsets, i)
+			vim.schedule(function() vim.cmd("redrawtabline") end)
+			return
+		end
+	end
+end
+
+--- Inject a bufferline offset for the sidebar vsplit, so bufferline does not
+--- draw over the integration window. Best-effort: no-op if bufferline is absent.
+--- @param term_buf number
+--- @param title string
+local function inject_bufferline_offset(term_buf, title)
+	local ok, bc = pcall(require, "bufferline.config")
+	if not ok then return end
+
+	local cfg = bc.get()
+	if not cfg or not cfg.options then return end
+
+	cfg.options.offsets = cfg.options.offsets or {}
+
+	-- Remove any stale entry for the same buffer before adding a new one
+	remove_bufferline_offset(term_buf)
+
+	table.insert(cfg.options.offsets, {
+		filetype = "cli-integration",
+		text = title,
+		highlight = "NormalSB",
+		separator = true,
+		_cli_integration_buf = term_buf,
+	})
+	vim.schedule(function() vim.cmd("redrawtabline") end)
+end
+
 --- Resize the pty of a terminal job to match current window content dimensions.
 --- Sends SIGWINCH so TUI apps update their internal size and mouse coordinates.
 --- @param term_buf number Terminal buffer handle
@@ -552,22 +613,18 @@ function M.create_sidebar_layout(buf, win_opts)
 
 	vim.api.nvim_win_set_buf(sidebar_win, buf)
 
+	-- Set filetype for bufferline offset detection
+	vim.bo[buf].filetype = "cli-integration"
+
 	-- Set width BEFORE returning so calculate_content_dimensions reads the final width.
 	vim.api.nvim_win_set_width(sidebar_win, vsplit_width)
 
-	vim.wo[sidebar_win].winfixwidth = true
-	vim.wo[sidebar_win].number = false
-	vim.wo[sidebar_win].relativenumber = false
-	vim.wo[sidebar_win].signcolumn = "no"
-	vim.wo[sidebar_win].cursorline = false
-	vim.wo[sidebar_win].spell = false
-	-- Use panel/sidebar highlight groups so background matches Snacks.terminal, neo-tree, etc.
-	vim.wo[sidebar_win].winhighlight = "Normal:NormalSB,NormalNC:NormalSB,EndOfBuffer:NormalSB"
+	apply_sidebar_win_opts(sidebar_win, padding)
 
-	if padding > 0 then
-		vim.wo[sidebar_win].foldcolumn = tostring(padding)
-	end
+	-- Inject bufferline offset so tabline doesn't overlap the sidebar
+	inject_bufferline_offset(buf, win_opts.title or "")
 
+	-- Store sidebar configuration keyed by term_buf
 	M.sidebars[buf] = {
 		term_buf = buf,
 		mode = "sidebar",
@@ -589,6 +646,7 @@ function M.create_sidebar_layout(buf, win_opts)
 			if data then
 				data.sidebar_win = nil
 			end
+			remove_bufferline_offset(buf)
 		end,
 		once = true,
 		desc = "Clear sidebar reference on vsplit close",
@@ -631,6 +689,8 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
 			local cfg = vim.api.nvim_win_get_config(data.sidebar_win)
 			if cfg.relative == "" then
 				pcall(vim.api.nvim_win_hide, data.sidebar_win)
+				-- Remove bufferline offset while sidebar is hidden
+				remove_bufferline_offset(term_buf)
 			end
 		end
 
@@ -666,6 +726,7 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
 					if hidden and is_valid_win(hidden) then
 						pcall(vim.api.nvim_win_close, hidden, true)
 					end
+					remove_bufferline_offset(term_buf)
 					M.sidebars[term_buf] = nil
 				end,
 				once = true,
@@ -703,6 +764,12 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
 			local configured_width = calculate_width(data.width_config)
 			local target_width = configured_width - (padding * 2)
 			vim.api.nvim_win_set_width(data.sidebar_win, target_width)
+
+			-- Re-apply sidebar window options (may have been reset when window was hidden)
+			apply_sidebar_win_opts(data.sidebar_win, padding)
+
+			-- Re-inject bufferline offset now that sidebar is back in layout
+			inject_bufferline_offset(term_buf, data.win_opts.title or "")
 
 			resize_pty(data.term_buf, data.sidebar_win, "none", data.padding or 0)
 
@@ -887,6 +954,8 @@ function M.toggle_terminal(terminal)
 		if win and is_valid_win(win) then
 			vim.api.nvim_win_close(win, false)
 			terminal.win = nil
+			-- Remove bufferline offset when sidebar is hidden
+			remove_bufferline_offset(terminal.buf)
 		else
 			local win_opts = terminal.opts.win or {}
 			local new_win
