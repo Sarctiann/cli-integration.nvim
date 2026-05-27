@@ -8,6 +8,7 @@
 --- @field on_close function|nil Callback when terminal closes
 --- @field toggle function|nil
 local M = {}
+local debug = require("cli-integration.debug")
 
 --- Store active sidebar configurations
 --- Keyed by term_buf (stable across toggles)
@@ -71,15 +72,21 @@ end
 --- @param term_buf number
 local function remove_bufferline_offset(term_buf)
 	local ok, bc = pcall(require, "bufferline.config")
-	if not ok then return end
+	if not ok then
+		return
+	end
 
 	local cfg = bc.get()
-	if not cfg or not cfg.options or not cfg.options.offsets then return end
+	if not cfg or not cfg.options or not cfg.options.offsets then
+		return
+	end
 
 	for i, offset in ipairs(cfg.options.offsets) do
 		if offset._cli_integration_buf == term_buf then
 			table.remove(cfg.options.offsets, i)
-			vim.schedule(function() vim.cmd("redrawtabline") end)
+			vim.schedule(function()
+				vim.cmd("redrawtabline")
+			end)
 			return
 		end
 	end
@@ -91,10 +98,14 @@ end
 --- @param title string
 local function inject_bufferline_offset(term_buf, title)
 	local ok, bc = pcall(require, "bufferline.config")
-	if not ok then return end
+	if not ok then
+		return
+	end
 
 	local cfg = bc.get()
-	if not cfg or not cfg.options then return end
+	if not cfg or not cfg.options then
+		return
+	end
 
 	cfg.options.offsets = cfg.options.offsets or {}
 
@@ -108,7 +119,9 @@ local function inject_bufferline_offset(term_buf, title)
 		separator = true,
 		_cli_integration_buf = term_buf,
 	})
-	vim.schedule(function() vim.cmd("redrawtabline") end)
+	vim.schedule(function()
+		vim.cmd("redrawtabline")
+	end)
 end
 
 --- Resize the pty of a terminal job to match current window content dimensions.
@@ -279,6 +292,7 @@ function M.create_terminal(cmd, opts)
 	terminal.toggle = function()
 		M.toggle_terminal(terminal)
 	end
+	local integration_name = win_opts.integration_name or ""
 
 	-- Read final content dimensions AFTER geometry is established.
 	-- create_sidebar_layout sets the vsplit width before returning, so
@@ -295,6 +309,15 @@ function M.create_terminal(cmd, opts)
 		end
 
 		local env = build_job_env(opts, cols, lines)
+		debug.log("create_terminal", function()
+			return {
+				cmd = cmd,
+				buf = buf,
+				integration_name = integration_name,
+				width = cols,
+				height = lines,
+			}
+		end)
 
 		local use_jobstart = vim.fn.has("nvim-0.11") == 1
 		local job_opts = {
@@ -413,10 +436,7 @@ function M.create_terminal(cmd, opts)
 
 			local current_win = vim.api.nvim_get_current_win()
 			local data = M.sidebars[buf]
-			local is_our_win = data ~= nil and (
-				current_win == data.sidebar_win or
-				current_win == data.float_win
-			)
+			local is_our_win = data ~= nil and (current_win == data.sidebar_win or current_win == data.float_win)
 
 			-- Case 1: current_win is integration window and different buffer loaded
 			if is_our_win then
@@ -459,7 +479,6 @@ function M.create_terminal(cmd, opts)
 			-- Case 2: current_win is regular window and args.buf is terminal buffer
 			if args.buf == buf then
 				local integration_win = nil
-				local data = M.sidebars[buf]
 				if data then
 					if data.sidebar_win and vim.api.nvim_win_is_valid(data.sidebar_win) then
 						integration_win = data.sidebar_win
@@ -525,6 +544,9 @@ function M.create_float_window(buf, win_opts)
 	}
 
 	local win = vim.api.nvim_open_win(buf, true, float_opts)
+	debug.log("create_float_window", function()
+		return { buf = buf, win = win, width = width, height = height }
+	end)
 
 	M.sidebars[buf] = {
 		term_buf = buf,
@@ -680,6 +702,9 @@ function M.create_sidebar_layout(buf, win_opts)
 	end
 
 	vim.cmd("startinsert")
+	debug.log("create_sidebar_layout", function()
+		return { buf = buf, sidebar_win = sidebar_win, width = vsplit_width }
+	end)
 	return sidebar_win
 end
 
@@ -692,15 +717,21 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
 	if not data or data.origin ~= "sidebar" then
 		return
 	end
+	local from_mode = data.mode
 
 	if is_fullscreen then
-		-- Fullscreen mode: close vsplit completely, open fullscreen float.
-		-- We close the vsplit rather than hiding it because nvim_win_hide does not
-		-- cleanly re-insert the window into the layout on restore (visual artifacts).
-		-- Following neo-tree's pattern: close and recreate.
+		-- Fullscreen mode: hide vsplit, open fullscreen float.
+		debug.log("update_sidebar_geometry", function()
+			return {
+				term_buf = term_buf,
+				from_mode = from_mode,
+				to_mode = "fullscreen",
+				sidebar_win = data.sidebar_win,
+				float_win = data.float_win,
+			}
+		end)
 		if data.sidebar_win and is_valid_win(data.sidebar_win) then
-			pcall(vim.api.nvim_win_close, data.sidebar_win, true)
-			data.sidebar_win = nil
+			pcall(vim.api.nvim_win_hide, data.sidebar_win)
 		end
 		remove_bufferline_offset(term_buf)
 
@@ -751,7 +782,16 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
 			end
 		end
 	else
-		-- Sidebar mode: close float, recreate vsplit
+		-- Sidebar mode: close float, restore or recreate vsplit
+		debug.log("update_sidebar_geometry", function()
+			return {
+				term_buf = term_buf,
+				from_mode = from_mode,
+				to_mode = "sidebar",
+				sidebar_win = data.sidebar_win,
+				float_win = data.float_win,
+			}
+		end)
 		local float_win = data.float_win
 
 		if data.fullscreen_autocmd_id then
@@ -764,17 +804,28 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
 			data.float_win = nil
 		end
 
-		-- Always recreate the vsplit (close/recreate pattern, like neo-tree).
-		-- create_sidebar_layout merges into the existing M.sidebars[buf] entry
-		-- to preserve width_config, padding, list_buffer, etc.
-		local vsplit_win = M.create_sidebar_layout(data.term_buf, data.win_opts)
-		if vsplit_win then
-			-- Resize pty to match the new sidebar dimensions
-			resize_pty(data.term_buf, vsplit_win, "none", data.padding or 0)
+		local restored = false
+		if data.sidebar_win and is_valid_win(data.sidebar_win) then
+			pcall(vim.api.nvim_set_current_win, data.sidebar_win)
+			restored = true
+		end
+
+		if not restored then
+			-- Fallback: recreate if the window was closed externally
+			local vsplit_win = M.create_sidebar_layout(data.term_buf, data.win_opts)
+			if vsplit_win then
+				data.sidebar_win = vsplit_win
+			end
+		end
+
+		-- Resize pty to match the new sidebar dimensions
+		local current_win = data.sidebar_win
+		if current_win and is_valid_win(current_win) then
+			resize_pty(data.term_buf, current_win, "none", data.padding or 0)
 			if should_focus then
-				vim.api.nvim_set_current_win(vsplit_win)
+				vim.api.nvim_set_current_win(current_win)
 				vim.schedule(function()
-					if is_valid_win(vsplit_win) then
+					if is_valid_win(current_win) then
 						vim.cmd("startinsert")
 					end
 				end)
@@ -797,6 +848,7 @@ function M.update_float_geometry(term_buf, is_fullscreen, should_focus)
 	if not float_win or not is_valid_win(float_win) then
 		return
 	end
+	local original_mode = data.mode
 
 	if is_fullscreen then
 		local cfg = vim.api.nvim_win_get_config(float_win)
@@ -808,6 +860,14 @@ function M.update_float_geometry(term_buf, is_fullscreen, should_focus)
 			border = cfg.border,
 		}
 
+		debug.log("update_float_geometry", function()
+			return {
+				term_buf = term_buf,
+				from_mode = original_mode,
+				to_mode = "fullscreen",
+				float_win = float_win,
+			}
+		end)
 		pcall(vim.api.nvim_win_set_config, float_win, {
 			relative = "editor",
 			width = vim.o.columns,
@@ -821,6 +881,14 @@ function M.update_float_geometry(term_buf, is_fullscreen, should_focus)
 		data.mode = "fullscreen"
 		resize_pty(data.term_buf, float_win, "single", data.padding or 0)
 	else
+		debug.log("update_float_geometry", function()
+			return {
+				term_buf = term_buf,
+				from_mode = original_mode,
+				to_mode = "float",
+				float_win = float_win,
+			}
+		end)
 		local orig = data.float_original
 		if orig then
 			local border = data.win_opts.border or "rounded"
@@ -884,8 +952,11 @@ function M.resize_sidebars()
 	if editor_resized then
 		M._last_editor_width = vim.o.columns
 	end
+	debug.log("resize_sidebars", function()
+		return { editor_resized = editor_resized, editor_width = vim.o.columns }
+	end)
 
-	for term_buf, data in pairs(M.sidebars) do
+	for _, data in pairs(M.sidebars) do
 		if data.mode == "fullscreen" and data.float_win and is_valid_win(data.float_win) then
 			pcall(vim.api.nvim_win_set_config, data.float_win, {
 				relative = "editor",
@@ -978,8 +1049,7 @@ function M.is_terminal_visible(terminal)
 	if not data then
 		return false
 	end
-	return (data.sidebar_win and is_valid_win(data.sidebar_win))
-		or (data.float_win and is_valid_win(data.float_win))
+	return (data.sidebar_win and is_valid_win(data.sidebar_win)) or (data.float_win and is_valid_win(data.float_win))
 end
 
 return M
