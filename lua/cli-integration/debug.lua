@@ -8,7 +8,7 @@ local M = {}
 --- Format a timestamp string in YYYY-MM-DD HH:MM:SS format
 --- @return string
 local function get_timestamp()
-	return os.date("%Y-%m-%d %H:%M:%S")
+	return os.date("%Y-%m-%d %H:%M:%S") or ""
 end
 
 --- Format a data table into key=value pairs separated by spaces
