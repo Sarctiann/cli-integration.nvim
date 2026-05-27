@@ -44,6 +44,7 @@ All technical documentation lives in `docs/superpowers/specs/`. Each spec covers
 - [module-help.md](docs/superpowers/specs/module-help.md) — Help text generation and display
 - [module-hooks.md](docs/superpowers/specs/module-hooks.md) — Shared hooks and session management
 - [module-ask.md](docs/superpowers/specs/module-ask.md) — Ask hook for context-aware questions
+- [module-debug.md](docs/superpowers/specs/module-debug.md) — Debug logging module
 
 ### System Specs
 
@@ -92,3 +93,4 @@ All technical documentation lives in `docs/superpowers/specs/`. Each spec covers
 - 2026-05-26: Revert vsplit close back to width=0 collapse: `nvim_win_close` caused visual artifacts (dashes) because recreating the vsplit from scratch reinitializes window/buffer state; reverting to `nvim_win_set_width(sidebar_win, 0)` keeps the vsplit alive and avoids reinitialization
 - 2026-05-26: Use `nvim_win_hide()` to truly hide vsplit on fullwidth toggle: removes from layout completely (no phantom line), keeps buffer loaded (`bufhidden=hide`), does NOT trigger WinClosed autocmd; restore path handles missing vsplit via `create_sidebar_layout()` fallback
 - 2026-05-26: English/comment cleanup: removed "what" comments, trimmed "why" comments to one sentence, translated Spanish ("guiones" → "dashes") in AGENTS.md, removed redundant inline historical notes
+- 2026-05-27: Added debug module (`debug.lua`) with zero-overhead structured logging. New `debug` option in config (default: false). Logs to `cli-integration-debug.log` in cwd when enabled. Instrumented all modules (init, window, terminal, keymaps, ask, commands, autocmds, hooks) with lazy `debug.log()` calls.
