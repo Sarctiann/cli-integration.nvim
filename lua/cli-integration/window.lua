@@ -624,20 +624,30 @@ function M.create_sidebar_layout(buf, win_opts)
 	-- Inject bufferline offset so tabline doesn't overlap the sidebar
 	inject_bufferline_offset(buf, win_opts.title or "")
 
-	-- Store sidebar configuration keyed by term_buf
-	M.sidebars[buf] = {
-		term_buf = buf,
-		mode = "sidebar",
-		origin = "sidebar",
-		sidebar_win = sidebar_win,
-		float_win = nil,
-		float_original = nil,
-		fullscreen_autocmd_id = nil,
-		width_config = width_config,
-		win_opts = win_opts,
-		padding = padding,
-		list_buffer = win_opts.list_buffer or false,
-	}
+	-- Merge with existing entry if one exists (e.g. fullscreen restore creates a new
+	-- vsplit but we want to preserve the existing entry's fields).
+	local existing = M.sidebars[buf]
+	if existing then
+		existing.sidebar_win = sidebar_win
+		existing.mode = "sidebar"
+		existing.float_win = nil
+		existing.float_original = nil
+		existing.fullscreen_autocmd_id = nil
+	else
+		M.sidebars[buf] = {
+			term_buf = buf,
+			mode = "sidebar",
+			origin = "sidebar",
+			sidebar_win = sidebar_win,
+			float_win = nil,
+			float_original = nil,
+			fullscreen_autocmd_id = nil,
+			width_config = width_config,
+			win_opts = win_opts,
+			padding = padding,
+			list_buffer = win_opts.list_buffer or false,
+		}
+	end
 
 	vim.api.nvim_create_autocmd("WinClosed", {
 		pattern = tostring(sidebar_win),
@@ -684,15 +694,15 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
 	end
 
 	if is_fullscreen then
-		-- Fullscreen mode: hide vsplit, show fullscreen float
+		-- Fullscreen mode: close vsplit completely, open fullscreen float.
+		-- We close the vsplit rather than hiding it because nvim_win_hide does not
+		-- cleanly re-insert the window into the layout on restore (visual artifacts).
+		-- Following neo-tree's pattern: close and recreate.
 		if data.sidebar_win and is_valid_win(data.sidebar_win) then
-			local cfg = vim.api.nvim_win_get_config(data.sidebar_win)
-			if cfg.relative == "" then
-				pcall(vim.api.nvim_win_hide, data.sidebar_win)
-				-- Remove bufferline offset while sidebar is hidden
-				remove_bufferline_offset(term_buf)
-			end
+			pcall(vim.api.nvim_win_close, data.sidebar_win, true)
+			data.sidebar_win = nil
 		end
+		remove_bufferline_offset(term_buf)
 
 		local float_opts = {
 			relative = "editor",
@@ -721,16 +731,11 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
 			local autocmd_id = vim.api.nvim_create_autocmd("WinClosed", {
 				pattern = tostring(new_win),
 				callback = function()
-					local d = M.sidebars[term_buf]
-					local hidden = d and d.sidebar_win
-					if hidden and is_valid_win(hidden) then
-						pcall(vim.api.nvim_win_close, hidden, true)
-					end
 					remove_bufferline_offset(term_buf)
 					M.sidebars[term_buf] = nil
 				end,
 				once = true,
-				desc = "Cleanup fullscreen float and hidden vsplit on close",
+				desc = "Cleanup fullscreen float on close",
 			})
 			data.fullscreen_autocmd_id = autocmd_id
 
@@ -746,7 +751,7 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
 			end
 		end
 	else
-		-- Sidebar mode: close float, restore vsplit
+		-- Sidebar mode: close float, recreate vsplit
 		local float_win = data.float_win
 
 		if data.fullscreen_autocmd_id then
@@ -759,57 +764,18 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
 			data.float_win = nil
 		end
 
-		if data.sidebar_win and is_valid_win(data.sidebar_win) then
-			local padding = data.padding or 0
-			local configured_width = calculate_width(data.width_config)
-			local target_width = configured_width - (padding * 2)
-			vim.api.nvim_win_set_width(data.sidebar_win, target_width)
-
-			-- Re-apply sidebar window options (may have been reset when window was hidden)
-			apply_sidebar_win_opts(data.sidebar_win, padding)
-
-			-- Re-inject bufferline offset now that sidebar is back in layout
-			inject_bufferline_offset(term_buf, data.win_opts.title or "")
-
-			resize_pty(data.term_buf, data.sidebar_win, "none", data.padding or 0)
-
-			data.mode = "sidebar"
-
+		-- Always recreate the vsplit (close/recreate pattern, like neo-tree).
+		-- create_sidebar_layout merges into the existing M.sidebars[buf] entry
+		-- to preserve width_config, padding, list_buffer, etc.
+		local vsplit_win = M.create_sidebar_layout(data.term_buf, data.win_opts)
+		if vsplit_win then
 			if should_focus then
-				vim.api.nvim_set_current_win(data.sidebar_win)
+				vim.api.nvim_set_current_win(vsplit_win)
 				vim.schedule(function()
-					if is_valid_win(data.sidebar_win) then
+					if is_valid_win(vsplit_win) then
 						vim.cmd("startinsert")
 					end
 				end)
-			end
-		else
-			local vsplit_win = M.create_sidebar_layout(data.term_buf, data.win_opts)
-			if vsplit_win then
-				data.sidebar_win = vsplit_win
-				data.mode = "sidebar"
-				M.sidebars[term_buf] = vim.tbl_extend("force", M.sidebars[term_buf] or {}, {
-					term_buf = term_buf,
-					mode = "sidebar",
-					origin = "sidebar",
-					sidebar_win = vsplit_win,
-					float_win = nil,
-					float_original = nil,
-					fullscreen_autocmd_id = nil,
-					width_config = data.width_config,
-					win_opts = data.win_opts,
-					padding = data.padding,
-					list_buffer = data.list_buffer,
-				})
-
-				if should_focus then
-					vim.api.nvim_set_current_win(vsplit_win)
-					vim.schedule(function()
-						if is_valid_win(vsplit_win) then
-							vim.cmd("startinsert")
-						end
-					end)
-				end
 			end
 		end
 	end
