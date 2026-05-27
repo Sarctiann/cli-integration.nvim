@@ -32,7 +32,7 @@ Per-CLI-tool configuration. Inherits from Config, adds:
 - `keep_open: boolean` — Keep terminal open after execution (default: false)
 - `start_with_text: string|function` — Text to insert when ready
 - `cli_ready_flags: CliReadyFlags` — Readiness detection config
-- `format_paths: function` — Path formatting function
+- `format_paths: function(paths, actions)` — Path formatting callback. Receives all paths and an actions table with `send_line`, `send_keys`, `wait`, and `for_each_path`. Does not return a value.
 - `open_delay: number` — Delay before creating terminal (default: 0)
 - `on_open: function` — Pre-launch hook
 - `on_close: function` — Post-exit hook
@@ -116,4 +116,4 @@ M.defaults = {
 
 ## Source Location
 
-`lua/cli-integration/config.lua` (375 lines)
+`lua/cli-integration/config.lua` (385 lines)

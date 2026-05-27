@@ -20,7 +20,7 @@ Returns git root or cwd for workspace detection.
 Returns a `start_with_text` function that:
 
 - Wraps visual selection in prefix/suffix
-- Returns formatted current file path if no selection
+- Returns the current file path if no selection is present
 
 **Parameters:**
 
@@ -32,9 +32,7 @@ Returns a `start_with_text` function that:
 **Behavior:**
 
 1. If `visual_text` provided → returns `prefix .. visual_text .. suffix`
-2. If no visual text → looks up terminal data for integration name
-3. Falls back to current buffer path relative to workspace
-4. Applies `integration.format_paths` if available
+2. If no visual text → returns the current buffer path relative to workspace (raw path, no `format_paths` hook)
 
 ### `M.manage_sessions(opts)`
 
@@ -81,4 +79,4 @@ Generalized session manager engine with picker UI.
 
 ## Source Location
 
-`lua/cli-integration/hooks.lua` (180 lines)
+`lua/cli-integration/hooks.lua` (82 lines)

@@ -215,7 +215,7 @@ Each integration in the `integrations` array can have:
 | `open_delay`            | `number`           | `0`             | Milliseconds to wait before creating the terminal window. Useful when `on_open` triggers an external process that needs time to start before the terminal connects                                                                                                                                                                                     |
 | `start_with_text`       | `string\|function` | `nil`           | Text to insert when terminal is ready, or function that receives `visual_text` (string\|nil) and returns text to insert. Searches for `cli_ready_flags.search_for` or `cli_cmd` to detect readiness                                                                                                                                                    |
 | `cli_ready_flags`       | `table`            | See below       | Configuration for detecting readiness (search string, starting line, and number of lines to inspect)                                                                                                                                                                                                                                                   |
-| `format_paths`          | `function`         | `nil`           | Function to format file paths when inserting (receives path string, returns formatted string). If not set, uses `"@" .. path`                                                                                                                                                                                                                          |
+| `format_paths`          | `function`         | `nil`           | Callback to format and insert file paths. Receives `(paths, actions)` where `paths` is a string array and `actions` has `send_line(text)`, `send_keys(keys)`, `wait(ms)`, and `for_each_path(fn)`. Does not return a value. If not set, raw paths are inserted                                                                                         |
 | `on_open`               | `function`         | `nil`           | Called before the terminal is created. Receives `(integration, working_dir)`. Use for pre-launch setup (e.g., writing config files with dynamic values)                                                                                                                                                                                                |
 | `on_close`              | `function`         | `nil`           | Called after the terminal process exits. Receives `(integration, working_dir)`. Use for cleanup tasks (e.g., removing temporary config files)                                                                                                                                                                                                          |
 | `ask_title`             | `string`           | `"Ask "..name`  | Custom title for the floating input window used by the Ask hook                                                                                                                                                                                                                                                                                        |
@@ -378,11 +378,11 @@ multiple key combinations for the same action.
 
 #### Normal Mode Keys
 
-| Key            | Default         | Description                         |
-| -------------- | --------------- | ----------------------------------- |
-| `hide`         | `{ "<C-q>" }`   | Hide terminal (keeps process alive) |
+| Key                 | Default         | Description                         |
+| ------------------- | --------------- | ----------------------------------- |
+| `hide`              | `{ "<C-q>" }`   | Hide terminal (keeps process alive) |
 | `toggle_fullscreen` | `{ "<C-f>" }`   | Toggle fullscreen                   |
-| `close`        | `{ "<C-S-q>" }` | Close terminal and kill process     |
+| `close`             | `{ "<C-S-q>" }` | Close terminal and kill process     |
 
 #### Example: Custom Key Configuration
 
@@ -738,14 +738,16 @@ require("cli-integration").setup({
     {
       name = "MyTool",
       cli_cmd = "my-tool",
-      -- Custom function to format paths when inserting
-      format_paths = function(path)
-        -- Example: Wrap path in quotes
-        return '"' .. path .. '"'
-        -- Example: Use a different prefix
-        -- return "file://" .. path
-        -- Example: Use markdown link format
-        -- return "[" .. vim.fn.fnamemodify(path, ":t") .. "](" .. path .. ")"
+      -- Custom callback to format and insert paths
+      format_paths = function(paths, actions)
+        actions.for_each_path(function(path)
+          return "@" .. path .. " "
+        end)
+
+        -- You can also use the imperative actions when you need it:
+        -- actions.send_keys("<Esc>")
+        -- actions.send_line("# done")
+        -- actions.wait(50)
       end,
     },
   },
@@ -754,27 +756,23 @@ require("cli-integration").setup({
 
 **About `format_paths`:**
 
-- The function receives a single parameter: the file path (string)
-- It should return a formatted string that will be inserted into the terminal
-- If not provided, the default format is `"@" .. path` (e.g., `@path/to/file.txt`)
-- This function is used when:
+- The callback receives two parameters:
+  - `paths` — Array of file path strings (all paths to be inserted)
+  - `actions` — Table with helper methods
+- The callback does **not** return a value — it calls actions imperatively, just like `on_ask_submit`
+- If not provided, paths are inserted as-is (with a trailing space for `<C-p>`, or one per line for `<C-p><C-p>`)
+- This callback is used when:
   - Inserting the current file path (`<C-p>`)
   - Inserting all open buffer paths (`<C-p><C-p>`)
 
-### Custom Text Processing with `start_with_text` Function
+**Actions table:**
 
-````lua
-require("cli-integration").setup({
-  integrations = {
-    {
-      name = "MyTool",
-      cli_cmd = "my-tool",
-      -- Function to handle both visual selection and default text
-      start_with_text = function(visual_text)
-        if visual_text then
-          -- Transform visual selection before inserting
-          -- Example 1: Wrap text in a code block
-          return "```\n" .. visual_text .. "```\n"
+| Method          | Signature                          | Description                                     |
+| --------------- | ---------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `send_line`     | `fun(text: string?)`               | Send text followed by a newline to the terminal |
+| `send_keys`     | `fun(keys: string)`                | Send Vim key sequences through chansend         |
+| `wait`          | `fun(ms: number)`                  | Pause the callback for the given milliseconds   |
+| `for_each_path` | `fun(fn: fun(path: string): string | nil)`                                           | Iterate all paths, call `fn(path)`, and insert any returned string into the terminal |
 
           -- Example 2: Add a prefix to each line
           -- local lines = vim.split(visual_text, "\n")
@@ -788,8 +786,10 @@ require("cli-integration").setup({
         end
       end,
     },
-  },
+
+},
 })
+
 ````
 
 **About `start_with_text` as a function:**
@@ -852,3 +852,4 @@ MIT License - see [LICENSE](./LICENSE) file for details
 ---
 
 Made with ❤️ for the Neovim community
+````

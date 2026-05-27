@@ -31,6 +31,12 @@
 --- @field submit fun() Send Enter key to the terminal (auto-submit)
 --- @field focus_file fun() Move keyboard focus to the file (normal) window; actions continue to send to the terminal buffer via chansend regardless of focus
 
+--- @class Cli-Integration.FormatPathsActions
+--- @field send_line fun(text: string?) Send text followed by a newline to the terminal via chansend (text defaults to "")
+--- @field send_keys fun(keys: string) Send key sequences (Vim key notation like "<CR>", "<Esc>", "<C-c>") via chansend
+--- @field wait fun(ms: number) Yield execution for the given milliseconds (coroutine-based, allows terminal to process inputs between actions)
+--- @field for_each_path fun(fn: fun(path: string): string|nil) Iterate over all paths, call fn(path), and insert the returned string into the terminal
+
 --- @class Cli-Integration.AskData
 --- @field file string Absolute path of the current file
 --- @field relative_file string Path relative to the current directory
@@ -53,7 +59,7 @@
 --- @field keep_open boolean|nil # Whether to keep the terminal open after execution (default: false)
 --- @field start_with_text string|(fun(visual_text: string|nil, integration: Cli-Integration.Integration|nil): string)|nil # Text to insert when terminal is ready, or function that receives visual_text and returns text to insert (if not set, no text is inserted)
 --- @field cli_ready_flags Cli-Integration.CliReadyFlags|nil # Configuration for detecting when the CLI tool is ready
---- @field format_paths (fun(path: string): string)|nil # Function to format file paths when inserting (if not set, uses the raw path)
+--- @field format_paths (fun(paths: string[], actions: Cli-Integration.FormatPathsActions): nil)|nil # Callback to format and insert file paths. Receives all paths and an actions table with send_line, send_keys, wait, and for_each_path. Does not return a value.
 --- @field terminal_keys Cli-Integration.TerminalKeys|nil # Key mappings for the CLI terminal window (all values must be arrays)
 --- @field open_delay number|nil # Milliseconds to wait before creating the terminal window (default: 0, no delay). Useful when an on_open hook triggers an external process that needs time to start.
 --- @field on_open (fun(integration: Cli-Integration.Integration, working_dir: string): nil)|nil # Called before the terminal is created. Use it for pre-launch setup (e.g., writing config files with dynamic values like the Neovim socket path).

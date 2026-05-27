@@ -25,7 +25,7 @@ function M.get_current_workspace()
 end
 
 --- Helper to create a start_with_text function that wraps visual selection
---- or returns the formatted current path if no selection is present.
+--- or returns the current path if no selection is present.
 --- @param prefix string|nil Prefix for visual selection (default: "Explain this code:\n```\n")
 --- @param suffix string|nil Suffix for visual selection (default: "\n```\n")
 --- @return fun(visual_text: string|nil, integration: Cli-Integration.Integration|nil): string
@@ -33,37 +33,21 @@ function M.insert_current_path_or_explain_selection(prefix, suffix)
 	prefix = prefix or "Explain this code:\n```\n"
 	suffix = suffix or "\n```\n"
 
-	return function(visual_text, integration)
+	return function(visual_text)
 		if visual_text then
 			return prefix .. visual_text .. suffix
 		end
 
-		-- Look up terminal data directly by integration name (reliable regardless of current focus)
-		local terminal = require("cli-integration.terminal")
-		local term_data = integration and integration.name and terminal.terminals[integration.name]
-
-		local relative_path
-		if term_data and term_data.current_file then
-			relative_path = term_data.current_file
-		else
-			-- Fallback: terminal not found, use current buffer path
-			local current_file_abs = vim.fn.expand("%:p")
-			local workspace = M.get_current_workspace()
-			relative_path = vim.fs.relpath(workspace, current_file_abs) or vim.fn.fnamemodify(current_file_abs, ":.")
-		end
-
-		-- Format if integration provides it
-		if integration and integration.format_paths then
-			return integration.format_paths(relative_path)
-		end
-		return relative_path
+		local current_file_abs = vim.fn.expand("%:p")
+		local workspace = M.get_current_workspace()
+		return vim.fs.relpath(workspace, current_file_abs) or vim.fn.fnamemodify(current_file_abs, ":.")
 	end
 end
 
 --- Generalized session manager engine
 --- @param opts Cli-Integration.ManageSessionsOpts Configuration for the session manager
 function M.manage_sessions(opts)
-	--- @type Cli-Integration.Session[]
+	---@type Cli-Integration.Session[]
 	local sessions = {}
 
 	if opts.get_sessions then
@@ -78,7 +62,6 @@ function M.manage_sessions(opts)
 		end
 	end
 
-	-- Safety check: ensure sessions is a table
 	if type(sessions) ~= "table" then
 		sessions = {}
 	end
@@ -100,14 +83,12 @@ function M.manage_sessions(opts)
 		end
 	end
 
-	-- If no sessions for workspace, toggle to all
 	if #filtered_sessions == 0 and not opts.show_all then
 		vim.notify("No sessions for current workspace, showing all", vim.log.levels.INFO)
 		opts.show_all = true
 		return M.manage_sessions(opts)
 	end
 
-	-- Sort by most recent
 	table.sort(filtered_sessions, function(a, b)
 		return (a.modified or "") > (b.modified or "")
 	end)
@@ -142,7 +123,6 @@ function M.manage_sessions(opts)
 		}, function(action)
 			if action == "Resume" then
 				vim.cmd(opts.resume_cmd:format(session.id))
-				-- Focus terminal
 				vim.defer_fn(function()
 					for _, win in ipairs(vim.api.nvim_list_wins()) do
 						local buf = vim.api.nvim_win_get_buf(win)

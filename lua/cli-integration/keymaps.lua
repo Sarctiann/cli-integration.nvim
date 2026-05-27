@@ -18,6 +18,73 @@ local function set_keymaps(mode, keys, callback, opts)
 	end
 end
 
+--- Build actions table for format_paths callback
+--- @param paths string[] The paths to format
+--- @param current_buf number The terminal buffer
+--- @return Cli-Integration.FormatPathsActions actions The actions table
+--- @return fun(co: thread) set_co Setter to inject the coroutine reference into the actions closure
+local function build_format_paths_actions(paths, current_buf)
+	local co = nil
+
+	local function resume_co()
+		if co and coroutine.status(co) == "suspended" then
+			local ok, err = coroutine.resume(co)
+			if not ok then
+				vim.notify("cli-integration.nvim: format_paths error: " .. tostring(err), vim.log.levels.ERROR)
+			end
+		end
+	end
+
+	return {
+		send_line = function(text)
+			terminal.insert_text((text or "") .. "\n", current_buf)
+		end,
+		send_keys = function(keys)
+			local converted = vim.api.nvim_replace_termcodes(keys, true, true, true)
+			terminal.insert_text(converted, current_buf)
+		end,
+		wait = function(ms)
+			vim.defer_fn(resume_co, ms)
+			coroutine.yield()
+		end,
+		for_each_path = function(fn)
+			for _, path in ipairs(paths) do
+				local ok, result = pcall(fn, path)
+				if not ok then
+					error(result)
+				end
+				if type(result) == "string" and result ~= "" then
+					terminal.insert_text(result, current_buf)
+				end
+			end
+		end,
+	}, function(new_co)
+		co = new_co
+	end
+end
+
+local function run_format_paths(paths, current_buf, integration)
+	if not integration or type(integration.format_paths) ~= "function" then
+		return false
+	end
+
+	local actions, set_co = build_format_paths_actions(paths, current_buf)
+	local co = coroutine.create(function()
+		local ok, err = pcall(integration.format_paths, paths, actions)
+		if not ok then
+			vim.notify("cli-integration.nvim: format_paths error: " .. tostring(err), vim.log.levels.ERROR)
+		end
+	end)
+	set_co(co)
+
+	local ok, err = coroutine.resume(co)
+	if not ok then
+		vim.notify("cli-integration.nvim: format_paths error: " .. tostring(err), vim.log.levels.ERROR)
+	end
+
+	return true
+end
+
 --- Setup keymaps for the CLI tool terminal
 --- @param known_integration Cli-Integration.Integration|nil Integration passed directly from autocmd (avoids timing issues with TermOpen)
 --- @return nil
@@ -78,12 +145,9 @@ function M.setup_terminal_keymaps(known_integration)
 			end)
 			if term_data and term_data.current_file then
 				local path = term_data.current_file
-				local formatted_path = integration
-						and integration.format_paths
-						and type(integration.format_paths) == "function"
-						and integration.format_paths(path)
-					or path
-				terminal.insert_text(formatted_path .. " ", current_buf)
+				if not run_format_paths({ path }, current_buf, integration) then
+					terminal.insert_text(path .. " ", current_buf)
+				end
 			end
 		end, opts)
 	end
@@ -95,13 +159,10 @@ function M.setup_terminal_keymaps(known_integration)
 			end)
 			local working_dir = term_data and term_data.working_dir or nil
 			local paths = buffers.get_open_buffers_paths(working_dir)
-			for _, path in ipairs(paths) do
-				local formatted_path = integration
-						and integration.format_paths
-						and type(integration.format_paths) == "function"
-						and integration.format_paths(path)
-					or path
-				terminal.insert_text(formatted_path .. "\n", current_buf)
+			if not run_format_paths(paths, current_buf, integration) then
+				for _, path in ipairs(paths) do
+					terminal.insert_text(path .. "\n", current_buf)
+				end
 			end
 		end, opts)
 	end

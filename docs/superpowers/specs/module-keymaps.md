@@ -35,11 +35,11 @@ Sets up all keymaps for current terminal buffer. Called by autocmd on TermOpen/T
 
 ### Normal Mode
 
-| Action         | Default Keys | Behavior         |
-| -------------- | ------------ | ---------------- |
+| Action              | Default Keys | Behavior          |
+| ------------------- | ------------ | ----------------- |
 | `toggle_fullscreen` | `<C-f>`      | Toggle fullscreen |
-| `hide`         | `<C-q>`      | Hide window      |
-| `close`        | `<C-S-q>`    | Close window     |
+| `hide`              | `<C-q>`      | Hide window       |
+| `close`             | `<C-S-q>`    | Close window      |
 
 ### Special Mappings (always applied)
 
@@ -50,16 +50,16 @@ Sets up all keymaps for current terminal buffer. Called by autocmd on TermOpen/T
 
 - Keymaps are buffer-local (`buffer=0`)
 - Gets integration-specific keys or falls back to global `config.options.terminal_keys`
-- File path insertion uses `integration.format_paths(path)` if available, otherwise raw path
+- File path insertion uses `integration.format_paths(paths, actions)` if available, otherwise raw path
+- The `actions` table provides:
+  - `send_line(text)` — send text followed by newline
+  - `send_keys(keys)` — send Vim key sequences through `chansend`
+  - `wait(ms)` — suspend the callback temporarily
+  - `for_each_path(fn)` — iterate paths, call `fn(path)`, and insert any returned string
+- `run_format_paths(paths, current_buf, integration)` wraps the callback in a coroutine so `wait()` works
 - All buffers insertion gets paths via `buffers.get_open_buffers_paths(working_dir)`
 - Toggle fullscreen is mapped in modes: `i`, `t`, `n`, `v`
 
-## Helper Function
-
-### `set_keymaps(mode, keys, callback, opts)`
-
-Iterates over keys array and calls `vim.keymap.set()` for each.
-
 ## Source Location
 
-`lua/cli-integration/keymaps.lua` (190 lines)
+`lua/cli-integration/keymaps.lua` (267 lines)

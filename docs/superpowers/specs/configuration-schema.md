@@ -19,7 +19,7 @@
   unset_env = { "KEY" },          -- Optional: env var names removed after merge
   start_with_text = string|function(visual_text), -- Optional: text to insert when ready
   cli_ready_flags = { search_for = string, from_line = number, lines_amt = number }, -- Optional: config for readiness (default: cli_cmd, 1, 5)
-  format_paths = function(path),   -- Optional: format file paths before insertion
+  format_paths = function(paths, actions), -- Optional: format and insert file paths. paths = string array, actions = { send_line, send_keys, wait, for_each_path }
   open_delay = number,             -- Optional: milliseconds to wait before creating terminal (default: 0)
   on_open = function(integration, working_dir), -- Optional: called before terminal creation
   on_close = function(integration, working_dir), -- Optional: called after terminal process exits
@@ -60,14 +60,24 @@ terminal_keys = {
 
 ```lua
 actions = {
-  send = function(keys) end,     -- Send text/keys to terminal via chansend
-  submit = function() end,       -- Send Enter key (auto-submit)
-  newline = function() end,       -- Send newline character
-  focus_file = function() end,    -- Move focus to file window (actions continue)
+  send_line = function(text) end, -- Send text followed by newline
+  send_keys = function(keys) end, -- Send Vim key sequences via chansend
+  wait = function(ms) end,        -- Suspend the callback for ms milliseconds
+  submit = function() end,        -- Send Enter key (auto-submit)
+  focus_file = function() end,    -- Move focus to the file window
 }
 ```
 
-## Ask Context Data Schema
+## Format Paths Actions Schema
+
+```lua
+actions = {
+  send_line = function(text) end, -- Send text followed by newline
+  send_keys = function(keys) end, -- Send Vim key sequences via chansend
+  wait = function(ms) end,        -- Suspend the callback for ms milliseconds
+  for_each_path = function(fn) end, -- Iterate paths, call fn(path), insert any returned string
+}
+```
 
 ```lua
 AskData = {
