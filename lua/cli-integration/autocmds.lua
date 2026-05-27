@@ -1,6 +1,8 @@
 --- Autocommands module
 local keymaps = require("cli-integration.keymaps")
 local help = require("cli-integration.help")
+local debug = require("cli-integration.debug")
+local config = require("cli-integration.config")
 
 local M = {}
 
@@ -31,6 +33,11 @@ function M.setup(user_config)
 		callback = function(args)
 			local buf = args.buf
 			local ok_var, integration_name = pcall(vim.api.nvim_buf_get_var, buf, "cli_integration_name")
+			if config.options.debug then
+				debug.log("autocmd_term_event", function()
+					return { event = args.event, name = integration_name or "unknown", buf = buf }
+				end)
+			end
 			if not ok_var or not integration_name then
 				return
 			end

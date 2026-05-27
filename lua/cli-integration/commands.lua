@@ -1,6 +1,7 @@
 --- Commands module for opening CLI tool in different modes
 local terminal = require("cli-integration.terminal")
 local config = require("cli-integration.config")
+local debug = require("cli-integration.debug")
 
 local M = {}
 
@@ -66,6 +67,9 @@ function M.open_cwd(integration_identifier, args, visual_text)
 		working_dir = vim.fn.getcwd()
 	end
 
+	debug.log("command_open_cwd", function()
+		return { name = integration.name, working_dir = working_dir }
+	end)
 	terminal.open_terminal(integration, args, integration.keep_open, working_dir, visual_text)
 end
 
@@ -102,6 +106,9 @@ function M.open_git_root(integration_identifier, args, visual_text)
 		)
 	end
 
+	debug.log("command_open_root", function()
+		return { name = integration.name, working_dir = working_dir }
+	end)
 	terminal.open_terminal(integration, args, integration.keep_open, working_dir, visual_text)
 end
 
