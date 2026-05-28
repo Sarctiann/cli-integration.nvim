@@ -17,22 +17,22 @@ Returns git root or cwd for workspace detection.
 
 ### `M.insert_current_path_or_explain_selection(prefix, suffix)`
 
-Returns a `start_with_text` function that:
+Returns a `start_doing` function that:
 
-- Wraps visual selection in prefix/suffix
-- Returns the current file path if no selection is present
+- Wraps visual selection in prefix/suffix via `actions.send_line()`
+- Sends the current file path if no selection is present (calls `integration.format_paths({path}, actions)` if available, otherwise `actions.send_line(path)`)
 
 **Parameters:**
 
 - `prefix` — Default: "Explain this code:\n```\n"
 - `suffix` — Default: "\n```\n"
 
-**Returns:** Function compatible with `start_with_text` signature
+**Returns:** Function compatible with `start_doing` signature: `(visual_text, integration_name, actions)`
 
 **Behavior:**
 
-1. If `visual_text` provided → returns `prefix .. visual_text .. suffix`
-2. If no visual text → returns the current buffer path relative to workspace (raw path, no `format_paths` hook)
+1. If `visual_text` provided → `actions.send_line(prefix .. visual_text .. suffix)`
+2. If no visual text → gets path, calls `integration.format_paths({path}, actions)` if available, otherwise `actions.send_line(path)`
 
 ### `M.manage_sessions(opts)`
 

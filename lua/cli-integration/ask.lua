@@ -195,7 +195,7 @@ local function lookup_integration(identifier)
 	return nil, "Invalid identifier type"
 end
 
---- Open or toggle the integration terminal (no callbacks, no start_with_text overrides).
+--- Open or toggle the integration terminal (no callbacks, no start_doing overrides).
 --- @param integration Cli-Integration.Integration
 local function open_integration(integration)
 	local terminal = require("cli-integration.terminal")
@@ -208,11 +208,9 @@ local function open_integration(integration)
 			term_data.cli_term:toggle()
 		end
 	else
-		-- Suppress start_with_text so ask's question takes priority
-		local saved_start = integration.start_with_text
-		integration.start_with_text = function()
-			integration.start_with_text = saved_start
-			return ""
+		local saved_start = integration.start_doing
+		integration.start_doing = function()
+			integration.start_doing = saved_start
 		end
 
 		local working_dir = vim.fn.systemlist("git rev-parse --show-toplevel")[1]

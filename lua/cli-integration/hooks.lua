@@ -24,23 +24,39 @@ function M.get_current_workspace()
 	return (vim.v.shell_error == 0 and git_root_list[1]) or vim.fn.getcwd()
 end
 
---- Helper to create a start_with_text function that wraps visual selection
---- or returns the current path if no selection is present.
+--- Helper to create a start_doing function that wraps visual selection
+--- or sends the current path if no selection is present.
 --- @param prefix string|nil Prefix for visual selection (default: "Explain this code:\n```\n")
 --- @param suffix string|nil Suffix for visual selection (default: "\n```\n")
---- @return fun(visual_text: string|nil, integration: Cli-Integration.Integration|nil): string
+--- @return fun(visual_text: string|nil, actions: Cli-Integration.StartDoingActions, integration_name: string|nil)
 function M.insert_current_path_or_explain_selection(prefix, suffix)
 	prefix = prefix or "Explain this code:\n```\n"
 	suffix = suffix or "\n```\n"
 
-	return function(visual_text)
+	return function(visual_text, actions, integration_name)
 		if visual_text then
-			return prefix .. visual_text .. suffix
+			actions.send_line(prefix .. visual_text .. suffix)
+			return
 		end
 
-		local current_file_abs = vim.fn.expand("%:p")
-		local workspace = M.get_current_workspace()
-		return vim.fs.relpath(workspace, current_file_abs) or vim.fn.fnamemodify(current_file_abs, ":.")
+		local terminal = require("cli-integration.terminal")
+		local term_data = integration_name and terminal.terminals[integration_name]
+
+		local relative_path
+		if term_data and term_data.current_file then
+			relative_path = term_data.current_file
+		else
+			local current_file_abs = vim.fn.expand("%:p")
+			local workspace = M.get_current_workspace()
+			relative_path = vim.fs.relpath(workspace, current_file_abs) or vim.fn.fnamemodify(current_file_abs, ":.")
+		end
+
+		local integration = term_data and term_data.integration
+		if integration and integration.format_paths then
+			integration.format_paths({ relative_path }, actions)
+		else
+			actions.send_line(relative_path)
+		end
 	end
 end
 

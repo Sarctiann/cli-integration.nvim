@@ -43,7 +43,7 @@ Creates or toggles terminal.
 3. Call `window.create_terminal()` with configuration
 4. Store terminal data in `M.terminals[name]`
 5. Update `M.buf_to_name[term_buf]`
-6. If `visual_text` or `start_with_text` is set → attach text when ready
+6. If `visual_text` or `start_doing` is set → attach text when ready
 7. Handle `open_delay` if configured
 
 ### `M.insert_text(text, term_buf)`
@@ -58,7 +58,7 @@ Polls terminal output for ready flag.
 
 - Searches range defined by `cli_ready_flags` for `search_for` or `cli_cmd`
 - Max 30 tries, 500ms intervals
-- When found: evaluates `start_with_text` (string or function) and inserts
+- When found: calls `start_doing(visual_text, actions)` with an actions table
 
 ### `M.toggle_fullscreen(term_buf)`
 
@@ -94,8 +94,8 @@ Focuses window containing terminal buffer and enters insert mode.
 
 ## Critical Details
 
-- `start_with_text`: Can be string or function(visual_text, integration) → string
-- Visual text priority: `visual_text` overrides `start_with_text` string
+- `start_doing`: function(visual_text, actions) → nil. Actions: `send_line`, `send_keys`, `wait`.
+- Visual text priority: if `visual_text` is set and `start_doing` is nil, inserts `visual_text` directly
 - Toggle behavior: If terminal exists and valid, toggles visibility; otherwise creates new
 - Fullscreen toggle supports both sidebar and float origins
 - Cleanup: `on_close` callback removes from `M.terminals` and `M.buf_to_name`

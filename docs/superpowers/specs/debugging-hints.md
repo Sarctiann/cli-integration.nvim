@@ -62,4 +62,4 @@
 
 - `cli_ready_flags.search_for` or `cli_cmd` pattern is found
 - Polling interval (500ms) and max tries (30) are appropriate
-- `start_with_text` function returns string type
+- `start_doing` function errors

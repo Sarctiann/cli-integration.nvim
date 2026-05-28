@@ -30,7 +30,7 @@ Per-CLI-tool configuration. Inherits from Config, adds:
 - `cli_cmd: string` — REQUIRED: CLI command name
 - `name: string` — REQUIRED: Display name for autocompletion
 - `keep_open: boolean` — Keep terminal open after execution (default: false)
-- `start_with_text: string|function` — Text to insert when ready
+- `start_doing: function` — Called when terminal is ready. Signature: `(visual_text, actions)` where actions has `send_line`, `send_keys`, `wait`. Does not return a value.
 - `cli_ready_flags: CliReadyFlags` — Readiness detection config
 - `format_paths: function(paths, actions)` — Path formatting callback. Receives all paths and an actions table with `send_line`, `send_keys`, `wait`, and `for_each_path`. Does not return a value.
 - `open_delay: number` — Delay before creating terminal (default: 0)

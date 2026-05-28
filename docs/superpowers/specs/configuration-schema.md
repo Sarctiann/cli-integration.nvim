@@ -17,7 +17,7 @@
   list_buffer = boolean,           -- Default: false (list buffer in bufferline as "[name]"; sidebar only: shifts window 1 row down)
   env = { KEY = "value" },        -- Optional: env var overrides merged on top of inherited process env
   unset_env = { "KEY" },          -- Optional: env var names removed after merge
-  start_with_text = string|function(visual_text), -- Optional: text to insert when ready
+  start_doing = function(visual_text, actions), -- Optional: called when terminal is ready. Receives actions table with send_line, send_keys, wait.
   cli_ready_flags = { search_for = string, from_line = number, lines_amt = number }, -- Optional: config for readiness (default: cli_cmd, 1, 5)
   format_paths = function(paths, actions), -- Optional: format and insert file paths. paths = string array, actions = { send_line, send_keys, wait, for_each_path }
   open_delay = number,             -- Optional: milliseconds to wait before creating terminal (default: 0)

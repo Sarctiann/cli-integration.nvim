@@ -37,6 +37,11 @@
 --- @field wait fun(ms: number) Yield execution for the given milliseconds (coroutine-based, allows terminal to process inputs between actions)
 --- @field for_each_path fun(fn: fun(path: string): string|nil) Iterate over all paths, call fn(path), and insert the returned string into the terminal
 
+--- @class Cli-Integration.StartDoingActions
+--- @field send_line fun(text: string?) Send text followed by a newline to the terminal via chansend (text defaults to "")
+--- @field send_keys fun(keys: string) Send key sequences (Vim key notation like "<CR>", "<Esc>", "<C-c>") via chansend
+--- @field wait fun(ms: number) Yield execution for the given milliseconds (coroutine-based, allows terminal to process inputs between actions)
+
 --- @class Cli-Integration.AskData
 --- @field file string Absolute path of the current file
 --- @field relative_file string Path relative to the current directory
@@ -57,7 +62,7 @@
 --- @field border string|nil # Border style for terminal window: "none", "single", "double", "rounded", "solid", "shadow" (default: "none" for sidebar, "rounded" for floating and when expanded)
 --- @field floating boolean|nil # Whether to open terminal in floating window (default: false)
 --- @field keep_open boolean|nil # Whether to keep the terminal open after execution (default: false)
---- @field start_with_text string|(fun(visual_text: string|nil, integration: Cli-Integration.Integration|nil): string)|nil # Text to insert when terminal is ready, or function that receives visual_text and returns text to insert (if not set, no text is inserted)
+--- @field start_doing (fun(visual_text: string|nil, actions: Cli-Integration.StartDoingActions): nil)|nil # Called when terminal is ready. Receives visual text and an actions table with send_line, send_keys, wait. Does not return a value.
 --- @field cli_ready_flags Cli-Integration.CliReadyFlags|nil # Configuration for detecting when the CLI tool is ready
 --- @field format_paths (fun(paths: string[], actions: Cli-Integration.FormatPathsActions): nil)|nil # Callback to format and insert file paths. Receives all paths and an actions table with send_line, send_keys, wait, and for_each_path. Does not return a value.
 --- @field terminal_keys Cli-Integration.TerminalKeys|nil # Key mappings for the CLI terminal window (all values must be arrays)

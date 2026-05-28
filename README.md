@@ -197,29 +197,29 @@ These terms are used throughout the documentation and the codebase (AGENTS.md co
 
 Each integration in the `integrations` array can have:
 
-| Option                  | Type               | Default         | Description                                                                                                                                                                                                                                                                                                                                            |
-| ----------------------- | ------------------ | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `name`                  | `string`           | **Required**    | Name for the integration (used for autocompletion in commands)                                                                                                                                                                                                                                                                                         |
-| `cli_cmd`               | `string`           | **Required**    | CLI command name to execute (e.g., "cursor-agent")                                                                                                                                                                                                                                                                                                     |
-| `show_help_on_open`     | `boolean`          | Inherits global | Override: Show help screen when terminal opens                                                                                                                                                                                                                                                                                                         |
-| `new_lines_amount`      | `number`           | Inherits global | Override: Number of new lines to insert after command submission                                                                                                                                                                                                                                                                                       |
-| `window_width`          | `number`           | Inherits global | Override: Width for terminal window (percentage 0-100, or absolute >100)                                                                                                                                                                                                                                                                               |
-| `window_padding`        | `number`           | Inherits global | Override: Horizontal padding in columns (adds empty space on left and right)                                                                                                                                                                                                                                                                           |
-| `border`                | `string`           | Inherits global | Override: Border style ("none", "single", "double", "rounded", "solid", "shadow"). Default is "none" for sidebar, "rounded" when expanded or floating                                                                                                                                                                                                  |
-| `floating`              | `boolean`          | Inherits global | Override: Whether to open terminal in floating window                                                                                                                                                                                                                                                                                                  |
-| `env`                   | `table`            | Inherits global | Override: Environment overrides merged on top of inherited process environment                                                                                                                                                                                                                                                                         |
-| `unset_env`             | `string[]`         | Inherits global | Override: Environment variable names removed from the spawned terminal job environment                                                                                                                                                                                                                                                                 |
-| `keep_open`             | `boolean`          | `false`         | Whether to keep the terminal open after execution (not auto-closing)                                                                                                                                                                                                                                                                                   |
-| `start_insert_on_click` | `boolean`          | `false`         | Re-enter insert mode when clicking inside the terminal while in normal mode                                                                                                                                                                                                                                                                            |
-| `list_buffer`           | `boolean`          | `false`         | List the terminal buffer in the bufferline as `[name]`. Sidebar only: shifts window 1 row down to avoid overlap. When `start_insert_on_click=true` and the integration window is hidden (e.g., buffer selected via bufferline), clicking on a regular window will correctly move focus there instead of forcing insert mode in the integration window. |
-| `open_delay`            | `number`           | `0`             | Milliseconds to wait before creating the terminal window. Useful when `on_open` triggers an external process that needs time to start before the terminal connects                                                                                                                                                                                     |
-| `start_with_text`       | `string\|function` | `nil`           | Text to insert when terminal is ready, or function that receives `visual_text` (string\|nil) and returns text to insert. Searches for `cli_ready_flags.search_for` or `cli_cmd` to detect readiness                                                                                                                                                    |
-| `cli_ready_flags`       | `table`            | See below       | Configuration for detecting readiness (search string, starting line, and number of lines to inspect)                                                                                                                                                                                                                                                   |
-| `format_paths`          | `function`         | `nil`           | Callback to format and insert file paths. Receives `(paths, actions)` where `paths` is a string array and `actions` has `send_line(text)`, `send_keys(keys)`, `wait(ms)`, and `for_each_path(fn)`. Does not return a value. If not set, raw paths are inserted                                                                                         |
-| `on_open`               | `function`         | `nil`           | Called before the terminal is created. Receives `(integration, working_dir)`. Use for pre-launch setup (e.g., writing config files with dynamic values)                                                                                                                                                                                                |
-| `on_close`              | `function`         | `nil`           | Called after the terminal process exits. Receives `(integration, working_dir)`. Use for cleanup tasks (e.g., removing temporary config files)                                                                                                                                                                                                          |
-| `ask_title`             | `string`           | `"Ask "..name`  | Custom title for the floating input window used by the Ask hook                                                                                                                                                                                                                                                                                        |
-| `terminal_keys`         | `table`            | Inherits global | Override: Key mappings for the CLI terminal window                                                                                                                                                                                                                                                                                                     |
+| Option                  | Type       | Default         | Description                                                                                                                                                                                                                                                                                                                                            |
+| ----------------------- | ---------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `name`                  | `string`   | **Required**    | Name for the integration (used for autocompletion in commands)                                                                                                                                                                                                                                                                                         |
+| `cli_cmd`               | `string`   | **Required**    | CLI command name to execute (e.g., "cursor-agent")                                                                                                                                                                                                                                                                                                     |
+| `show_help_on_open`     | `boolean`  | Inherits global | Override: Show help screen when terminal opens                                                                                                                                                                                                                                                                                                         |
+| `new_lines_amount`      | `number`   | Inherits global | Override: Number of new lines to insert after command submission                                                                                                                                                                                                                                                                                       |
+| `window_width`          | `number`   | Inherits global | Override: Width for terminal window (percentage 0-100, or absolute >100)                                                                                                                                                                                                                                                                               |
+| `window_padding`        | `number`   | Inherits global | Override: Horizontal padding in columns (adds empty space on left and right)                                                                                                                                                                                                                                                                           |
+| `border`                | `string`   | Inherits global | Override: Border style ("none", "single", "double", "rounded", "solid", "shadow"). Default is "none" for sidebar, "rounded" when expanded or floating                                                                                                                                                                                                  |
+| `floating`              | `boolean`  | Inherits global | Override: Whether to open terminal in floating window                                                                                                                                                                                                                                                                                                  |
+| `env`                   | `table`    | Inherits global | Override: Environment overrides merged on top of inherited process environment                                                                                                                                                                                                                                                                         |
+| `unset_env`             | `string[]` | Inherits global | Override: Environment variable names removed from the spawned terminal job environment                                                                                                                                                                                                                                                                 |
+| `keep_open`             | `boolean`  | `false`         | Whether to keep the terminal open after execution (not auto-closing)                                                                                                                                                                                                                                                                                   |
+| `start_insert_on_click` | `boolean`  | `false`         | Re-enter insert mode when clicking inside the terminal while in normal mode                                                                                                                                                                                                                                                                            |
+| `list_buffer`           | `boolean`  | `false`         | List the terminal buffer in the bufferline as `[name]`. Sidebar only: shifts window 1 row down to avoid overlap. When `start_insert_on_click=true` and the integration window is hidden (e.g., buffer selected via bufferline), clicking on a regular window will correctly move focus there instead of forcing insert mode in the integration window. |
+| `open_delay`            | `number`   | `0`             | Milliseconds to wait before creating the terminal window. Useful when `on_open` triggers an external process that needs time to start before the terminal connects                                                                                                                                                                                     |
+| `start_doing`           | `function` | `nil`           | Called when terminal is ready. Signature: `function(visual_text, actions)`. Actions: `send_line(text?)`, `send_keys(keys)`, `wait(ms)`. Does not return a value.                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `cli_ready_flags`       | `table`    | See below       | Configuration for detecting readiness (search string, starting line, and number of lines to inspect)                                                                                                                                                                                                                                                   |
+| `format_paths`          | `function` | `nil`           | Callback to format and insert file paths. Receives `(paths, actions)` where `paths` is a string array and `actions` has `send_line(text)`, `send_keys(keys)`, `wait(ms)`, and `for_each_path(fn)`. Does not return a value. If not set, raw paths are inserted                                                                                         |
+| `on_open`               | `function` | `nil`           | Called before the terminal is created. Receives `(integration, working_dir)`. Use for pre-launch setup (e.g., writing config files with dynamic values)                                                                                                                                                                                                |
+| `on_close`              | `function` | `nil`           | Called after the terminal process exits. Receives `(integration, working_dir)`. Use for cleanup tasks (e.g., removing temporary config files)                                                                                                                                                                                                          |
+| `ask_title`             | `string`   | `"Ask "..name`  | Custom title for the floating input window used by the Ask hook                                                                                                                                                                                                                                                                                        |
+| `terminal_keys`         | `table`    | Inherits global | Override: Key mappings for the CLI terminal window                                                                                                                                                                                                                                                                                                     |
 
 ## 💬 Ask Hook
 
@@ -446,7 +446,7 @@ require("cli-integration").setup({
       cli_cmd = "my-tool",
       floating = true,  -- Open in floating window
       keep_open = true,  -- Don't auto-close after execution
-      start_with_text = "init\n",  -- Insert this text when terminal is ready
+      start_doing = function(_, actions) actions.send_line("init") end,  -- Called when terminal is ready
       cli_ready_flags = {
         search_for = "Ready>",  -- Look for this flag
         from_line = 1,          -- Starting from line 1
@@ -489,12 +489,13 @@ require("cli-integration").setup({
 })
 ```
 
-**About `start_with_text` and `cli_ready_flags`:**
+**About `start_doing` and `cli_ready_flags`:**
 
-- `start_with_text`: Can be a string or a function:
-  - **String**: Text that will be automatically inserted into the terminal when it's ready (only if no visual selection is provided)
-  - **Function**: Receives `visual_text` (string|nil) as parameter and returns the text to insert. This allows you to handle both visual selections and default text in a single function
-  - If not set, no text is inserted (unless visual selection is provided)
+- `start_doing`: A function that receives `(visual_text, actions)` where actions has `send_line(text?)`, `send_keys(keys)`, and `wait(ms)`.
+- The function is called when the terminal is detected as ready (via `cli_ready_flags`).
+- Use `actions.send_line()` to insert text, `actions.send_keys()` for key sequences, and `actions.wait()` for delays between actions.
+- If no `start_doing` is set but `visual_text` is present from a visual selection, the visual text is inserted directly.
+- The `wait()` method yields execution via coroutine, allowing the terminal to process inputs between actions.
 - `cli_ready_flags`: A table configuration to detect when the CLI tool is ready:
   - `search_for`: A string pattern to search for in terminal output. If not set or empty, the plugin searches for `cli_cmd` instead.
   - `from_line`: The line number to start searching from (1-based, default: 1).
@@ -502,7 +503,7 @@ require("cli-integration").setup({
 
 #### Visual Selection Support
 
-You can send selected text to the terminal when opening it. Use `start_with_text` as a function to handle visual selections:
+You can send selected text to the terminal when opening it. Use `start_doing` to handle visual selections:
 
 ````lua
 require("cli-integration").setup({
@@ -510,15 +511,15 @@ require("cli-integration").setup({
     {
       name = "MyTool",
       cli_cmd = "my-tool",
-      -- Function receives visual_text (string|nil) and returns text to insert
-      start_with_text = function(visual_text)
+      -- Function receives (visual_text, actions)
+      start_doing = function(visual_text, actions)
         if visual_text then
           -- Transform visual selection (e.g., wrap in code block)
-          return "```\n" .. visual_text .. "```\n"
-        else
-          -- Default text when no visual selection
-          return "Hello!\n"
+          actions.send_line("```\n" .. visual_text .. "```\n")
+          return
         end
+        -- Default text when no visual selection
+        actions.send_line("Hello!")
       end,
     },
   },
@@ -529,13 +530,12 @@ require("cli-integration").setup({
 
 1. Select text in visual mode (V, v, or Ctrl-v)
 2. Run `:'<,'>CLIIntegration` (or `:'<,'>CLIIntegration open_cwd`, etc.)
-3. The selected text will be passed to `start_with_text` function (if it's a function) or used directly
+3. The selected text will be passed to `start_doing` as `visual_text`
 
 **Note:**
 
-- When `start_with_text` is a **function**, it receives the visual selection as the `visual_text` parameter
-- When `start_with_text` is a **string**, the visual selection is used instead of the string
-- When `start_with_text` is **not set**, the visual selection is inserted as-is
+- When `start_doing` is set, it receives the visual selection as the `visual_text` parameter (or `nil` if none)
+- When `start_doing` is **not set**, the visual selection is inserted as-is
 
 #### Multiple Integrations with Per-Integration Overrides
 
@@ -564,7 +564,7 @@ require("cli-integration").setup({
       cli_cmd = "my-custom-tool",
       window_width = 150,  -- Absolute width: 150 characters (>100 = absolute)
       keep_open = true,  -- Keep terminal open after execution
-      start_with_text = "Hello!\n",  -- Insert this text when terminal is ready
+      start_doing = function(_, actions) actions.send_line("Hello!") end,  -- Called when terminal is ready
       cli_ready_flags = { search_for = "Ready>", from_line = 1, lines_amt = 10 },
       terminal_keys = {  -- Override global terminal_keys (per-section with key-by-key merge)
         terminal_mode = {
@@ -719,7 +719,7 @@ require("cli-integration").setup({
     {
       name = "MyTool",
       cli_cmd = "my-tool",
-      start_with_text = "Hello, world!\n",  -- Insert this when ready
+      start_doing = function(_, actions) actions.send_line("Hello, world!") end,  -- Called when ready
       cli_ready_flags = {
         search_for = "Ready>",  -- Look for this flag
         from_line = 1,          -- Starting from line 1
@@ -774,29 +774,37 @@ require("cli-integration").setup({
 | `wait`          | `fun(ms: number)`                  | Pause the callback for the given milliseconds   |
 | `for_each_path` | `fun(fn: fun(path: string): string | nil)`                                           | Iterate all paths, call `fn(path)`, and insert any returned string into the terminal |
 
-          -- Example 2: Add a prefix to each line
-          -- local lines = vim.split(visual_text, "\n")
-          -- for i, line in ipairs(lines) do
-          --   lines[i] = "> " .. line
-          -- end
-          -- return table.concat(lines, "\n") .. "\n"
+```lua
+require("cli-integration").setup({
+  integrations = {
+    {
+      name = "MyTool",
+      cli_cmd = "my-tool",
+      -- Example: transform visual selection with actions
+      start_doing = function(visual_text, actions)
+        if visual_text then
+          -- Example: Add a prefix to each line
+          local lines = vim.split(visual_text, "\n")
+          for i, line in ipairs(lines) do
+            lines[i] = "> " .. line
+          end
+          actions.send_line(table.concat(lines, "\n"))
         else
           -- Default text when no visual selection
-          return "init\n"
+          actions.send_line("init")
         end
       end,
     },
-
-},
+  },
 })
+```
 
-````
+**About `start_doing`:**
 
-**About `start_with_text` as a function:**
-
-- The function receives a single parameter: `visual_text` (string|nil) - the selected text when opening with visual selection, or `nil` otherwise
-- It should return a string that will be inserted into the terminal when it's ready
-- This allows you to handle both visual selections and default initialization text in a single function
+- The function receives two parameters: `visual_text` (string|nil) and `actions` (table)
+- `visual_text` is the selected text when opening with visual selection, or `nil` otherwise
+- `actions` has `send_line(text?)`, `send_keys(keys)`, and `wait(ms)` methods
+- The function does not return a value — it calls actions imperatively
 - When opening the terminal with a visual selection (e.g., `:'<,'>CLIIntegration`), `visual_text` will contain the selected text
 - When opening normally, `visual_text` will be `nil`
 
@@ -810,7 +818,7 @@ require("cli-integration").setup({
   Use autocompletion (Tab) to see available integration names
 - **Pass CLI Arguments**: Add arguments after the integration name (e.g., `:CLIIntegration open_cwd MyTool --verbose`)
 - **Floating vs Side Panel**: Use `floating = true` for floating windows, `false` for side panels (right side)
-- **Custom Initialization**: Use `start_with_text` to automatically insert text when terminal is ready
+- **Custom Initialization**: Use `start_doing` to automatically run actions when terminal is ready
 - **Readiness Detection**: Configure `cli_ready_flags` to customize how the plugin detects when your CLI tool is ready
 - **Keep Terminal Open**: Set `keep_open = true` to prevent auto-closing after execution
 - **Help Anytime**: Press `??` in terminal mode to see all available keymaps (shows config for current integration)
@@ -852,4 +860,7 @@ MIT License - see [LICENSE](./LICENSE) file for details
 ---
 
 Made with ❤️ for the Neovim community
-````
+
+```
+
+```

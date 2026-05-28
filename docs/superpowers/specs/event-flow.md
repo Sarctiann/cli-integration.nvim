@@ -40,7 +40,7 @@ keymaps.setup_terminal_keymaps() sets up all terminal-specific keymaps
 If show_help_on_open: help.show_quick_help() displays help keys
   |
   v
-If start_with_text or visual_text: terminal.attach_text_when_ready()
+If start_doing or visual_text: terminal.attach_text_when_ready()
       polls for ready flag (max 30 tries, 500ms intervals)
 ```
 
@@ -135,7 +135,7 @@ capture_context():
   v
 open_integration():
   1. Opens or toggles terminal
-  2. Suppresses start_with_text
+   2. Suppresses start_doing
   |
   v
 Return focus to file window

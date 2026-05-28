@@ -59,7 +59,7 @@ end
 --- @param integration Cli-Integration.Integration The integration configuration
 --- @param term_buf number The terminal buffer
 --- @param tries number|nil Number of tries so far
---- @param visual_text string|nil Optional text from visual selection (passed to start_with_text function if it's a function)
+--- @param visual_text string|nil Optional text from visual selection (passed to start_doing function if set)
 --- @return nil
 function M.attach_text_when_ready(integration, term_buf, tries, visual_text)
 	vim.defer_fn(function()
@@ -100,44 +100,41 @@ function M.attach_text_when_ready(integration, term_buf, tries, visual_text)
 				return { name = integration.name or integration.cli_cmd, term_buf = term_buf, tries = tries }
 			end)
 
-			---@type string|nil
-			local text_to_insert = nil
-
-			local start_with_text = integration.start_with_text
-			if start_with_text ~= nil then
-				if type(start_with_text) == "function" then
-					local ok, result = pcall(start_with_text, visual_text, integration)
-					if ok and type(result) == "string" then
-						text_to_insert = result
-					elseif ok then
-						vim.notify(
-							"cli-integration.nvim: start_with_text function must return a string, got " .. type(result),
-							vim.log.levels.ERROR
-						)
-						return
-					else
-						vim.notify(
-							"cli-integration.nvim: Error in start_with_text function: " .. tostring(result),
-							vim.log.levels.ERROR
-						)
-						return
+			local start_doing = integration.start_doing
+			if start_doing and type(start_doing) == "function" then
+				local co = nil
+				local function resume_co()
+					if co and coroutine.status(co) == "suspended" then
+						local ok, err = coroutine.resume(co)
+						if not ok then
+							vim.notify("cli-integration.nvim: start_doing error: " .. tostring(err), vim.log.levels.ERROR)
+						end
 					end
-				elseif type(start_with_text) == "string" then
-					-- If start_with_text is a string, use it only if there's no visual_text
-					text_to_insert = visual_text or start_with_text
-				else
-					vim.notify(
-						"cli-integration.nvim: start_with_text must be a string or function, got "
-							.. type(start_with_text),
-						vim.log.levels.WARN
-					)
 				end
-			elseif visual_text then
-				text_to_insert = visual_text
-			end
 
-			if text_to_insert and text_to_insert ~= "" then
-				M.insert_text(text_to_insert, term_buf)
+				local actions = {
+					send_line = function(text)
+						M.insert_text((text or "") .. "\n", term_buf)
+					end,
+					send_keys = function(keys)
+						local converted = vim.api.nvim_replace_termcodes(keys, true, true, true)
+						M.insert_text(converted, term_buf)
+					end,
+					wait = function(ms)
+						vim.defer_fn(resume_co, ms)
+						coroutine.yield()
+					end,
+				}
+
+				co = coroutine.create(function()
+					local ok, err = pcall(start_doing, visual_text, actions)
+					if not ok then
+						vim.notify("cli-integration.nvim: start_doing error: " .. tostring(err), vim.log.levels.ERROR)
+					end
+				end)
+				coroutine.resume(co)
+			elseif visual_text then
+				M.insert_text(visual_text, term_buf)
 			end
 			return
 		end
@@ -173,7 +170,7 @@ end
 --- @param args string|nil Command line arguments for CLI tool
 --- @param keep_open boolean|nil Whether to keep the terminal open after execution
 --- @param working_dir string|nil Working directory for the terminal
---- @param visual_text string|nil Optional text from visual selection (overrides start_with_text)
+--- @param visual_text string|nil Optional text from visual selection (passed to start_doing function if set)
 --- @return nil
 local function create_new_terminal(integration, args, keep_open, working_dir, visual_text)
 	local cli_cmd = integration.cli_cmd
@@ -267,11 +264,8 @@ local function create_new_terminal(integration, args, keep_open, working_dir, vi
 
 	M.buf_to_name[term_buf] = name
 
-	local start_with_text = integration.start_with_text
-	if
-		visual_text
-		or (start_with_text ~= nil and (type(start_with_text) == "string" or type(start_with_text) == "function"))
-	then
+	local start_doing = integration.start_doing
+	if visual_text or (start_doing ~= nil and type(start_doing) == "function") then
 		M.attach_text_when_ready(integration, term_buf, nil, visual_text)
 	end
 end
@@ -281,7 +275,7 @@ end
 --- @param args string|nil Command line arguments for CLI tool
 --- @param keep_open boolean|nil Whether to keep the terminal open after execution
 --- @param working_dir string|nil Working directory for the terminal
---- @param visual_text string|nil Optional text from visual selection (overrides start_with_text)
+--- @param visual_text string|nil Optional text from visual selection (passed to start_doing function if set)
 --- @return nil
 function M.open_terminal(integration, args, keep_open, working_dir, visual_text)
 	if not integration or not integration.cli_cmd or integration.cli_cmd == "" then

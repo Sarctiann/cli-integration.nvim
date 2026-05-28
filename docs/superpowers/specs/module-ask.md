@@ -63,7 +63,7 @@ Resolves integration by name, index, or cli_cmd. Same logic as commands.lua.
 
 ### `open_integration(integration)`
 
-Opens or toggles terminal, suppresses `start_with_text` so ask's question takes priority. Terminal is created in the **git root** directory (falls back to file's directory if not in a git repo).
+Opens or toggles terminal, suppresses `start_doing` so ask's question takes priority. Terminal is created in the **git root** directory (falls back to file's directory if not in a git repo).
 
 ### `_handle_submit(integration, context, question)`
 
