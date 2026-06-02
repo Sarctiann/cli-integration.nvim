@@ -22,7 +22,7 @@
 
 ## Resize Sync Issues
 
-**Check:** M.resize_sidebars() in window.lua lines 698-740
+**Check:** M.resize_sidebars() in window.lua lines ~954-981
 
 **Verify:**
 
@@ -30,6 +30,20 @@
 - `M.sidebars` table integrity
 - Width detection logic distinguishes editor vs manual resize using `M._last_editor_width`
 - `M._last_editor_width` is updated correctly
+- Sidebar vsplit width equals `configured_width` (no padding discount)
+- `resize_pty` called with correct padding: `data.padding` for sidebar, `0` for fullscreen float
+
+## PTY Size Issues
+
+**Check:** resize_pty() and calculate_content_dimensions() in window.lua lines ~137 and ~226
+
+**Verify:**
+
+- `resize_pty(term_buf, win, padding)` uses 3 parameters (no border parameter)
+- For splits: `content_width = w - (padding * 2)` (w includes foldcolumn)
+- For floats: `content_width = w` (padding is always 0)
+- `resize_pty` is called after jobstart in create_terminal
+- Fullscreen floats always pass `padding = 0` to resize_pty
 
 ## Fullwidth Toggle Issues
 

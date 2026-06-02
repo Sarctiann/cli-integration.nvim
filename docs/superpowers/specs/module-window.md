@@ -30,7 +30,7 @@ Table mapping `term_buf` → sidebar data (stable key across toggles):
 
 - `is_integration_window(win, term_buf)` — Checks if window is an integration window (sidebar or float) for a given terminal buffer
 - `is_valid_win(win)` — Checks if window handle is valid
-- `resize_pty(term_buf, win, border, padding)` — Resizes terminal job pty to match window content dimensions
+- `resize_pty(term_buf, win, padding)` — Resizes terminal job pty to match window content dimensions
 - `find_layout_anchor_window()` — Finds a safe anchor window for creating the vsplit
 - `is_terminal_visible(terminal)` — Checks if terminal window is visible
 
@@ -45,12 +45,14 @@ Creates terminal buffer, window, job, and protection autocmds.
 1. Create terminal buffer (`bufhidden=hide`, `buflisted=false`)
 2. Set `b:cli_integration_name` buffer variable BEFORE termopen/jobstart
 3. Call `create_sidebar_layout()` or `create_float_window()`
-4. Start terminal job (jobstart/termopen) with calculated COLUMNS/LINES
-5. Re-apply buffer name after termopen (Neovim overwrites it)
-6. List buffer in bufferline if configured
-7. Set up navigation keymaps (`<C-h/j/k/l>`)
-8. Set up BufWinEnter protection autocmd
-9. Set up auto-insert autocmd
+4. Calculate content dimensions via `calculate_content_dimensions(win, padding)` (padding=0 for floats)
+5. Start terminal job (jobstart/termopen) with calculated COLUMNS/LINES
+6. Call `resize_pty(buf, win, padding)` to align PTY with calculated dimensions
+7. Re-apply buffer name after termopen (Neovim overwrites it)
+8. List buffer in bufferline if configured
+9. Set up navigation keymaps (`<C-h/j/k/l>`)
+10. Set up BufWinEnter protection autocmd
+11. Set up auto-insert autocmd
 
 ### `M.create_float_window(buf, win_opts)`
 
@@ -62,7 +64,7 @@ Creates vsplit on the right side with terminal buffer. Returns vsplit window han
 
 **Steps:**
 
-1. Calculate vsplit width from `width_config` (percentage or absolute)
+1. Calculate vsplit width from `width_config` (percentage or absolute) — vsplit width equals configured width (padding renders inside via foldcolumn)
 2. Find anchor window via `find_layout_anchor_window()`
 3. Create vsplit via `botright vsplit`
 4. Set terminal buffer in the vsplit
@@ -81,18 +83,18 @@ Handles fullscreen toggle for sidebar-origin integrations.
 
 **Expanded mode (fullscreen):**
 
-- Hides vsplit using `nvim_win_hide()` (removes from layout, keeps buffer)
+- Collapses vsplit to width 1
 - Opens fullscreen float covering full editor width with single border
 - Updates `data.float_win` and `data.mode = "fullscreen"` in-place
 - Registers `WinClosed` guard on float, stores autocmd id in `data.fullscreen_autocmd_id`
-- **Resizes pty via `resize_pty()`**
+- **Resizes pty via `resize_pty(term_buf, new_win, 0)`** (fullscreen float has no foldcolumn)
 
 **Sidebar mode (restore):**
 
 - Deletes `WinClosed` guard via `nvim_del_autocmd(data.fullscreen_autocmd_id)`
 - Closes float
-- Restores hidden vsplit to configured width
-- **Resizes pty via `resize_pty()`**
+- Restores vsplit to configured width (no padding discount)
+- **Resizes pty via `resize_pty(term_buf, sidebar_win, data.padding)`**
 
 ### `M.update_float_geometry(term_buf, is_fullscreen, should_focus)`
 
@@ -103,13 +105,13 @@ Handles fullscreen toggle for float-origin integrations.
 - Saves current float config in `data.float_original`
 - Resizes float to full editor coverage via `nvim_win_set_config`
 - Sets `data.mode = "fullscreen"`
-- **Resizes pty via `resize_pty()`**
+- **Resizes pty via `resize_pty(term_buf, float_win, 0)`** (floats have no foldcolumn)
 
 **Float mode (restore):**
 
 - Restores float config from `data.float_original`
 - Sets `data.mode = "float"`
-- **Resizes pty via `resize_pty()`**
+- **Resizes pty via `resize_pty(term_buf, float_win, 0)`**
 
 ### `M.set_nav_keymaps_enabled(term_buf, enabled)`
 
@@ -125,6 +127,9 @@ Bidirectional sync on VimResized/WinResized events.
 Distinguishes editor resize (recalculate from `width_config` percentage) from manual split resize (split as source of truth).
 
 **After any dimension change** (fullscreen float resize or sidebar vsplit resize), calls `resize_pty()` to send SIGWINCH to the terminal job so TUI apps update their internal size.
+
+- **Fullscreen float**: `resize_pty(term_buf, float_win, 0)` — no foldcolumn
+- **Sidebar vsplit**: `resize_pty(term_buf, sidebar_win, data.padding)` — accounts for foldcolumn
 
 ## Critical Implementation Details
 
@@ -154,12 +159,18 @@ The vsplit is created directly with the terminal buffer:
 
 Pure helper functions for dimension calculations:
 
-- `compute_fullscreen_geometry()` — Full editor width minus borders
-- `compute_sidebar_target_geometry(data, split_win)` — Calculates from split or config
-- `apply_float_geometry(float_win, geom)` — Applies geometry to float
-- `apply_split_width(split_win, width)` — Sets split width
 - `calculate_width(width_config)` — Supports percentage (1-100) or absolute (>100)
-- `calculate_content_dimensions(win, border, padding)` — Usable cols/lines
+- `calculate_content_dimensions(win, padding)` — Usable cols/lines; subtracts `padding * 2` from window width (foldcolumn left + visual margin right). For floats, padding is always 0.
+- `resize_pty(term_buf, win, padding)` — Sends SIGWINCH with calculated content dimensions. For floats, padding is always 0.
+
+### Content Dimension Semantics
+
+**`window_width` = total panel width on screen.** The vsplit is created at this exact width. Padding is rendered inside the panel:
+
+- Left: `foldcolumn` set to `padding` value
+- Right: PTY width is `window_width - (padding * 2)`, creating a visual margin
+
+For floats, `nvim_win_get_width()` returns content width (border is outside), so padding is always 0 and PTY width equals window width.
 
 ### Environment Building
 

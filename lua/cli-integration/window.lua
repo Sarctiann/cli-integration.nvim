@@ -126,25 +126,23 @@ end
 
 --- Resize the pty of a terminal job to match current window content dimensions.
 --- Sends SIGWINCH so TUI apps update their internal size and mouse coordinates.
+---
+--- For splits: nvim_win_get_width includes foldcolumn, so we subtract padding*2
+--- (left foldcolumn + right visual margin) to get the usable PTY width.
+--- For floats: nvim_win_get_width returns content width (border is outside),
+--- so padding should be 0 (floats don't use foldcolumn).
 --- @param term_buf number Terminal buffer handle
 --- @param win number Window handle (must be valid)
---- @param border string|table Border style
---- @param padding number Horizontal padding
-local function resize_pty(term_buf, win, border, padding)
+--- @param padding number Horizontal padding (foldcolumn columns to subtract)
+local function resize_pty(term_buf, win, padding)
 	local job_id = vim.bo[term_buf].channel
 	if not job_id or job_id <= 0 then
 		return
 	end
 	local w = vim.api.nvim_win_get_width(win)
 	local h = vim.api.nvim_win_get_height(win)
-	local border_offset
-	if type(border) == "table" then
-		border_offset = (#border > 0) and 2 or 0
-	else
-		border_offset = (border == nil or border == "none" or border == "") and 0 or 2
-	end
-	local content_width = math.max(1, w - border_offset - (padding * 2))
-	local content_height = math.max(1, h - border_offset)
+	local content_width = math.max(1, w - (padding * 2))
+	local content_height = math.max(1, h)
 	pcall(vim.fn.jobresize, job_id, content_width, content_height)
 end
 
@@ -215,23 +213,21 @@ local function calculate_width(width_config)
 end
 
 --- Calculate the usable content dimensions of a terminal window,
---- subtracting border cells and padding.
+--- subtracting padding (foldcolumn) columns.
+---
+--- For splits: nvim_win_get_width includes foldcolumn, so padding*2 is subtracted
+--- to account for left foldcolumn + right visual margin.
+--- For floats: nvim_win_get_width returns content width (border is outside),
+--- so padding should be 0.
 --- @param win number Window handle (must be valid and sized)
---- @param border string|table Border style ("none"|"single"|"double"|"rounded"|"solid"|"shadow") or 8-element array
---- @param padding number Horizontal padding in columns (foldcolumn)
+--- @param padding number Horizontal padding in columns (0 for floats)
 --- @return number cols  Usable columns (COLUMNS env var)
 --- @return number lines Usable lines  (LINES env var)
-local function calculate_content_dimensions(win, border, padding)
+local function calculate_content_dimensions(win, padding)
 	local w = vim.api.nvim_win_get_width(win)
 	local h = vim.api.nvim_win_get_height(win)
-	local border_offset
-	if type(border) == "table" then
-		border_offset = (#border > 0) and 2 or 0
-	else
-		border_offset = (border == nil or border == "none" or border == "") and 0 or 2
-	end
-	local cols = math.max(1, w - border_offset - (padding * 2))
-	local lines = math.max(1, h - border_offset)
+	local cols = math.max(1, w - (padding * 2))
+	local lines = math.max(1, h)
 	return cols, lines
 end
 
@@ -297,9 +293,9 @@ function M.create_terminal(cmd, opts)
 	-- Read final content dimensions AFTER geometry is established.
 	-- create_sidebar_layout sets the vsplit width before returning, so
 	-- win dimensions are correct here.
-	local padding = win_opts.padding or 0
-	local border = win_opts.border or (is_float and "rounded" or "none")
-	local cols, lines = calculate_content_dimensions(win, border, padding)
+	-- Floats don't use foldcolumn, so padding is 0 for them.
+	local padding = is_float and 0 or (win_opts.padding or 0)
+	local cols, lines = calculate_content_dimensions(win, padding)
 
 	local job_id
 	vim.api.nvim_buf_call(buf, function()
@@ -381,6 +377,11 @@ function M.create_terminal(cmd, opts)
 	end
 
 	terminal.job_id = job_id
+
+	-- Align PTY size with our calculated dimensions. Neovim auto-sizes the PTY
+	-- based on window geometry, but our COLUMNS/LINES env vars may differ
+	-- (e.g. due to padding). This ensures consistency from the start.
+	resize_pty(buf, win, padding)
 
 	-- List buffer in bufferline if configured (must be after termopen so buftype=terminal is set)
 	if opts.win and opts.win.list_buffer then
@@ -624,7 +625,8 @@ function M.create_sidebar_layout(buf, win_opts)
 	local padding = win_opts.padding or 0
 	local configured_width = calculate_width(width_config)
 
-	local vsplit_width = configured_width - (padding * 2)
+	-- vsplit_width is the total panel width (padding is rendered inside via foldcolumn)
+	local vsplit_width = configured_width
 
 	local anchor_win = M.find_layout_anchor_window()
 	if anchor_win and vim.api.nvim_win_is_valid(anchor_win) then
@@ -773,7 +775,8 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
 			})
 			data.fullscreen_autocmd_id = autocmd_id
 
-			resize_pty(data.term_buf, new_win, "single", data.padding or 0)
+			-- Fullscreen float has no foldcolumn, so padding is 0
+			resize_pty(data.term_buf, new_win, 0)
 
 			if should_focus then
 				vim.api.nvim_set_current_win(new_win)
@@ -811,9 +814,7 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
 		local sidebar_win = data.sidebar_win
 		if sidebar_win and is_valid_win(sidebar_win) then
 			local configured_width = calculate_width(data.width_config)
-			local target_width = configured_width - (data.padding or 0) * 2
-			pcall(vim.api.nvim_win_set_width, sidebar_win, target_width)
-			-- vsplit restored
+			pcall(vim.api.nvim_win_set_width, sidebar_win, configured_width)
 		else
 			-- Fallback: recreate if the window was closed externally
 			local fallback_win = M.create_sidebar_layout(data.term_buf, data.win_opts)
@@ -825,7 +826,7 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
 		sidebar_win = data.sidebar_win
 		if sidebar_win and is_valid_win(sidebar_win) then
 			inject_bufferline_offset(data.term_buf, data.win_opts.title or "")
-			resize_pty(data.term_buf, sidebar_win, "none", data.padding or 0)
+			resize_pty(data.term_buf, sidebar_win, data.padding or 0)
 			if should_focus then
 				vim.api.nvim_set_current_win(sidebar_win)
 				vim.schedule(function()
@@ -883,7 +884,7 @@ function M.update_float_geometry(term_buf, is_fullscreen, should_focus)
 		})
 
 		data.mode = "fullscreen"
-		resize_pty(data.term_buf, float_win, "single", data.padding or 0)
+		resize_pty(data.term_buf, float_win, 0)
 	else
 		debug.log("update_float_geometry", function()
 			return {
@@ -909,8 +910,7 @@ function M.update_float_geometry(term_buf, is_fullscreen, should_focus)
 		end
 
 		data.mode = "float"
-		local border = data.win_opts.border or "rounded"
-		resize_pty(data.term_buf, float_win, border, data.padding or 0)
+		resize_pty(data.term_buf, float_win, 0)
 	end
 
 	if should_focus then
@@ -971,13 +971,11 @@ function M.resize_sidebars()
 				style = "minimal",
 				border = "single",
 			})
-			resize_pty(data.term_buf, data.float_win, "single", data.padding or 0)
+			resize_pty(data.term_buf, data.float_win, 0)
 		elseif data.mode == "sidebar" and editor_resized and data.sidebar_win and is_valid_win(data.sidebar_win) then
-			local padding = data.padding or 0
 			local configured_width = calculate_width(data.width_config)
-			local target_width = configured_width - (padding * 2)
-			pcall(vim.api.nvim_win_set_width, data.sidebar_win, target_width)
-			resize_pty(data.term_buf, data.sidebar_win, "none", data.padding or 0)
+			pcall(vim.api.nvim_win_set_width, data.sidebar_win, configured_width)
+			resize_pty(data.term_buf, data.sidebar_win, data.padding or 0)
 		end
 	end
 end
@@ -1054,6 +1052,14 @@ function M.is_terminal_visible(terminal)
 		return false
 	end
 	return (data.sidebar_win and is_valid_win(data.sidebar_win)) or (data.float_win and is_valid_win(data.float_win))
+end
+
+--- Public wrapper for resize_pty (used by terminal.lua fallback path).
+--- @param term_buf number Terminal buffer handle
+--- @param win number Window handle (must be valid)
+--- @param padding number Horizontal padding (0 for floats)
+function M.resize_pty(term_buf, win, padding)
+	resize_pty(term_buf, win, padding)
 end
 
 return M

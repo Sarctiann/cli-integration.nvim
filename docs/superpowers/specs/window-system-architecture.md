@@ -97,14 +97,16 @@
 
 Calculated AFTER geometry is finalized:
 
-- `cols = width - border_offset - (padding * 2)`
-- `lines = height - border_offset - row_offset`
-- Where `row_offset = 1` when `list_buffer=true`
+- **Splits**: `cols = width - (padding * 2)`, `lines = height`
+  - `nvim_win_get_width()` includes foldcolumn, so `padding * 2` accounts for left foldcolumn + right visual margin
+- **Floats**: `cols = width`, `lines = height`
+  - `nvim_win_get_width()` returns content width (border is outside), padding is always 0
 
 ### Padding
 
-- Left padding: `foldcolumn` set to padding value
-- Right padding: `COLUMNS` env var limited to content width
+- Left padding: `foldcolumn` set to padding value (splits only)
+- Right padding: achieved by making PTY width = `window_width - (padding * 2)`, creating a visual margin
+- Floats: no padding (no foldcolumn support)
 
 ## Source
 

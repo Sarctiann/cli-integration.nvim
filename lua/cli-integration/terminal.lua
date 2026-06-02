@@ -376,6 +376,8 @@ function M.toggle_fullscreen(term_buf)
 		else
 			vim.api.nvim_win_set_width(term_win, default_width)
 		end
+		-- Notify the TUI of the new size
+		window.resize_pty(term_buf, term_win, 0)
 	end
 
 	term_data.is_fullscreen = is_fullscreen
