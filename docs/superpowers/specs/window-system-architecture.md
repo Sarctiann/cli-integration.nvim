@@ -47,6 +47,8 @@
 +------------------------------------------+
 ```
 
+**Height formula:** `vim.o.lines - vim.o.cmdheight - 3`. The `-3` prevents the bottom border from overlapping the statusline. With `border="single"`, the top border is at `row=0`, content starts at `row+1`, and the bottom border is at `row = height + 1`. The formula guarantees `height + 1 < vim.o.lines - vim.o.cmdheight`, leaving the statusline row untouched.
+
 **Behavior:**
 
 - Sidebar → fullscreen: vsplit hides (`nvim_win_hide`), float opens

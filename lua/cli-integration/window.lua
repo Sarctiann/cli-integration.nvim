@@ -144,6 +144,17 @@ local function resize_pty(term_buf, win, padding)
 	local content_width = math.max(1, w - (padding * 2))
 	local content_height = math.max(1, h)
 	pcall(vim.fn.jobresize, job_id, content_width, content_height)
+	debug.log("resize_pty", function()
+		return {
+			term_buf = term_buf,
+			padding = padding,
+			win_width = w,
+			win_height = h,
+			content_width = content_width,
+			content_height = content_height,
+			job_id = job_id,
+		}
+	end)
 end
 
 --- Build terminal job environment starting from inherited process env,
@@ -306,12 +317,19 @@ function M.create_terminal(cmd, opts)
 
 		local env = build_job_env(opts, cols, lines)
 		debug.log("create_terminal", function()
+			local raw_w = vim.api.nvim_win_get_width(win)
+			local raw_h = vim.api.nvim_win_get_height(win)
 			return {
 				cmd = cmd,
 				buf = buf,
 				integration_name = integration_name,
-				width = cols,
-				height = lines,
+				is_float = is_float,
+				padding = padding,
+				win_width = raw_w,
+				win_height = raw_h,
+				content_width = cols,
+				content_height = lines,
+				border = win_opts.border or "none",
 			}
 		end)
 
@@ -705,7 +723,19 @@ function M.create_sidebar_layout(buf, win_opts)
 
 	vim.cmd("startinsert")
 	debug.log("create_sidebar_layout", function()
-		return { buf = buf, sidebar_win = sidebar_win, width = vsplit_width }
+		local raw_w = vim.api.nvim_win_get_width(sidebar_win)
+		local raw_h = vim.api.nvim_win_get_height(sidebar_win)
+		return {
+			buf = buf,
+			sidebar_win = sidebar_win,
+			padding = padding,
+			win_width = raw_w,
+			win_height = raw_h,
+			configured_width = vsplit_width,
+			editor_columns = vim.o.columns,
+			editor_lines = vim.o.lines,
+			cmdheight = vim.o.cmdheight,
+		}
 	end)
 	return sidebar_win
 end
@@ -730,6 +760,12 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
 				to_mode = "fullscreen",
 				sidebar_win = data.sidebar_win,
 				float_win = data.float_win,
+				border = "single",
+				height_formula = tostring(vim.o.lines) .. "-" .. tostring(vim.o.cmdheight) .. "-3=" .. tostring(vim.o.lines - vim.o.cmdheight - 3),
+				width = vim.o.columns,
+				editor_lines = vim.o.lines,
+				editor_columns = vim.o.columns,
+				cmdheight = vim.o.cmdheight,
 			}
 		end)
 		-- Collapse vsplit to width 1 instead of hiding/closing.
@@ -743,7 +779,7 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
 		local float_opts = {
 			relative = "editor",
 			width = vim.o.columns,
-			height = vim.o.lines - vim.o.cmdheight - 1,
+			height = vim.o.lines - vim.o.cmdheight - 3,
 			row = 0,
 			col = 0,
 			style = "minimal",
@@ -777,6 +813,17 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
 
 			-- Fullscreen float has no foldcolumn, so padding is 0
 			resize_pty(data.term_buf, new_win, 0)
+			debug.log("fullscreen_float_created", function()
+				return {
+					term_buf = term_buf,
+					new_win = new_win,
+					win_width = vim.api.nvim_win_get_width(new_win),
+					win_height = vim.api.nvim_win_get_height(new_win),
+					border = "single",
+					padding = 0,
+					mode = "fullscreen",
+				}
+			end)
 
 			if should_focus then
 				vim.api.nvim_set_current_win(new_win)
@@ -790,12 +837,20 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
 	else
 		-- Sidebar mode: close float, restore or recreate vsplit
 		debug.log("update_sidebar_geometry", function()
+			local restored_sidebar_win = data.sidebar_win
+			local w = restored_sidebar_win and is_valid_win(restored_sidebar_win) and vim.api.nvim_win_get_width(restored_sidebar_win) or -1
+			local h = restored_sidebar_win and is_valid_win(restored_sidebar_win) and vim.api.nvim_win_get_height(restored_sidebar_win) or -1
 			return {
 				term_buf = term_buf,
 				from_mode = from_mode,
 				to_mode = "sidebar",
 				sidebar_win = data.sidebar_win,
 				float_win = data.float_win,
+				win_width = w,
+				win_height = h,
+				padding = data.padding or 0,
+				editor_lines = vim.o.lines,
+				editor_columns = vim.o.columns,
 			}
 		end)
 		local float_win = data.float_win
@@ -866,17 +921,27 @@ function M.update_float_geometry(term_buf, is_fullscreen, should_focus)
 		}
 
 		debug.log("update_float_geometry", function()
+			local w = vim.api.nvim_win_get_width(float_win)
+			local h = vim.api.nvim_win_get_height(float_win)
 			return {
 				term_buf = term_buf,
 				from_mode = original_mode,
 				to_mode = "fullscreen",
 				float_win = float_win,
+				border = "single",
+				height_formula = tostring(vim.o.lines) .. "-" .. tostring(vim.o.cmdheight) .. "-3=" .. tostring(vim.o.lines - vim.o.cmdheight - 3),
+				width = vim.o.columns,
+				win_width = w,
+				win_height = h,
+				editor_lines = vim.o.lines,
+				editor_columns = vim.o.columns,
+				cmdheight = vim.o.cmdheight,
 			}
 		end)
 		pcall(vim.api.nvim_win_set_config, float_win, {
 			relative = "editor",
 			width = vim.o.columns,
-			height = vim.o.lines - vim.o.cmdheight - 1,
+			height = vim.o.lines - vim.o.cmdheight - 3,
 			row = 0,
 			col = 0,
 			style = "minimal",
@@ -887,11 +952,17 @@ function M.update_float_geometry(term_buf, is_fullscreen, should_focus)
 		resize_pty(data.term_buf, float_win, 0)
 	else
 		debug.log("update_float_geometry", function()
+			local w = vim.api.nvim_win_get_width(float_win)
+			local h = vim.api.nvim_win_get_height(float_win)
 			return {
 				term_buf = term_buf,
 				from_mode = original_mode,
 				to_mode = "float",
 				float_win = float_win,
+				win_width = w,
+				win_height = h,
+				editor_lines = vim.o.lines,
+				editor_columns = vim.o.columns,
 			}
 		end)
 		local orig = data.float_original
@@ -957,15 +1028,31 @@ function M.resize_sidebars()
 		M._last_editor_width = vim.o.columns
 	end
 	debug.log("resize_sidebars", function()
-		return { editor_resized = editor_resized, editor_width = vim.o.columns }
+		return { editor_resized = editor_resized, editor_width = vim.o.columns, editor_lines = vim.o.lines, cmdheight = vim.o.cmdheight, num_sidebars = vim.tbl_count(M.sidebars) }
 	end)
 
 	for _, data in pairs(M.sidebars) do
 		if data.mode == "fullscreen" and data.float_win and is_valid_win(data.float_win) then
+			debug.log("resize_sidebars_fullscreen", function()
+				local w = vim.api.nvim_win_get_width(data.float_win)
+				local h = vim.api.nvim_win_get_height(data.float_win)
+				return {
+					term_buf = data.term_buf,
+					mode = data.mode,
+					float_win = data.float_win,
+					win_width = w,
+					win_height = h,
+					border = "single",
+					padding = 0,
+					editor_lines = vim.o.lines,
+					editor_columns = vim.o.columns,
+					cmdheight = vim.o.cmdheight,
+				}
+			end)
 			pcall(vim.api.nvim_win_set_config, data.float_win, {
 				relative = "editor",
 				width = vim.o.columns,
-				height = vim.o.lines - vim.o.cmdheight - 1,
+				height = vim.o.lines - vim.o.cmdheight - 3,
 				row = 0,
 				col = 0,
 				style = "minimal",
@@ -973,6 +1060,22 @@ function M.resize_sidebars()
 			})
 			resize_pty(data.term_buf, data.float_win, 0)
 		elseif data.mode == "sidebar" and editor_resized and data.sidebar_win and is_valid_win(data.sidebar_win) then
+			debug.log("resize_sidebars_sidebar", function()
+				local w = vim.api.nvim_win_get_width(data.sidebar_win)
+				local h = vim.api.nvim_win_get_height(data.sidebar_win)
+				local cfg_w = calculate_width(data.width_config)
+				return {
+					term_buf = data.term_buf,
+					mode = data.mode,
+					sidebar_win = data.sidebar_win,
+					win_width = w,
+					win_height = h,
+					configured_width = cfg_w,
+					padding = data.padding or 0,
+					editor_lines = vim.o.lines,
+					editor_columns = vim.o.columns,
+				}
+			end)
 			local configured_width = calculate_width(data.width_config)
 			pcall(vim.api.nvim_win_set_width, data.sidebar_win, configured_width)
 			resize_pty(data.term_buf, data.sidebar_win, data.padding or 0)

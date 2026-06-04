@@ -85,6 +85,7 @@ Handles fullscreen toggle for sidebar-origin integrations.
 
 - Collapses vsplit to width 1
 - Opens fullscreen float covering full editor width with single border
+- **Height formula**: `height = vim.o.lines - vim.o.cmdheight - 3` — the `-3` ensures the bottom border (at `row = height + 1`) does not overlap the statusline (`row = lines - cmdheight - 1`). With border, `nvim_open_win` positions the top border at `row=0`, content starts at `row+1`. Content is `height` rows; bottom border is at `row = height + 1`. The formula guarantees `height + 1 < lines - cmdheight`, leaving the statusline row clear.
 - Updates `data.float_win` and `data.mode = "fullscreen"` in-place
 - Registers `WinClosed` guard on float, stores autocmd id in `data.fullscreen_autocmd_id`
 - **Resizes pty via `resize_pty(term_buf, new_win, 0)`** (fullscreen float has no foldcolumn)
@@ -103,7 +104,7 @@ Handles fullscreen toggle for float-origin integrations.
 **Expanded mode (fullscreen):**
 
 - Saves current float config in `data.float_original`
-- Resizes float to full editor coverage via `nvim_win_set_config`
+- Resizes float to full editor coverage via `nvim_win_set_config` with `height = vim.o.lines - vim.o.cmdheight - 3` (same formula as `update_sidebar_geometry` fullscreen branch — see above for rationale)
 - Sets `data.mode = "fullscreen"`
 - **Resizes pty via `resize_pty(term_buf, float_win, 0)`** (floats have no foldcolumn)
 
@@ -128,7 +129,7 @@ Distinguishes editor resize (recalculate from `width_config` percentage) from ma
 
 **After any dimension change** (fullscreen float resize or sidebar vsplit resize), calls `resize_pty()` to send SIGWINCH to the terminal job so TUI apps update their internal size.
 
-- **Fullscreen float**: `resize_pty(term_buf, float_win, 0)` — no foldcolumn
+- **Fullscreen float**: `resize_pty(term_buf, float_win, 0)` — no foldcolumn; height formula `vim.o.lines - vim.o.cmdheight - 3`
 - **Sidebar vsplit**: `resize_pty(term_buf, sidebar_win, data.padding)` — accounts for foldcolumn
 
 ## Critical Implementation Details
@@ -191,4 +192,4 @@ For floats, `nvim_win_get_width()` returns content width (border is outside), so
 
 ## Source Location
 
-`lua/cli-integration/window.lua` (1003 lines)
+`lua/cli-integration/window.lua` (1168 lines)
