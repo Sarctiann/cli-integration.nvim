@@ -57,6 +57,7 @@ end
 --- @param padding number Horizontal padding (foldcolumn)
 local function apply_sidebar_win_opts(win, padding)
 	vim.wo[win].winfixwidth = true
+	vim.wo[win].winfixheight = true
 	vim.wo[win].number = false
 	vim.wo[win].relativenumber = false
 	vim.wo[win].signcolumn = "no"
@@ -1164,12 +1165,10 @@ function M.resize_sidebars()
 				local configured_width = calculate_width(data.width_config)
 				pcall(vim.api.nvim_win_set_width, data.sidebar_win, configured_width)
 			end
-			-- Defer the PTY resize to next event-loop idle.
-			-- Capture the height at schedule-time; if the layout bounces before
-			-- the callback runs (another WinResized reverts it), skip this resize —
-			-- that other WinResized will have already scheduled its own callback.
-			local scheduled_h = h
-			local scheduled_w = w
+			-- Defer PTY resize to next event-loop idle so the layout settles first.
+			-- Always resize to the final (current) dimensions — the previous bounce
+			-- check skipped resizes when the layout changed between WinResized and
+			-- the scheduled callback, leaving the PTY with stale dimensions.
 			if not data._pty_resize_pending then
 				data._pty_resize_pending = true
 				vim.schedule(function()
@@ -1184,21 +1183,17 @@ function M.resize_sidebars()
 						return {
 							term_buf = data.term_buf,
 							sidebar_win = sw,
-							scheduled_h = scheduled_h,
-							scheduled_w = scheduled_w,
 							final_win_height = final_h,
 							final_win_width = final_w,
-							bounced = (final_h ~= scheduled_h or final_w ~= scheduled_w),
+							last_win_height = data._last_win_height,
+							last_win_width = data._last_win_width,
+							dim_changed = (final_h ~= (data._last_win_height or -1) or final_w ~= (data._last_win_width or -1)),
 							padding = data.padding or 0,
 						}
 					end)
-					-- If the window bounced back to its previous size, a subsequent
-					-- WinResized already handled (or will handle) the PTY resize.
-					if final_h == scheduled_h and final_w == scheduled_w then
-						resize_pty(data.term_buf, sw, data.padding or 0)
-						data._last_win_width = final_w
-						data._last_win_height = final_h
-					end
+					resize_pty(data.term_buf, sw, data.padding or 0)
+					data._last_win_width = final_w
+					data._last_win_height = final_h
 				end)
 			end
 		end
