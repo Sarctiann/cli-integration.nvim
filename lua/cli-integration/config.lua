@@ -89,6 +89,7 @@
 --- @field list_buffer boolean|nil # Default: show terminal buffer in bufferline (applied to all integrations)
 --- @field env table<string, string>|nil # Default: environment variable overrides passed to all integration jobs
 --- @field unset_env string[]|nil # Default: environment variable names removed from all integration jobs
+--- @field enable_bufferline_integration boolean|nil # Enable bufferline offset integration (default: true)
 --- @field debug boolean|nil # Enable debug logging (default: false)
 
 local M = {}
@@ -104,6 +105,7 @@ M.defaults = {
 	floating = false,
 	start_insert_on_click = false,
 	list_buffer = false,
+	enable_bufferline_integration = true,
 	on_ask_submit = function(data, actions)
 		local parts = { data.question, "" }
 		if data.selection then
