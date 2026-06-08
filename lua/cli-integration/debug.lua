@@ -101,4 +101,82 @@ function M.log(event, data_fn)
 	end
 end
 
+--- Register global debug autocommands for monitoring file operations, bufferline,
+--- and window focus. Only active when config.options.debug is true.
+function M.setup_autocmds()
+	if not config.options.debug then
+		return
+	end
+
+	local group = vim.api.nvim_create_augroup("CliIntegrationDebug", { clear = true })
+
+	vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile" }, {
+		group = group,
+		pattern = "*",
+		callback = function(args)
+			M.log("debug_file_opened", function()
+				local bufname = vim.api.nvim_buf_get_name(args.buf)
+				return { buf = args.buf, file = bufname, event = args.event }
+			end)
+		end,
+		desc = "Debug: log file opens",
+	})
+
+	vim.api.nvim_create_autocmd({ "BufDelete", "BufWipeout" }, {
+		group = group,
+		pattern = "*",
+		callback = function(args)
+			M.log("debug_file_closed", function()
+				return { buf = args.buf, event = args.event }
+			end)
+		end,
+		desc = "Debug: log file closes",
+	})
+
+	vim.api.nvim_create_autocmd("WinEnter", {
+		group = group,
+		pattern = "*",
+		callback = function()
+			local win = vim.api.nvim_get_current_win()
+			local buf = vim.api.nvim_get_current_buf()
+			local bufname = vim.api.nvim_buf_get_name(buf)
+			local bt = vim.bo[buf].buftype
+			local win_cfg = vim.api.nvim_win_get_config(win)
+			local is_float = win_cfg.relative ~= ""
+			M.log("debug_win_enter", function()
+				return {
+					win = win,
+					buf = buf,
+					buftype = bt,
+					name = bufname,
+					float = is_float,
+				}
+			end)
+		end,
+		desc = "Debug: log window focus changes",
+	})
+
+	vim.api.nvim_create_autocmd("BufEnter", {
+		group = group,
+		pattern = "*",
+		callback = function(args)
+			local bufname = vim.api.nvim_buf_get_name(args.buf)
+			local bt = vim.bo[args.buf].buftype
+			local win = vim.api.nvim_get_current_win()
+			local win_cfg = vim.api.nvim_win_get_config(win)
+			local is_float = win_cfg.relative ~= ""
+			M.log("debug_buf_enter", function()
+				return {
+					buf = args.buf,
+					buftype = bt,
+					name = bufname,
+					win = win,
+					win_float = is_float,
+				}
+			end)
+		end,
+		desc = "Debug: log buffer focus changes",
+	})
+end
+
 return M

@@ -206,9 +206,17 @@ function M.apply_geometry(term_buf)
 	if data.mode == "sidebar" and is_valid_win(data.sidebar_win) then
 		pcall(vim.api.nvim_win_set_width, data.sidebar_win, geom.width)
 		resize_pty(term_buf, data.sidebar_win, data.padding or 0)
+		local cw = vim.api.nvim_win_get_width(data.sidebar_win)
+		local ch = vim.api.nvim_win_get_height(data.sidebar_win)
+		data._last_pty_width = cw
+		data._last_pty_height = ch
 	elseif data.float_win and is_valid_win(data.float_win) then
 		pcall(vim.api.nvim_win_set_config, data.float_win, geom)
 		resize_pty(term_buf, data.float_win, 0)
+		local cw = vim.api.nvim_win_get_width(data.float_win)
+		local ch = vim.api.nvim_win_get_height(data.float_win)
+		data._last_pty_width = cw
+		data._last_pty_height = ch
 	end
 end
 
@@ -389,6 +397,11 @@ function M.create_terminal(cmd, opts)
 	-- based on window geometry, but our COLUMNS/LINES env vars may differ
 	-- (e.g. due to padding). This ensures consistency from the start.
 	resize_pty(buf, win, padding)
+	local data_entry = M.sidebars[buf]
+	if data_entry then
+		data_entry._last_pty_width = vim.api.nvim_win_get_width(win)
+		data_entry._last_pty_height = vim.api.nvim_win_get_height(win)
+	end
 
 	-- List buffer in bufferline if configured (must be after termopen so buftype=terminal is set)
 	if opts.win and opts.win.list_buffer then
@@ -603,11 +616,16 @@ function M.create_float_window(buf, win_opts)
 		win_opts = win_opts,
 		padding = 0,
 		list_buffer = win_opts.list_buffer or false,
+		_last_pty_width = -1,
+		_last_pty_height = -1,
 	}
 
 	vim.api.nvim_create_autocmd("WinClosed", {
 		pattern = tostring(win),
 		callback = function()
+			debug.log("autocmd_float_win_closed", function()
+				return { term_buf = buf, closed_win = win }
+			end)
 			M.sidebars[buf] = nil
 		end,
 		once = true,
@@ -617,6 +635,9 @@ function M.create_float_window(buf, win_opts)
 	vim.api.nvim_create_autocmd("WinLeave", {
 		buffer = buf,
 		callback = function()
+			debug.log("autocmd_term_win_leave", function()
+				return { term_buf = buf, left_win = vim.api.nvim_get_current_win() }
+			end)
 			vim.schedule(function()
 				vim.cmd("stopinsert")
 			end)
@@ -682,18 +703,8 @@ function M.create_sidebar_layout(buf, win_opts)
 	-- Set filetype for bufferline offset detection
 	vim.bo[buf].filetype = "cli-integration"
 
-	M.apply_geometry(buf)
-	-- ...
-	apply_sidebar_win_opts(sidebar_win, padding)
-
-	-- Inject bufferline offset if enabled
-	local config = require("cli-integration.config").options
-	if config.enable_bufferline_integration then
-		require("adapters.bufline").inject_offset(buf, win_opts.title or "")
-	end
-
-	-- Merge with existing entry if one exists (e.g. fullscreen restore creates a new
-	-- vsplit but we want to preserve the existing entry's fields).
+	-- Create/update data entry BEFORE apply_geometry so the geometry function
+	-- can find the entry and set the correct width.
 	local existing = M.sidebars[buf]
 	if existing then
 		existing.sidebar_win = sidebar_win
@@ -716,12 +727,26 @@ function M.create_sidebar_layout(buf, win_opts)
 			padding = padding,
 			list_buffer = win_opts.list_buffer or false,
 			_pty_resize_pending = false,
+			_last_pty_width = -1,
+			_last_pty_height = -1,
 		}
+	end
+
+	M.apply_geometry(buf)
+	apply_sidebar_win_opts(sidebar_win, padding)
+
+	-- Inject bufferline offset if enabled
+	local config = require("cli-integration.config").options
+	if config.enable_bufferline_integration then
+		require("adapters.bufline").inject_offset(buf, win_opts.title or "")
 	end
 
 	vim.api.nvim_create_autocmd("WinClosed", {
 		pattern = tostring(sidebar_win),
 		callback = function()
+			debug.log("autocmd_sidebar_win_closed", function()
+				return { term_buf = buf, sidebar_win = sidebar_win, mode = existing and existing.mode or "new" }
+			end)
 			local data = M.sidebars[buf]
 			if data then
 				data.sidebar_win = nil
@@ -732,35 +757,39 @@ function M.create_sidebar_layout(buf, win_opts)
 	})
 
 	M._last_editor_width = vim.o.columns
+	M._last_editor_height = vim.o.lines
 	if not M.resized_autocmd_setup then
 		local group = vim.api.nvim_create_augroup("CliIntegrationResize", { clear = true })
-		vim.api.nvim_create_autocmd("WinResized", {
-			group = group,
-			callback = function()
-				debug.log("WinResized_fired", function()
-					return { editor_width = vim.o.columns, editor_lines = vim.o.lines, cmdheight = vim.o.cmdheight }
-				end)
-				M.resize_sidebars()
-				if vim.tbl_count(M.sidebars) == 0 then
-					pcall(vim.api.nvim_del_augroup_by_name, "CliIntegrationResize")
-					M.resized_autocmd_setup = false
-				end
-			end,
-			desc = "Resize sidebar on WinResized",
-		})
 		vim.api.nvim_create_autocmd("VimResized", {
 			group = group,
 			callback = function()
 				debug.log("VimResized_fired", function()
-					return { editor_width = vim.o.columns, editor_lines = vim.o.lines, cmdheight = vim.o.cmdheight }
+					return {
+						editor_width = vim.o.columns,
+						editor_lines = vim.o.lines,
+						cmdheight = vim.o.cmdheight,
+						showtabline = vim.o.showtabline,
+					}
 				end)
 				M.resize_sidebars()
+			end,
+			desc = "Restore sidebar width on editor resize",
+		})
+
+		vim.api.nvim_create_autocmd({ "BufReadPost", "BufDelete" }, {
+			group = group,
+			callback = function()
 				if vim.tbl_count(M.sidebars) == 0 then
-					pcall(vim.api.nvim_del_augroup_by_name, "CliIntegrationResize")
-					M.resized_autocmd_setup = false
+					return
+				end
+				for _, data in pairs(M.sidebars) do
+					local win = data.sidebar_win or data.float_win
+					if win and is_valid_win(win) then
+						resize_pty(data.term_buf, win, data.padding or 0)
+					end
 				end
 			end,
-			desc = "Resize sidebar on VimResized",
+			desc = "Rerender TUI on file open/close",
 		})
 
 		M.resized_autocmd_setup = true
@@ -860,6 +889,8 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
 			resize_pty(data.term_buf, new_win, 0)
 			data._last_win_width = vim.api.nvim_win_get_width(new_win)
 			data._last_win_height = vim.api.nvim_win_get_height(new_win)
+			data._last_pty_width = data._last_win_width
+			data._last_pty_height = data._last_win_height
 			debug.log("fullscreen_float_created", function()
 				return {
 					term_buf = term_buf,
@@ -936,6 +967,8 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
 			resize_pty(data.term_buf, sidebar_win, data.padding or 0)
 			data._last_win_width = vim.api.nvim_win_get_width(sidebar_win)
 			data._last_win_height = vim.api.nvim_win_get_height(sidebar_win)
+			data._last_pty_width = data._last_win_width
+			data._last_pty_height = data._last_win_height
 			if should_focus then
 				vim.api.nvim_set_current_win(sidebar_win)
 				vim.schedule(function()
@@ -1068,26 +1101,33 @@ end
 
 --- Resize all sidebar/float windows (handles editor resize and fullscreen)
 function M.resize_sidebars()
-	local editor_resized = vim.o.columns ~= M._last_editor_width
-	if editor_resized then
+	local columns_changed = vim.o.columns ~= M._last_editor_width
+	local lines_changed = vim.o.lines ~= M._last_editor_height
+
+	if columns_changed then
 		M._last_editor_width = vim.o.columns
-		debug.log("resize_sidebars_editor_width_changed", function()
-			return { new_width = vim.o.columns }
-		end)
 	end
+	if lines_changed then
+		M._last_editor_height = vim.o.lines
+	end
+
 	debug.log("resize_sidebars", function()
 		local sidebar_info = {}
 		for buf, data in pairs(M.sidebars) do
 			sidebar_info[buf] = {
 				mode = data.mode,
 				sidebar_win = data.sidebar_win,
+				win_width = data.sidebar_win and is_valid_win(data.sidebar_win) and vim.api.nvim_win_get_width(
+					data.sidebar_win
+				) or nil,
 				win_height = data.sidebar_win and is_valid_win(data.sidebar_win) and vim.api.nvim_win_get_height(
 					data.sidebar_win
 				) or nil,
 			}
 		end
 		return {
-			editor_resized = editor_resized,
+			columns_changed = columns_changed,
+			lines_changed = lines_changed,
 			editor_width = vim.o.columns,
 			editor_lines = vim.o.lines,
 			cmdheight = vim.o.cmdheight,
@@ -1097,8 +1137,33 @@ function M.resize_sidebars()
 	end)
 
 	for _, data in pairs(M.sidebars) do
-		-- Apply geometry centrally for all modes (fullscreen/sidebar/float)
-		M.apply_geometry(data.term_buf)
+		if data.mode == "sidebar" and is_valid_win(data.sidebar_win) then
+			if columns_changed then
+				local w = calculate_width(data.width_config)
+				pcall(vim.api.nvim_win_set_width, data.sidebar_win, w)
+			end
+			-- No explicit resize_pty for sidebar: Neovim auto-resizes the PTY
+			-- when the window dimensions change.  Explicit jobresize would send
+			-- a redundant SIGWINCH, causing TUI redraw churn on minor height
+			-- changes (e.g. bufferline showtabline toggle).
+
+		elseif data.float_win and is_valid_win(data.float_win) then
+			if columns_changed or lines_changed then
+				M.apply_geometry(data.term_buf)
+				local cw = vim.api.nvim_win_get_width(data.float_win)
+				local ch = vim.api.nvim_win_get_height(data.float_win)
+				data._last_pty_width = cw
+				data._last_pty_height = ch
+			else
+				local cw = vim.api.nvim_win_get_width(data.float_win)
+				local ch = vim.api.nvim_win_get_height(data.float_win)
+				if cw ~= data._last_pty_width or ch ~= data._last_pty_height then
+					resize_pty(data.term_buf, data.float_win, 0)
+					data._last_pty_width = cw
+					data._last_pty_height = ch
+				end
+			end
+		end
 	end
 end
 

@@ -22,8 +22,14 @@ function M.setup(user_config)
 		return {
 			integrations_count = #(configs.integrations or {}),
 			debug_enabled = configs.debug or false,
+			enable_bufferline_integration = configs.enable_bufferline_integration or false,
+			editor_columns = vim.o.columns,
+			editor_lines = vim.o.lines,
+			showtabline = vim.o.showtabline,
 		}
 	end)
+
+	debug.setup_autocmds()
 
 	vim.api.nvim_create_user_command("CLIIntegration", function(opts)
 		local integrations = configs.integrations or {}
