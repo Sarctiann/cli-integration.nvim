@@ -107,7 +107,10 @@ function M.attach_text_when_ready(integration, term_buf, tries, visual_text)
 					if co and coroutine.status(co) == "suspended" then
 						local ok, err = coroutine.resume(co)
 						if not ok then
-							vim.notify("cli-integration.nvim: start_doing error: " .. tostring(err), vim.log.levels.ERROR)
+							vim.notify(
+								"cli-integration.nvim: start_doing error: " .. tostring(err),
+								vim.log.levels.ERROR
+							)
 						end
 					end
 				end

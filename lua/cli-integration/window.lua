@@ -1146,7 +1146,6 @@ function M.resize_sidebars()
 			-- when the window dimensions change.  Explicit jobresize would send
 			-- a redundant SIGWINCH, causing TUI redraw churn on minor height
 			-- changes (e.g. bufferline showtabline toggle).
-
 		elseif data.float_win and is_valid_win(data.float_win) then
 			if columns_changed or lines_changed then
 				M.apply_geometry(data.term_buf)
