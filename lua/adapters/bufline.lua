@@ -1,31 +1,24 @@
 local M = {}
 
---- Remove the bufferline offset entry for a given term_buf.
---- @param term_buf number
-function M.remove_offset(term_buf)
-	local ok, bc = pcall(require, "bufferline.config")
-	if not ok then
+--- Remove ALL bufferline offset entries belonging to this plugin.
+--- Bufferline with `filetype` offsets independently calculates the width
+--- for EACH entry by summing all windows with that filetype.  Having
+--- multiple entries causes double-counting and pushes bufferline off-screen.
+--- @param cfg table bufferline config
+local function remove_all_plugin_offsets(cfg)
+	if not cfg.options or not cfg.options.offsets then
 		return
 	end
-
-	local cfg = bc.get()
-	if not cfg or not cfg.options or not cfg.options.offsets then
-		return
-	end
-
-	for i, offset in ipairs(cfg.options.offsets) do
-		if offset._cli_integration_buf == term_buf then
+	for i = #cfg.options.offsets, 1, -1 do
+		if cfg.options.offsets[i]._cli_integration_buf then
 			table.remove(cfg.options.offsets, i)
-			vim.schedule(function()
-				vim.cmd("redrawtabline")
-			end)
-			return
 		end
 	end
 end
 
---- Inject a bufferline offset for the sidebar vsplit, so bufferline does not
---- draw over the integration window. Best-effort: no-op if bufferline is absent.
+--- Inject a single bufferline offset for the sidebar vsplit, so bufferline
+--- does not draw over the integration window.  Best-effort: no-op if
+--- bufferline is absent.
 --- @param term_buf number
 --- @param title string
 function M.inject_offset(term_buf, title)
@@ -41,8 +34,7 @@ function M.inject_offset(term_buf, title)
 
 	cfg.options.offsets = cfg.options.offsets or {}
 
-	-- Remove any stale entry for the same buffer before adding a new one
-	M.remove_offset(term_buf)
+	remove_all_plugin_offsets(cfg)
 
 	table.insert(cfg.options.offsets, {
 		filetype = "cli-integration",
