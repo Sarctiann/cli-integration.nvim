@@ -76,8 +76,17 @@
 --- @field env table<string, string>|nil # Environment variable overrides passed to the terminal job. Merged on top of inherited environment.
 --- @field unset_env string[]|nil # Environment variable names to remove from the terminal job environment after merging.
 
+--- @class Cli-Integration.WindowFeatures
+--- @field dynamic_resize boolean|nil  -- VimResized sync (default: true)
+--- @field fullscreen boolean|nil      -- Fullscreen toggle (default: true)
+--- @field buffer_lock boolean|nil     -- Buffer lock autocmds (default: true)
+--- @field auto_insert boolean|nil     -- startinsert on WinEnter (default: true)
+--- @field nav_keymaps boolean|nil     -- C-h/j/k/l navigation (default: true)
+--- @field start_insert_on_click boolean|nil  -- Click to insert (default: true)
+
 --- @class Cli-Integration.Config
 --- @field integrations Cli-Integration.Integration[]|nil # Array of CLI integrations (optional, defaults to empty array)
+--- @field window_features Cli-Integration.WindowFeatures|nil # Feature toggles for window module
 --- @field show_help_on_open boolean|nil # Default: whether to show help notification when opening the terminal (applied to all integrations)
 --- @field new_lines_amount number|nil # Default: number of new lines to insert after command submission (applied to all integrations)
 --- @field window_width number|nil # Default: width for the terminal window (percentage 0-100 or absolute value >100, applied to all integrations)
@@ -97,6 +106,14 @@ local M = {}
 --- Default configuration (applied to all integrations unless overridden)
 M.defaults = {
 	integrations = {},
+	window_features = {
+		dynamic_resize = true,
+		fullscreen = true,
+		buffer_lock = true,
+		auto_insert = true,
+		nav_keymaps = true,
+		start_insert_on_click = true,
+	},
 	show_help_on_open = true,
 	new_lines_amount = 2,
 	window_width = 34, -- 34% of editor width
