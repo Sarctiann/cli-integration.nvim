@@ -438,7 +438,7 @@ require("cli-integration").setup({
 
 Select text in visual mode, then run `:'<,'>CLIIntegration`. The selection is passed to `start_doing` as `visual_text`:
 
-```lua
+````lua
 require("cli-integration").setup({
   integrations = {
     {
@@ -453,7 +453,7 @@ require("cli-integration").setup({
     },
   },
 })
-```
+````
 
 If no `start_doing` is configured, the visual selection is inserted as-is.
 
