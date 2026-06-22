@@ -32,7 +32,8 @@ A Neovim plugin that seamlessly integrates any command-line tool into your Neovi
 
 ## 📦 Installation
 
-### [lazy.nvim](https://github.com/folke/lazy.nvim)
+<details>
+<summary><a href="https://github.com/folke/lazy.nvim">lazy.nvim</a></summary>
 
 ```lua
 --- @module 'Cli-Integration'
@@ -49,7 +50,10 @@ A Neovim plugin that seamlessly integrates any command-line tool into your Neovi
 }
 ```
 
-### For local development
+</details>
+
+<details>
+<summary>For local development</summary>
 
 ```lua
 --- @module 'Cli-Integration'
@@ -66,7 +70,10 @@ A Neovim plugin that seamlessly integrates any command-line tool into your Neovi
 }
 ```
 
-### [packer.nvim](https://github.com/wbthomason/packer.nvim)
+</details>
+
+<details>
+<summary><a href="https://github.com/wbthomason/packer.nvim">packer.nvim</a></summary>
 
 ```lua
 use {
@@ -82,6 +89,8 @@ use {
   end
 }
 ```
+
+</details>
 
 ## ⚙️ Configuration
 
@@ -102,11 +111,22 @@ require("cli-integration").setup({
 
 ### Default Configuration
 
+<details>
+<summary>Click to expand the full default configuration</summary>
+
 ```lua
 -- These are the default values; you can use `setup({})` to use defaults
 require("cli-integration").setup({
   integrations = {},  -- Array of integrations (each must have name and cli_cmd)
   -- Global defaults (applied to all integrations unless overridden):
+  window_features = {
+    dynamic_resize = true,
+    fullscreen = true,
+    buffer_lock = true,
+    auto_insert = true,
+    nav_keymaps = true,
+    start_insert_on_click = true,
+  },
   show_help_on_open = true,
   new_lines_amount = 2,
   window_width = 34,  -- Percentage (0-100) or absolute width (>100)
@@ -140,6 +160,8 @@ require("cli-integration").setup({
   },
 })
 ```
+
+</details>
 
 ### How Configuration Works
 
@@ -180,20 +202,42 @@ These terms are used throughout the documentation and the codebase (AGENTS.md co
 
 #### Global Options (applied to all integrations)
 
-| Option              | Type       | Default   | Description                                                                           |
-| ------------------- | ---------- | --------- | ------------------------------------------------------------------------------------- |
-| `integrations`      | `table[]`  | `{}`      | **Required**: Array of integration configurations                                     |
-| `show_help_on_open` | `boolean`  | `true`    | Default: Show help screen when terminal opens                                         |
-| `new_lines_amount`  | `number`   | `2`       | Default: Number of new lines to insert after command submission                       |
-| `window_width`      | `number`   | `34`      | Default: Width for terminal window (percentage 0-100, or absolute >100)               |
-| `window_padding`    | `number`   | `0`       | Default: Horizontal padding in columns (adds empty space on left and right)           |
-| `border`            | `string`   | `"none"`  | Default: Border style ("none", "single", "double", "rounded", "solid", "shadow")      |
-| `floating`          | `boolean`  | `false`   | Default: Whether to open terminal in floating window                                  |
-| `env`               | `table`    | `{}`      | Default: Environment overrides merged on top of inherited process environment         |
-| `unset_env`         | `string[]` | `{}`      | Default: Environment variable names removed from the spawned terminal job environment |
-| `terminal_keys`     | `table`    | See below | Default: Key mappings for the CLI terminal window (all values must be arrays)         |
+<details>
+<summary>Click to expand the full global options table</summary>
+
+| Option              | Type       | Default         | Description                                                                           |
+| ------------------- | ---------- | --------------- | ------------------------------------------------------------------------------------- |
+| `integrations`      | `table[]`  | `{}`            | **Required**: Array of integration configurations                                     |
+| `window_features`   | `table`    | (see below)     | Feature toggles for the window module. Each flag defaults to `true`                   |
+| `show_help_on_open` | `boolean`  | `true`          | Default: Show help screen when terminal opens                                         |
+| `new_lines_amount`  | `number`   | `2`             | Default: Number of new lines to insert after command submission                       |
+| `window_width`      | `number`   | `34`            | Default: Width for terminal window (percentage 0-100, or absolute >100)               |
+| `window_padding`    | `number`   | `0`             | Default: Horizontal padding in columns (adds empty space on left and right)           |
+| `border`            | `string`   | `"none"`        | Default: Border style ("none", "single", "double", "rounded", "solid", "shadow")      |
+| `floating`          | `boolean`  | `false`         | Default: Whether to open terminal in floating window                                  |
+| `env`               | `table`    | `{}`            | Default: Environment overrides merged on top of inherited process environment         |
+| `unset_env`         | `string[]` | `{}`            | Default: Environment variable names removed from the spawned terminal job environment |
+| `terminal_keys`     | `table`    | [See below](#terminal_keys-structure) | Default: Key mappings for the CLI terminal window (all values must be arrays)         |
+
+</details>
+
+##### `window_features` Flags
+
+| Flag                    | Default  | Description                                              |
+| ----------------------- | -------- | -------------------------------------------------------- |
+| `dynamic_resize`        | `true`   | Resize terminal PTY on editor resize (VimResized)        |
+| `fullscreen`            | `true`   | Enable fullscreen toggle (Ctrl+f)                        |
+| `buffer_lock`           | `true`   | Prevent buffer switching in the terminal window          |
+| `auto_insert`           | `true`   | Auto-enter insert mode when entering the terminal        |
+| `nav_keymaps`           | `true`   | Enable `<C-h/j/k/l>` window navigation in terminal mode  |
+| `start_insert_on_click` | `true`   | Re-enter insert mode when clicking inside the terminal   |
+
+> **Note**: When all `window_features` flags are disabled, the terminal window becomes a plain terminal in a vsplit (or float if `floating=true`) with no special behavior.
 
 #### Integration Options (can override global defaults)
+
+<details>
+<summary>Click to expand the full integration options table</summary>
 
 Each integration in the `integrations` array can have:
 
@@ -220,6 +264,8 @@ Each integration in the `integrations` array can have:
 | `on_close`              | `function` | `nil`           | Called after the terminal process exits. Receives `(integration, working_dir)`. Use for cleanup tasks (e.g., removing temporary config files)                                                                                                                                                                                                          |
 | `ask_title`             | `string`   | `"Ask "..name`  | Custom title for the floating input window used by the Ask hook                                                                                                                                                                                                                                                                                        |
 | `terminal_keys`         | `table`    | Inherits global | Override: Key mappings for the CLI terminal window                                                                                                                                                                                                                                                                                                     |
+
+</details>
 
 ## 💬 Ask Hook
 
@@ -361,7 +407,8 @@ The `terminal_keys` option allows you to customize all key mappings for the CLI 
 **All values must be arrays**, even if you only want to configure one key combination. This allows you to set
 multiple key combinations for the same action.
 
-#### Terminal Mode Keys
+<details>
+<summary>Terminal Mode Keys</summary>
 
 | Key                  | Default                     | Description                         |
 | -------------------- | --------------------------- | ----------------------------------- |
@@ -376,13 +423,18 @@ multiple key combinations for the same action.
 | `hide`               | `{ "<C-q>" }`               | Hide terminal (keeps process alive) |
 | `close`              | `{ "<C-S-q>" }`             | Close terminal and kill process     |
 
-#### Normal Mode Keys
+</details>
+
+<details>
+<summary>Normal Mode Keys</summary>
 
 | Key                 | Default         | Description                         |
 | ------------------- | --------------- | ----------------------------------- |
 | `hide`              | `{ "<C-q>" }`   | Hide terminal (keeps process alive) |
 | `toggle_fullscreen` | `{ "<C-f>" }`   | Toggle fullscreen                   |
 | `close`             | `{ "<C-S-q>" }` | Close terminal and kill process     |
+
+</details>
 
 #### Example: Custom Key Configuration
 
@@ -636,7 +688,8 @@ The command supports autocompletion:
 
 Once the CLI tool terminal is open, you have access to special keymaps:
 
-#### Terminal Mode
+<details>
+<summary>Terminal Mode</summary>
 
 | Keymap                  | Description                                |
 | ----------------------- | ------------------------------------------ |
@@ -651,7 +704,10 @@ Once the CLI tool terminal is open, you have access to special keymaps:
 | `<S-CR>`                | Insert new line                            |
 | `<CR>`                  | Send Enter key                             |
 
-#### Normal Mode (in terminal)
+</details>
+
+<details>
+<summary>Normal Mode (in terminal)</summary>
 
 | Keymap                                   | Description                                |
 | ---------------------------------------- | ------------------------------------------ |
@@ -659,6 +715,8 @@ Once the CLI tool terminal is open, you have access to special keymaps:
 | `<C-S-q>`                                | Close terminal window and kill process     |
 | `<C-f>`                                  | Toggle window width (expand/collapse)      |
 | All other normal mode keys work as usual |                                            |
+
+</details>
 
 ## 🚀 Quick Start
 
@@ -842,7 +900,20 @@ cli-integration.nvim/
         ├── autocmds.lua      # Autocommands
         ├── help.lua          # Help system
         ├── ask.lua           # Ask hook (context-aware questions)
-        └── hooks.lua         # Shared hooks (session management, path helpers)
+        ├── hooks.lua         # Shared hooks (session management, path helpers)
+        ├── window/           # Modular window management
+        │   ├── init.lua      # Orchestrator
+        │   ├── state.lua     # Sidebar state & validation
+        │   ├── geometry.lua  # Width calc, PTY resize, job env
+        │   ├── layout.lua    # Sidebar & float creation
+        │   └── features/     # Optional feature modules
+        │       ├── dynamic_resize.lua
+        │       ├── fullscreen.lua
+        │       ├── buffer_lock.lua
+        │       ├── insert.lua
+        │       └── nav.lua
+        └── adapters/         # External plugin adapters
+            └── bufline.lua   # Bufferline integration
 ```
 
 ## 🤝 Contributing
