@@ -205,32 +205,32 @@ These terms are used throughout the documentation and the codebase (AGENTS.md co
 <details>
 <summary>Click to expand the full global options table</summary>
 
-| Option              | Type       | Default         | Description                                                                           |
-| ------------------- | ---------- | --------------- | ------------------------------------------------------------------------------------- |
-| `integrations`      | `table[]`  | `{}`            | **Required**: Array of integration configurations                                     |
-| `window_features`   | `table`    | (see below)     | Feature toggles for the window module. Each flag defaults to `true`                   |
-| `show_help_on_open` | `boolean`  | `true`          | Default: Show help screen when terminal opens                                         |
-| `new_lines_amount`  | `number`   | `2`             | Default: Number of new lines to insert after command submission                       |
-| `window_width`      | `number`   | `34`            | Default: Width for terminal window (percentage 0-100, or absolute >100)               |
-| `window_padding`    | `number`   | `0`             | Default: Horizontal padding in columns (adds empty space on left and right)           |
-| `border`            | `string`   | `"none"`        | Default: Border style ("none", "single", "double", "rounded", "solid", "shadow")      |
-| `floating`          | `boolean`  | `false`         | Default: Whether to open terminal in floating window                                  |
-| `env`               | `table`    | `{}`            | Default: Environment overrides merged on top of inherited process environment         |
-| `unset_env`         | `string[]` | `{}`            | Default: Environment variable names removed from the spawned terminal job environment |
+| Option              | Type       | Default                               | Description                                                                           |
+| ------------------- | ---------- | ------------------------------------- | ------------------------------------------------------------------------------------- |
+| `integrations`      | `table[]`  | `{}`                                  | **Required**: Array of integration configurations                                     |
+| `window_features`   | `table`    | (see below)                           | Feature toggles for the window module. Each flag defaults to `true`                   |
+| `show_help_on_open` | `boolean`  | `true`                                | Default: Show help screen when terminal opens                                         |
+| `new_lines_amount`  | `number`   | `2`                                   | Default: Number of new lines to insert after command submission                       |
+| `window_width`      | `number`   | `34`                                  | Default: Width for terminal window (percentage 0-100, or absolute >100)               |
+| `window_padding`    | `number`   | `0`                                   | Default: Horizontal padding in columns (adds empty space on left and right)           |
+| `border`            | `string`   | `"none"`                              | Default: Border style ("none", "single", "double", "rounded", "solid", "shadow")      |
+| `floating`          | `boolean`  | `false`                               | Default: Whether to open terminal in floating window                                  |
+| `env`               | `table`    | `{}`                                  | Default: Environment overrides merged on top of inherited process environment         |
+| `unset_env`         | `string[]` | `{}`                                  | Default: Environment variable names removed from the spawned terminal job environment |
 | `terminal_keys`     | `table`    | [See below](#terminal_keys-structure) | Default: Key mappings for the CLI terminal window (all values must be arrays)         |
 
 </details>
 
 ##### `window_features` Flags
 
-| Flag                    | Default  | Description                                              |
-| ----------------------- | -------- | -------------------------------------------------------- |
-| `dynamic_resize`        | `true`   | Resize terminal PTY on editor resize (VimResized)        |
-| `fullscreen`            | `true`   | Enable fullscreen toggle (Ctrl+f)                        |
-| `buffer_lock`           | `true`   | Prevent buffer switching in the terminal window          |
-| `auto_insert`           | `true`   | Auto-enter insert mode when entering the terminal        |
-| `nav_keymaps`           | `true`   | Enable `<C-h/j/k/l>` window navigation in terminal mode  |
-| `start_insert_on_click` | `true`   | Re-enter insert mode when clicking inside the terminal   |
+| Flag                    | Default | Description                                             |
+| ----------------------- | ------- | ------------------------------------------------------- |
+| `dynamic_resize`        | `true`  | Resize terminal PTY on editor resize (VimResized)       |
+| `fullscreen`            | `true`  | Enable fullscreen toggle (Ctrl+f)                       |
+| `buffer_lock`           | `true`  | Prevent buffer switching in the terminal window         |
+| `auto_insert`           | `true`  | Auto-enter insert mode when entering the terminal       |
+| `nav_keymaps`           | `true`  | Enable `<C-h/j/k/l>` window navigation in terminal mode |
+| `start_insert_on_click` | `true`  | Re-enter insert mode when clicking inside the terminal  |
 
 > **Note**: When all `window_features` flags are disabled, the terminal window becomes a plain terminal in a vsplit (or float if `floating=true`) with no special behavior.
 
@@ -257,7 +257,7 @@ Each integration in the `integrations` array can have:
 | `start_insert_on_click` | `boolean`  | `false`         | Re-enter insert mode when clicking inside the terminal while in normal mode                                                                                                                                                                                                                                                                            |
 | `list_buffer`           | `boolean`  | `false`         | List the terminal buffer in the bufferline as `[name]`. Sidebar only: shifts window 1 row down to avoid overlap. When `start_insert_on_click=true` and the integration window is hidden (e.g., buffer selected via bufferline), clicking on a regular window will correctly move focus there instead of forcing insert mode in the integration window. |
 | `open_delay`            | `number`   | `0`             | Milliseconds to wait before creating the terminal window. Useful when `on_open` triggers an external process that needs time to start before the terminal connects                                                                                                                                                                                     |
-| `start_doing`           | `function` | `nil`           | Called when terminal is ready. Signature: `function(visual_text, actions)`. Actions: `send_line(text?)`, `send_keys(keys)`, `wait(ms)`. Does not return a value.                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `start_doing`           | `function` | `nil`           | Called when terminal is ready. Signature: `function(visual_text, actions)`. Actions: `send_line(text?)`, `send_keys(keys)`, `wait(ms)`. Does not return a value.                                                                                                                                                                                       |
 | `cli_ready_flags`       | `table`    | See below       | Configuration for detecting readiness (search string, starting line, and number of lines to inspect)                                                                                                                                                                                                                                                   |
 | `format_paths`          | `function` | `nil`           | Callback to format and insert file paths. Receives `(paths, actions)` where `paths` is a string array and `actions` has `send_line(text)`, `send_keys(keys)`, `wait(ms)`, and `for_each_path(fn)`. Does not return a value. If not set, raw paths are inserted                                                                                         |
 | `on_open`               | `function` | `nil`           | Called before the terminal is created. Receives `(integration, working_dir)`. Use for pre-launch setup (e.g., writing config files with dynamic values)                                                                                                                                                                                                |
@@ -344,62 +344,16 @@ or:
 
 The terminal window is auto-focused after submission unless `actions.focus_file()` is called.
 
-#### Window Width Configuration
+#### Window Geometry Details
 
-The `window_width` option supports two modes:
+See the [Global Options](#global-options-applied-to-all-integrations) table for default values.
 
-- **Percentage mode** (values 0-100): The window width is calculated as a percentage of the editor width
-  - `34` = 34% of editor width (default)
-  - `50` = 50% of editor width
-  - `0.5` = 0.5% of editor width (for very small values)
-
-- **Absolute mode** (values > 100): The window width is set to an exact number of characters
-  - `150` = 150 characters wide (useful for very wide terminals)
-
-Examples:
-
-```lua
-window_width = 34,   -- 34% of editor width (default)
-window_width = 50,   -- 50% of editor width
-window_width = 150,  -- 150 characters (absolute)
-```
-
-#### Window Padding Configuration
-
-The `window_padding` option adds visual spacing on the left and right sides of the terminal content:
-
-- **Value**: Number of columns (characters) to use as padding
-- **Default**: `0` (no padding)
-- **Recommended**: `1` for a cleaner look with TUI applications
-
-How it works:
-
-- The terminal window width is reduced by `padding * 2` (left + right)
-- Left padding is created using `foldcolumn`
-- Right padding is created by limiting the terminal's `COLUMNS` environment variable
-
-Example:
-
-```lua
-window_padding = 1,  -- Adds 1 character padding on each side
-```
-
-#### Border Configuration
-
-The `border` option controls the border style of the terminal window:
-
-- **Values**: `"none"`, `"single"`, `"double"`, `"rounded"`, `"solid"`, `"shadow"`
-- **Default**: `"none"` for sidebar mode, `"rounded"` for floating windows and when expanded
-- **Note**: When you toggle the window width to maximum (Ctrl+f), the border automatically changes to `"rounded"`
-
-Examples:
-
-```lua
-border = "none",     -- No border (default for sidebar)
-border = "rounded",  -- Rounded corners (default for floating)
-border = "single",   -- Single line border
-border = "double",   -- Double line border
-```
+- **`window_width`**: Controls how wide the terminal panel is.  
+  Values 1-100 = percentage of editor width (e.g., `34` = 34%). Values >100 = absolute columns (e.g., `150` = 150 characters wide).
+- **`window_padding`**: Adds horizontal spacing on each side of the terminal content.  
+  `1` adds 1 character of visual margin on the left and right.
+- **`border`**: Border style for the terminal window.  
+  Values: `"none"` (sidebar default), `"single"`, `"double"`, `"rounded"` (float default), `"solid"`, `"shadow"`.
 
 ### `terminal_keys` Structure
 
@@ -462,170 +416,74 @@ require("cli-integration").setup({
 
 ### Example Configurations
 
-#### Single Integration
-
-```lua
-require("cli-integration").setup({
-  integrations = {
-    { name = "CursorAgent", cli_cmd = "cursor-agent" },
-  },
-})
-```
-
-#### Multiple Integrations with Global Defaults
-
-```lua
-require("cli-integration").setup({
-  -- Global defaults applied to all integrations
-  window_width = 34,  -- 34% of editor width
-  show_help_on_open = true,
-  floating = false,  -- All terminals open on the right side
-
-  integrations = {
-    { name = "CursorAgent", cli_cmd = "cursor-agent" },
-    { name = "Claude", cli_cmd = "claude" },
-  },
-})
-```
-
-#### Advanced Configuration with Custom Text and Flags
-
-```lua
-require("cli-integration").setup({
-  integrations = {
-    {
-      name = "MyTool",
-      cli_cmd = "my-tool",
-      floating = true,  -- Open in floating window
-      keep_open = true,  -- Don't auto-close after execution
-      start_doing = function(_, actions) actions.send_line("init") end,  -- Called when terminal is ready
-      cli_ready_flags = {
-        search_for = "Ready>",  -- Look for this flag
-        from_line = 1,          -- Starting from line 1
-        lines_amt = 10,         -- Check 10 lines
-      },
-    },
-  },
-})
-```
-
 #### Environment Inheritance and Overrides
 
-Terminal jobs inherit Neovim's process environment by default (including variables like `$NVIM`, `$TERM`, and tmux variables when present).
-
-Use `env` and `unset_env` only when a specific tool requires explicit adjustments:
+Terminal jobs inherit Neovim's process environment by default (including variables like `$NVIM`, `$TERM`, and tmux variables when present). Use `env` and `unset_env` only when a specific tool requires adjustments:
 
 ```lua
 require("cli-integration").setup({
-  -- Optional global environment defaults
-  env = {
-    EXAMPLE_FLAG = "1",
-  },
-  unset_env = {
-    "EXAMPLE_UNWANTED_VAR",
-  },
-
+  env = { EXAMPLE_FLAG = "1" },
+  unset_env = { "EXAMPLE_UNWANTED_VAR" },
   integrations = {
     {
-      name = "OpenCode",
-      cli_cmd = "opencode",
-      -- Optional per-integration environment tuning
-      env = {
-        OPENCODE_MODE = "embedded",
-      },
-      unset_env = {
-        -- e.g. "TMUX" only if a specific setup needs it
-      },
+      name = "OpenCode", cli_cmd = "opencode",
+      env = { OPENCODE_MODE = "embedded" },
+      unset_env = { "TMUX" },  -- Per-integration override
     },
   },
 })
 ```
-
-**About `start_doing` and `cli_ready_flags`:**
-
-- `start_doing`: A function that receives `(visual_text, actions)` where actions has `send_line(text?)`, `send_keys(keys)`, and `wait(ms)`.
-- The function is called when the terminal is detected as ready (via `cli_ready_flags`).
-- Use `actions.send_line()` to insert text, `actions.send_keys()` for key sequences, and `actions.wait()` for delays between actions.
-- If no `start_doing` is set but `visual_text` is present from a visual selection, the visual text is inserted directly.
-- The `wait()` method yields execution via coroutine, allowing the terminal to process inputs between actions.
-- `cli_ready_flags`: A table configuration to detect when the CLI tool is ready:
-  - `search_for`: A string pattern to search for in terminal output. If not set or empty, the plugin searches for `cli_cmd` instead.
-  - `from_line`: The line number to start searching from (1-based, default: 1).
-  - `lines_amt`: The number of lines to inspect (default: 5).
 
 #### Visual Selection Support
 
-You can send selected text to the terminal when opening it. Use `start_doing` to handle visual selections:
+Select text in visual mode, then run `:'<,'>CLIIntegration`. The selection is passed to `start_doing` as `visual_text`:
 
-````lua
+```lua
 require("cli-integration").setup({
   integrations = {
     {
-      name = "MyTool",
-      cli_cmd = "my-tool",
-      -- Function receives (visual_text, actions)
+      name = "MyTool", cli_cmd = "my-tool",
       start_doing = function(visual_text, actions)
         if visual_text then
-          -- Transform visual selection (e.g., wrap in code block)
           actions.send_line("```\n" .. visual_text .. "```\n")
           return
         end
-        -- Default text when no visual selection
         actions.send_line("Hello!")
       end,
     },
   },
 })
-````
+```
 
-**Usage:**
-
-1. Select text in visual mode (V, v, or Ctrl-v)
-2. Run `:'<,'>CLIIntegration` (or `:'<,'>CLIIntegration open_cwd`, etc.)
-3. The selected text will be passed to `start_doing` as `visual_text`
-
-**Note:**
-
-- When `start_doing` is set, it receives the visual selection as the `visual_text` parameter (or `nil` if none)
-- When `start_doing` is **not set**, the visual selection is inserted as-is
+If no `start_doing` is configured, the visual selection is inserted as-is.
 
 #### Multiple Integrations with Per-Integration Overrides
 
 ```lua
 require("cli-integration").setup({
-  -- Global defaults
-  window_width = 34,  -- 34% of editor width
+  window_width = 34,
   show_help_on_open = true,
-  floating = false,  -- All terminals open on the right side by default
-
+  floating = false,
   integrations = {
+    { name = "CursorAgent", cli_cmd = "cursor-agent" },
     {
-      name = "CursorAgent",
-      cli_cmd = "cursor-agent",
-      -- Uses global defaults
+      name = "Claude", cli_cmd = "claude",
+      window_width = 50, show_help_on_open = false, floating = true,
     },
     {
-      name = "Claude",
-      cli_cmd = "claude",
-      window_width = 50,  -- Override: 50% of editor width
-      show_help_on_open = false,  -- Override global default
-      floating = true,  -- This one opens in a floating window
-    },
-    {
-      name = "MyCustomTool",
-      cli_cmd = "my-custom-tool",
-      window_width = 150,  -- Absolute width: 150 characters (>100 = absolute)
-      keep_open = true,  -- Keep terminal open after execution
-      start_doing = function(_, actions) actions.send_line("Hello!") end,  -- Called when terminal is ready
+      name = "MyCustomTool", cli_cmd = "my-custom-tool",
+      window_width = 150,
+      keep_open = true,
+      start_doing = function(_, actions) actions.send_line("Hello!") end,
       cli_ready_flags = { search_for = "Ready>", from_line = 1, lines_amt = 10 },
-      terminal_keys = {  -- Override global terminal_keys (per-section with key-by-key merge)
+      terminal_keys = {
         terminal_mode = {
           submit = { "<C-s>" },
-          hide = { "<Esc>" },  -- Only this key is overridden; other terminal_mode keys inherit from global defaults
+          hide = { "<Esc>" },
         },
         normal_mode = {
-          hide = { "<Esc>", "q" },  -- Custom hide keys for this integration
-          close = { "<leader>q" },  -- Custom close key for this integration
+          hide = { "<Esc>", "q" },
+          close = { "<leader>q" },
         },
       },
     },
@@ -769,25 +627,6 @@ require("cli-integration").setup({
 })
 ```
 
-### Custom Initialization Text Example
-
-```lua
-require("cli-integration").setup({
-  integrations = {
-    {
-      name = "MyTool",
-      cli_cmd = "my-tool",
-      start_doing = function(_, actions) actions.send_line("Hello, world!") end,  -- Called when ready
-      cli_ready_flags = {
-        search_for = "Ready>",  -- Look for this flag
-        from_line = 1,          -- Starting from line 1
-        lines_amt = 10,         -- Check 10 lines
-      },
-    },
-  },
-})
-```
-
 ### Custom Path Formatting Example
 
 ```lua
@@ -796,75 +635,17 @@ require("cli-integration").setup({
     {
       name = "MyTool",
       cli_cmd = "my-tool",
-      -- Custom callback to format and insert paths
       format_paths = function(paths, actions)
         actions.for_each_path(function(path)
           return "@" .. path .. " "
         end)
-
-        -- You can also use the imperative actions when you need it:
-        -- actions.send_keys("<Esc>")
-        -- actions.send_line("# done")
-        -- actions.wait(50)
       end,
     },
   },
 })
 ```
 
-**About `format_paths`:**
-
-- The callback receives two parameters:
-  - `paths` — Array of file path strings (all paths to be inserted)
-  - `actions` — Table with helper methods
-- The callback does **not** return a value — it calls actions imperatively, just like `on_ask_submit`
-- If not provided, paths are inserted as-is (with a trailing space for `<C-p>`, or one per line for `<C-p><C-p>`)
-- This callback is used when:
-  - Inserting the current file path (`<C-p>`)
-  - Inserting all open buffer paths (`<C-p><C-p>`)
-
-**Actions table:**
-
-| Method          | Signature                          | Description                                     |
-| --------------- | ---------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `send_line`     | `fun(text: string?)`               | Send text followed by a newline to the terminal |
-| `send_keys`     | `fun(keys: string)`                | Send Vim key sequences through chansend         |
-| `wait`          | `fun(ms: number)`                  | Pause the callback for the given milliseconds   |
-| `for_each_path` | `fun(fn: fun(path: string): string | nil)`                                           | Iterate all paths, call `fn(path)`, and insert any returned string into the terminal |
-
-```lua
-require("cli-integration").setup({
-  integrations = {
-    {
-      name = "MyTool",
-      cli_cmd = "my-tool",
-      -- Example: transform visual selection with actions
-      start_doing = function(visual_text, actions)
-        if visual_text then
-          -- Example: Add a prefix to each line
-          local lines = vim.split(visual_text, "\n")
-          for i, line in ipairs(lines) do
-            lines[i] = "> " .. line
-          end
-          actions.send_line(table.concat(lines, "\n"))
-        else
-          -- Default text when no visual selection
-          actions.send_line("init")
-        end
-      end,
-    },
-  },
-})
-```
-
-**About `start_doing`:**
-
-- The function receives two parameters: `visual_text` (string|nil) and `actions` (table)
-- `visual_text` is the selected text when opening with visual selection, or `nil` otherwise
-- `actions` has `send_line(text?)`, `send_keys(keys)`, and `wait(ms)` methods
-- The function does not return a value — it calls actions imperatively
-- When opening the terminal with a visual selection (e.g., `:'<,'>CLIIntegration`), `visual_text` will contain the selected text
-- When opening normally, `visual_text` will be `nil`
+See the [Integration Options](#integration-options-can-override-global-defaults) table for the full `format_paths` signature and available actions.
 
 ## 💡 Tips
 
@@ -885,37 +666,6 @@ require("cli-integration").setup({
 - **Configuration Help**: If you forget to configure `integrations`, `name`, or `cli_cmd`, the plugin will show you
   the minimum configuration needed when you try to open the terminal
 
-## 🏗️ Project Structure
-
-```bash
-cli-integration.nvim/
-└── lua/
-    └── cli-integration/
-        ├── init.lua          # Main entry point and setup
-        ├── config.lua        # Configuration management
-        ├── terminal.lua      # Terminal management (supports multiple terminals)
-        ├── commands.lua      # Command implementations
-        ├── buffers.lua       # Buffer path management
-        ├── keymaps.lua       # Terminal keymaps
-        ├── autocmds.lua      # Autocommands
-        ├── help.lua          # Help system
-        ├── ask.lua           # Ask hook (context-aware questions)
-        ├── hooks.lua         # Shared hooks (session management, path helpers)
-        ├── window/           # Modular window management
-        │   ├── init.lua      # Orchestrator
-        │   ├── state.lua     # Sidebar state & validation
-        │   ├── geometry.lua  # Width calc, PTY resize, job env
-        │   ├── layout.lua    # Sidebar & float creation
-        │   └── features/     # Optional feature modules
-        │       ├── dynamic_resize.lua
-        │       ├── fullscreen.lua
-        │       ├── buffer_lock.lua
-        │       ├── insert.lua
-        │       └── nav.lua
-        └── adapters/         # External plugin adapters
-            └── bufline.lua   # Bufferline integration
-```
-
 ## 🤝 Contributing
 
 Contributions are welcome! Feel free to submit issues and pull requests.
@@ -931,7 +681,3 @@ MIT License - see [LICENSE](./LICENSE) file for details
 ---
 
 Made with ❤️ for the Neovim community
-
-```
-
-```
