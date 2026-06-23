@@ -16,11 +16,11 @@
 **Components:**
 
 - **Normal Windows** — Regular editor windows (left side)
-- **Vsplit Window** — Terminal window on the right side with `winfixwidth=true`
+- **Vsplit Window** — Terminal window on the right side with `winfixwidth` set per `dynamic_resize`
 
 **Key properties:**
 
-- Vsplit window: `winfixwidth=true`, positioned on the right side of the editor
+- Vsplit window: `winfixwidth=true` when `dynamic_resize=false`, `false` when enabled. This prevents Neovim's layout engine from auto-resizing the sidebar when the user resizes the editor.
 - No border, behaves as a native split
 
 ### Fullscreen Mode (toggle)
@@ -109,6 +109,19 @@ Calculated AFTER geometry is finalized:
 - Left padding: `foldcolumn` set to padding value (splits only)
 - Right padding: achieved by making PTY width = `window_width - (padding * 2)`, creating a visual margin
 - Floats: no padding (no foldcolumn support)
+
+## Height Stability
+
+### CRITICAL: showtabline Pin
+
+The sidebar is a vsplit — it shares the full editor height with other windows. When `showtabline` changes (e.g. bufferline sets it to 2 when files open, 0 when none remain), ALL windows lose/gain 1 row. The sidebar cannot maintain its height because Neovim's layout engine must redistribute the reduced available rows — `nvim_win_set_height` is overridden every time.
+
+**`window/init.lua`** module-level code pins `showtabline = 2` and registers an `OptionSet` autocmd that reverts any override. This prevents bufferline (or any plugin) from fluctuating the value.
+
+**Do not remove or weaken this guard.** Testing showed that:
+- Setting `showtabline = 2` once is not enough (bufferline overrides it back)
+- Restoring sidebar height via `nvim_win_set_height` is futile (Neovim redistributes after each layout pass)
+- Only an `OptionSet` guard that intercepts EVERY change and reverts it works reliably
 
 ## Source
 

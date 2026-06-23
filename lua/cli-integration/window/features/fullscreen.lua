@@ -257,10 +257,8 @@ function M.update_float_geometry(term_buf, is_fullscreen, should_focus)
 end
 
 --- Setup fullscreen feature (returns false if disabled)
---- @param term_buf number Terminal buffer
---- @param win_opts table Window options
 --- @return boolean true if enabled
-function M.setup(term_buf, win_opts)
+function M.setup()
     if config.options.window_features and config.options.window_features.fullscreen == false then
         return false
     end

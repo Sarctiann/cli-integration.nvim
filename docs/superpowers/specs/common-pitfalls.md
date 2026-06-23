@@ -17,3 +17,28 @@
 15. **Fullscreen floats have no padding**: When toggling to fullscreen, the float has no foldcolumn. Always pass `padding = 0` to `resize_pty` for fullscreen and float windows. Using `data.padding` from the sidebar config will incorrectly shrink the PTY.
 16. **Always call resize_pty after job creation**: Neovim auto-sizes the PTY based on window geometry, which may differ from our COLUMNS/LINES calculation (due to padding). Calling `resize_pty` after `jobstart`/`termopen` ensures the PTY matches our intended dimensions from the start.
 17. **Fullscreen float height formula must be `lines - cmdheight - 3`**: With `border="single"`, `nvim_open_win` positions the top border at `row=0`, content starts at `row+1`, and the bottom border is at `row = height + 1`. The statusline is at `row = lines - cmdheight - 1`. Using `-1` or `-2` causes the bottom border (or content) to overlap the statusline. Only `-3` guarantees `height + 1 < lines - cmdheight`, keeping the statusline visible.
+
+## CRITICAL: showtabline Guard
+
+**Always pin `showtabline = 2` when the terminal is active.** If `showtabline` changes (0↔2), all windows lose/gain 1 row of height. The sidebar cannot maintain its height because Neovim's layout engine must redistribute the reduced available rows — `nvim_win_set_height` will be overridden every time.
+
+**Fix:** Set `vim.o.showtabline = 2` at module load AND register an `OptionSet` autocmd that reverts any change. Do NOT rely on setting it once — bufferline and other tabline plugins will override it.
+
+**Location:** `window/init.lua` module-level code (runs once at require time).
+
+## CRITICAL: Fullscreen Window Feature Must Guard BOTH Keymaps and Runtime
+
+`window_features.fullscreen` controls both:
+1. **Keymap registration** in `keymaps.lua` — skip fullscreen keymaps entirely if `false`
+2. **Runtime toggle** in `terminal.toggle_fullscreen()` — return early if `false`
+
+If only one path is guarded, the user can still toggle via the other. Always check `config.options.window_features.fullscreen == false` in BOTH places.
+
+## CRITICAL: winfixwidth Must Follow dynamic_resize
+
+`winfixwidth` in `layout.lua`'s `apply_sidebar_win_opts()` must be `true` when `dynamic_resize == false` and `false` when `dynamic_resize == true` (or unset). This prevents Neovim's native layout engine from auto-resizing the sidebar when the feature is disabled.
+
+Formula:
+```lua
+vim.wo[win].winfixwidth = config.options.window_features and config.options.window_features.dynamic_resize == false
+```

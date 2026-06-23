@@ -96,6 +96,9 @@ AskData = {
 ```lua
 {
   integrations = {},              -- Array of Integration configurations
+  adapters = {                    -- External plugin integrations
+    bufferline = true,            -- Inject sidebar offset for bufferline (prevents tabline overlap)
+  },
   show_help_on_open = true,       -- Show help on terminal open
   new_lines_amount = 2,           -- Newlines after submit
   window_width = 34,              -- Default width (percentage or absolute)

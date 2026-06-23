@@ -319,6 +319,10 @@ end
 --- @param term_buf number|nil The terminal buffer (if nil, uses current terminal)
 --- @return nil
 function M.toggle_fullscreen(term_buf)
+	if config.options.window_features and config.options.window_features.fullscreen == false then
+		return
+	end
+
 	term_buf = term_buf or M.get_current_terminal_buf()
 	if not term_buf then
 		return

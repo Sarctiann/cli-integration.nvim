@@ -73,9 +73,8 @@ local function resize_sidebars()
 end
 
 --- Setup dynamic resize autocmds
---- @param term_buf number Terminal buffer
 --- @return boolean true if enabled
-function M.setup(term_buf)
+function M.setup()
     if config.options.window_features and config.options.window_features.dynamic_resize == false then
         return false
     end
@@ -99,22 +98,6 @@ function M.setup(term_buf)
                 resize_sidebars()
             end,
             desc = "Restore sidebar width on editor resize",
-        })
-
-        vim.api.nvim_create_autocmd({ "BufReadPost", "BufDelete" }, {
-            group = group,
-            callback = function()
-                if vim.tbl_count(state.sidebars) == 0 then
-                    return
-                end
-                for _, data in pairs(state.sidebars) do
-                    local win = data.sidebar_win or data.float_win
-                    if win and state.is_valid_win(win) then
-                        geometry.resize_pty(data.term_buf, win, data.padding or 0)
-                    end
-                end
-            end,
-            desc = "Rerender TUI on file open/close",
         })
 
         M._autocmd_setup = true

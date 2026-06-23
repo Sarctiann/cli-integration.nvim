@@ -9,8 +9,18 @@ local buffer_lock = require("cli-integration.window.features.buffer_lock")
 local insert = require("cli-integration.window.features.insert")
 local nav = require("cli-integration.window.features.nav")
 local debug = require("cli-integration.debug")
+local config = require("cli-integration.config")
 
 M.sidebars = state.sidebars
+
+--- @class TerminalWindow
+--- @field buf number
+--- @field win number
+--- @field job_id number
+--- @field cmd string
+--- @field opts table
+--- @field on_close (fun()|nil)
+--- @field toggle fun()
 
 --- Create a new terminal window
 --- @param cmd string Command to run in terminal
@@ -140,6 +150,7 @@ function M.create_terminal(cmd, opts)
             job_id = vim.fn.jobstart(cmd, job_opts)
         else
             job_opts.term = nil
+            ---@diagnostic disable-next-line: deprecated
             job_id = vim.fn.termopen(cmd, job_opts)
         end
 
@@ -163,6 +174,8 @@ function M.create_terminal(cmd, opts)
     if data_entry then
         data_entry._last_pty_width = vim.api.nvim_win_get_width(win)
         data_entry._last_pty_height = vim.api.nvim_win_get_height(win)
+        data_entry._last_win_width = vim.api.nvim_win_get_width(win)
+        data_entry._last_win_height = vim.api.nvim_win_get_height(win)
     end
 
     if opts.win and opts.win.list_buffer then
@@ -173,11 +186,11 @@ function M.create_terminal(cmd, opts)
         pcall(vim.api.nvim_buf_set_name, buf, win_opts.buffer_name)
     end
 
-    nav.setup(buf, win_opts)
+    nav.setup(buf)
     insert.setup(buf, win_opts)
-    buffer_lock.setup(buf, win_opts)
-    dynamic_resize.setup(buf, win_opts)
-    fullscreen.setup(buf, win_opts)
+    buffer_lock.setup(buf)
+    dynamic_resize.setup()
+    fullscreen.setup()
 
     return terminal
 end
@@ -250,7 +263,7 @@ function M.is_terminal_visible(terminal)
     if not data then
         return false
     end
-    return (data.sidebar_win and state.is_valid_win(data.sidebar_win)) or (data.float_win and state.is_valid_win(data.float_win))
+    return ((data.sidebar_win and state.is_valid_win(data.sidebar_win)) or (data.float_win and state.is_valid_win(data.float_win))) == true
 end
 
 --- Public wrapper for resize_pty
@@ -269,5 +282,74 @@ M.apply_geometry = layout.apply_geometry
 M.resize_sidebars = function()
     dynamic_resize.resize_sidebars()
 end
+
+-- Guard showtabline against changes (bufferline overrides it), preventing
+-- height fluctuations when buffers open/close. showtabline changes affect
+-- total rows available for windows, which resizes all windows including the
+-- sidebar. Pinning to 2 (always visible) keeps window heights stable.
+-- Use OptionSet to intercept and revert any override immediately.
+vim.o.showtabline = 2
+vim.api.nvim_create_autocmd("OptionSet", {
+    pattern = "showtabline",
+    callback = function()
+        if vim.o.showtabline ~= 2 then
+            vim.o.showtabline = 2
+        end
+    end,
+    desc = "Pin showtabline to 2 for stable integration sidebar height",
+})
+
+local _buf_autocmd_setup = false
+local _deferred_resize_pending = false
+local function resize_all_sidebars()
+    if vim.tbl_count(state.sidebars) == 0 then
+        return
+    end
+    for _, data in pairs(state.sidebars) do
+        local win = data.sidebar_win or data.float_win
+        if win and state.is_valid_win(win) then
+            if data.mode == "sidebar" then
+                local expected_width = geometry.calculate_width(data.width_config)
+                local current_width = vim.api.nvim_win_get_width(win)
+                if current_width ~= expected_width then
+                    pcall(vim.api.nvim_win_set_width, win, expected_width)
+                end
+            end
+            geometry.resize_pty(data.term_buf, win, data.padding or 0)
+        end
+    end
+    if config.options and config.options.adapters and config.options.adapters.bufferline then
+        local bufline = require("adapters.bufline")
+        for buf, data in pairs(state.sidebars) do
+            bufline.inject_offset(buf, (data.win_opts and data.win_opts.title) or "")
+        end
+    end
+end
+
+local function deferred_resize()
+    if _deferred_resize_pending then
+        return
+    end
+    _deferred_resize_pending = true
+    vim.schedule(function()
+        _deferred_resize_pending = false
+        resize_all_sidebars()
+    end)
+end
+
+local function ensure_buf_autocmd()
+    if _buf_autocmd_setup then
+        return
+    end
+    _buf_autocmd_setup = true
+    vim.api.nvim_create_autocmd({ "BufReadPost", "BufDelete" }, {
+        callback = function()
+            deferred_resize()
+        end,
+        desc = "Deferred resize of sidebar on file open/close",
+    })
+end
+
+ensure_buf_autocmd()
 
 return M

@@ -9,7 +9,7 @@ local config = require("cli-integration.config")
 --- @param win number Window handle
 --- @param padding number Horizontal padding (foldcolumn)
 local function apply_sidebar_win_opts(win, padding)
-    vim.wo[win].winfixwidth = false
+    vim.wo[win].winfixwidth = config.options.window_features and config.options.window_features.dynamic_resize == false
     vim.wo[win].winfixheight = true
     vim.wo[win].number = false
     vim.wo[win].relativenumber = false
@@ -139,7 +139,7 @@ function M.create_sidebar_layout(buf, win_opts)
     vim.api.nvim_win_set_buf(sidebar_win, buf)
     vim.bo[buf].filetype = "cli-integration"
 
-    local existing = state.sidebars[buf]
+    local existing = state.sidebars[buf] --- @type Cli-Integration.SidebarEntry
     if existing then
         existing.sidebar_win = sidebar_win
         existing.mode = "sidebar"
@@ -169,7 +169,7 @@ function M.create_sidebar_layout(buf, win_opts)
     M.apply_geometry(buf)
     apply_sidebar_win_opts(sidebar_win, padding)
 
-    if config.options.enable_bufferline_integration then
+    if config.options.adapters and config.options.adapters.bufferline then
         require("adapters.bufline").inject_offset(buf, win_opts.title or "")
     end
 
@@ -202,6 +202,8 @@ function M.create_sidebar_layout(buf, win_opts)
             editor_columns = vim.o.columns,
             editor_lines = vim.o.lines,
             cmdheight = vim.o.cmdheight,
+            laststatus = vim.o.laststatus,
+            showtabline = vim.o.showtabline,
         }
     end)
     return sidebar_win

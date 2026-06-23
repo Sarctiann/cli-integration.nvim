@@ -84,6 +84,9 @@
 --- @field nav_keymaps boolean|nil     -- C-h/j/k/l navigation (default: true)
 --- @field start_insert_on_click boolean|nil  -- Click to insert (default: true)
 
+--- @class Cli-Integration.Adapters
+--- @field bufferline boolean|nil # Inject bufferline offset for sidebar (default: true)
+
 --- @class Cli-Integration.Config
 --- @field integrations Cli-Integration.Integration[]|nil # Array of CLI integrations (optional, defaults to empty array)
 --- @field window_features Cli-Integration.WindowFeatures|nil # Feature toggles for window module
@@ -98,7 +101,7 @@
 --- @field list_buffer boolean|nil # Default: show terminal buffer in bufferline (applied to all integrations)
 --- @field env table<string, string>|nil # Default: environment variable overrides passed to all integration jobs
 --- @field unset_env string[]|nil # Default: environment variable names removed from all integration jobs
---- @field enable_bufferline_integration boolean|nil # Enable bufferline offset integration (default: true)
+--- @field adapters Cli-Integration.Adapters|nil # Adapter configuration (bufferline offset, etc.)
 --- @field debug boolean|nil # Enable debug logging (default: false)
 
 local M = {}
@@ -122,7 +125,9 @@ M.defaults = {
 	floating = false,
 	start_insert_on_click = false,
 	list_buffer = false,
-	enable_bufferline_integration = true,
+	adapters = {
+		bufferline = true,
+	},
 	on_ask_submit = function(data, actions)
 		local parts = { data.question, "" }
 		if data.selection then
@@ -260,6 +265,13 @@ function M.setup(config)
 	end
 
 	M.options = vim.tbl_deep_extend("force", M.defaults, user_config)
+
+	-- Backward compat: migrate old enable_bufferline_integration to adapters.bufferline
+	if M.options.enable_bufferline_integration ~= nil then
+		M.options.adapters = M.options.adapters or {}
+		M.options.adapters.bufferline = M.options.enable_bufferline_integration
+		M.options.enable_bufferline_integration = nil
+	end
 
 	-- Validate global terminal_keys if provided
 	if user_config.terminal_keys and not validate_terminal_keys(M.options.terminal_keys) then

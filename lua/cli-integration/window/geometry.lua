@@ -25,6 +25,10 @@ function M.resize_pty(term_buf, win, padding)
             content_width = content_width,
             content_height = content_height,
             job_id = job_id,
+            lines = vim.o.lines,
+            showtabline = vim.o.showtabline,
+            cmdheight = vim.o.cmdheight,
+            laststatus = vim.o.laststatus,
         }
     end)
 end

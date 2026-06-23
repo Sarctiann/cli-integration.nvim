@@ -1,6 +1,5 @@
 --- @module 'cli-integration.window.state'
 local M = {}
-local debug = require("cli-integration.debug")
 
 --- @class Cli-Integration.SidebarEntry
 --- @field term_buf number
@@ -16,6 +15,9 @@ local debug = require("cli-integration.debug")
 --- @field list_buffer boolean
 --- @field _last_pty_width number
 --- @field _last_pty_height number
+--- @field _last_win_width number|nil
+--- @field _last_win_height number|nil
+--- @field _pty_resize_pending boolean|nil
 
 --- Store active sidebar configurations
 --- Keyed by term_buf (stable across toggles)

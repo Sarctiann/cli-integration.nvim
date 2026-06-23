@@ -22,7 +22,7 @@ function M.setup(user_config)
 		return {
 			integrations_count = #(configs.integrations or {}),
 			debug_enabled = configs.debug or false,
-			enable_bufferline_integration = configs.enable_bufferline_integration or false,
+			enable_bufferline_integration = configs.adapters and configs.adapters.bufferline or false,
 			editor_columns = vim.o.columns,
 			editor_lines = vim.o.lines,
 			showtabline = vim.o.showtabline,

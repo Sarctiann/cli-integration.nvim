@@ -6,9 +6,8 @@ local config = require("cli-integration.config")
 
 --- Setup buffer lock autocmds
 --- @param term_buf number Terminal buffer
---- @param win_opts table Window options
 --- @return boolean true if enabled
-function M.setup(term_buf, win_opts)
+function M.setup(term_buf)
     if config.options.window_features and config.options.window_features.buffer_lock == false then
         return false
     end

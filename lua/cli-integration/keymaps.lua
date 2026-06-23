@@ -235,6 +235,9 @@ function M.setup_terminal_keymaps(known_integration)
 	end
 
 	local toggle_opts = { buffer = 0, silent = true }
+	if config.options.window_features and config.options.window_features.fullscreen == false then
+		goto skip_fullscreen
+	end
 	if keys.terminal_mode.toggle_fullscreen and type(keys.terminal_mode.toggle_fullscreen) == "table" then
 		set_keymaps("i", keys.terminal_mode.toggle_fullscreen, function()
 			debug.log("keymap_toggle_fullscreen", function()
@@ -263,6 +266,7 @@ function M.setup_terminal_keymaps(known_integration)
 			terminal.toggle_fullscreen(current_buf)
 		end, toggle_opts)
 	end
+	::skip_fullscreen::
 end
 
 return M
