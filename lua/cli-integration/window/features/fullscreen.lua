@@ -67,6 +67,18 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
                 pattern = tostring(new_win),
                 callback = function()
                     state.sidebars[term_buf] = nil
+                    if config.options.adapters and config.options.adapters.bufferline then
+                        local has_active = false
+                        for _, d in pairs(state.sidebars) do
+                            if state.is_valid_win(d.sidebar_win) or state.is_valid_win(d.float_win) then
+                                has_active = true
+                                break
+                            end
+                        end
+                        if not has_active then
+                            require("adapters.bufline").restore()
+                        end
+                    end
                 end,
                 once = true,
                 desc = "Cleanup fullscreen float on close",

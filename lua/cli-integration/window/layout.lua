@@ -98,6 +98,18 @@ function M.create_float_window(buf, win_opts)
                 return { term_buf = buf, closed_win = win }
             end)
             state.sidebars[buf] = nil
+            if config.options.adapters and config.options.adapters.bufferline then
+                local has_active = false
+                for _, d in pairs(state.sidebars) do
+                    if state.is_valid_win(d.sidebar_win) or state.is_valid_win(d.float_win) then
+                        has_active = true
+                        break
+                    end
+                end
+                if not has_active then
+                    require("adapters.bufline").restore()
+                end
+            end
         end,
         once = true,
         desc = "Cleanup float-origin entry on close",
@@ -116,6 +128,9 @@ function M.create_float_window(buf, win_opts)
         desc = "Exit insert mode when leaving terminal window",
     })
 
+    if config.options.adapters and config.options.adapters.bufferline then
+        vim.o.showtabline = 2
+    end
     vim.cmd("startinsert")
     return win
 end
@@ -137,7 +152,9 @@ function M.create_sidebar_layout(buf, win_opts)
     local sidebar_win = vim.api.nvim_get_current_win()
 
     vim.api.nvim_win_set_buf(sidebar_win, buf)
-    vim.bo[buf].filetype = "cli-integration"
+    if config.options.adapters and config.options.adapters.bufferline then
+        vim.bo[buf].filetype = "cli-integration"
+    end
 
     local existing = state.sidebars[buf] --- @type Cli-Integration.SidebarEntry
     if existing then
@@ -170,6 +187,7 @@ function M.create_sidebar_layout(buf, win_opts)
     apply_sidebar_win_opts(sidebar_win, padding)
 
     if config.options.adapters and config.options.adapters.bufferline then
+        vim.o.showtabline = 2
         require("adapters.bufline").inject_offset(buf, win_opts.title or "")
     end
 
@@ -182,6 +200,18 @@ function M.create_sidebar_layout(buf, win_opts)
             local data = state.sidebars[buf]
             if data then
                 data.sidebar_win = nil
+            end
+            if config.options.adapters and config.options.adapters.bufferline then
+                local has_active = false
+                for _, d in pairs(state.sidebars) do
+                    if state.is_valid_win(d.sidebar_win) or state.is_valid_win(d.float_win) then
+                        has_active = true
+                        break
+                    end
+                end
+                if not has_active then
+                    require("adapters.bufline").restore()
+                end
             end
         end,
         once = true,

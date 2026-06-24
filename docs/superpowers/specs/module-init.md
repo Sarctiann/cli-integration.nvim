@@ -7,7 +7,7 @@ Plugin entry point and user command registration.
 ## Responsibility
 
 - Initializes plugin configuration
-- Creates the `:CLIIntegration` user command
+- Creates the `:CLIIntegration` and `:CIcmd` user commands
 - Handles visual selection range for passing text to CLI tools
 - Normalizes integration names (underscores ↔ spaces) for autocompletion compatibility
 - Validates integrations exist before executing commands
@@ -30,14 +30,14 @@ Plugin entry point and user command registration.
 - Parses arguments: action → integration_name → cli_args
 - Converts underscores back to spaces in integration name (for autocompletion compatibility)
 - Captures visual selection if range is provided (`opts.range > 0`)
-- Routes to `commands.open_cwd()` or `commands.open_git_root()`
+- Routes to `commands.open_cwd()`, `commands.open_git_root()`, or `commands.dbg_print()`
 - Supports backward compatibility: first arg not a known action → treated as integration name
 
 ## Command Autocompletion
 
 The `:CLIIntegration` command supports tab autocompletion:
 
-- First argument: shows `open_cwd`, `open_root`
+- First argument: shows `open_cwd`, `open_root`, `dbg_print`
 - Second argument: shows integration names (spaces converted to underscores)
 
 ## Exposed Hooks

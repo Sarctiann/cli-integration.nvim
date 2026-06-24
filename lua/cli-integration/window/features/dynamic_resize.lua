@@ -51,6 +51,9 @@ local function resize_sidebars()
             if columns_changed then
                 local w = geometry.calculate_width(data.width_config)
                 pcall(vim.api.nvim_win_set_width, data.sidebar_win, w)
+                geometry.resize_pty(data.term_buf, data.sidebar_win, data.padding or 0)
+                data._last_pty_width = vim.api.nvim_win_get_width(data.sidebar_win)
+                data._last_pty_height = vim.api.nvim_win_get_height(data.sidebar_win)
             end
         elseif data.float_win and state.is_valid_win(data.float_win) then
             if columns_changed or lines_changed then

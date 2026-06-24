@@ -22,6 +22,13 @@ Opens terminal in current file's directory.
 2. Get working directory from current file's directory (`%:p:h`)
 3. Call `terminal.open_terminal()` with `integration.keep_open`
 
+### `M.dbg_print()`
+
+Prints editor dimensions, sidebar state, and terminal job info for diagnosing
+resize and layout issues.  Takes no arguments.
+
+See `docs/superpowers/specs/module-dbg-print.md` for full output reference.
+
 ### `M.open_git_root(integration_identifier, args, visual_text)`
 
 Opens terminal in project root (git root).
@@ -52,4 +59,4 @@ Resolves integration by:
 
 ## Source Location
 
-`lua/cli-integration/commands.lua` (114 lines)
+`lua/cli-integration/commands.lua` (~170 lines)

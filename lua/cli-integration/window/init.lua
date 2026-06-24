@@ -169,6 +169,10 @@ function M.create_terminal(cmd, opts)
 
     terminal.job_id = job_id
 
+    -- apply_geometry (called inside create_sidebar_layout) also calls
+    -- resize_pty, but that runs *before* the terminal job exists so the
+    -- channel is 0 and the call is a no-op.  Always call it here after the
+    -- job is created so the PTY starts with the correct dimensions.
     geometry.resize_pty(buf, win, padding)
     local data_entry = state.sidebars[buf]
     if data_entry then
@@ -283,26 +287,13 @@ M.resize_sidebars = function()
     dynamic_resize.resize_sidebars()
 end
 
--- Guard showtabline against changes (bufferline overrides it), preventing
--- height fluctuations when buffers open/close. showtabline changes affect
--- total rows available for windows, which resizes all windows including the
--- sidebar. Pinning to 2 (always visible) keeps window heights stable.
--- Use OptionSet to intercept and revert any override immediately.
-vim.o.showtabline = 2
-vim.api.nvim_create_autocmd("OptionSet", {
-    pattern = "showtabline",
-    callback = function()
-        if vim.o.showtabline ~= 2 then
-            vim.o.showtabline = 2
-        end
-    end,
-    desc = "Pin showtabline to 2 for stable integration sidebar height",
-})
-
 local _buf_autocmd_setup = false
 local _deferred_resize_pending = false
 local function resize_all_sidebars()
     if vim.tbl_count(state.sidebars) == 0 then
+        if config.options and config.options.adapters and config.options.adapters.bufferline then
+            require("adapters.bufline").restore()
+        end
         return
     end
     for _, data in pairs(state.sidebars) do
@@ -319,22 +310,67 @@ local function resize_all_sidebars()
         end
     end
     if config.options and config.options.adapters and config.options.adapters.bufferline then
-        local bufline = require("adapters.bufline")
-        for buf, data in pairs(state.sidebars) do
-            bufline.inject_offset(buf, (data.win_opts and data.win_opts.title) or "")
+        local has_active = false
+        for _, data in pairs(state.sidebars) do
+            local win = data.sidebar_win or data.float_win
+            if win and state.is_valid_win(win) then
+                has_active = true
+                break
+            end
+        end
+        if has_active then
+            local bufline = require("adapters.bufline")
+            for buf, data in pairs(state.sidebars) do
+                bufline.inject_offset(buf, (data.win_opts and data.win_opts.title) or "")
+            end
+        else
+            require("adapters.bufline").restore()
         end
     end
 end
 
+--- When the bufferline adapter is active, pin showtabline=2 while any
+--- integration window is visible so the sidebar height stays stable.
+--- bufferline (or Neovim itself) may try to change showtabline when buffers
+--- open/close — this guard reverts it immediately.
+local function ensure_showtabline_while_active()
+    if not config.options or not config.options.adapters or not config.options.adapters.bufferline then
+        return false
+    end
+    for _, d in pairs(state.sidebars) do
+        if state.is_valid_win(d.sidebar_win) or state.is_valid_win(d.float_win) then
+            if vim.o.showtabline ~= 2 then
+                vim.o.showtabline = 2
+            end
+            return true
+        end
+    end
+    return false
+end
+
+vim.api.nvim_create_autocmd("OptionSet", {
+    pattern = "showtabline",
+    callback = function()
+        if vim.o.showtabline ~= 2 then
+            ensure_showtabline_while_active()
+        end
+    end,
+    desc = "Pin showtabline to 2 while bufferline adapter is active and sidebar visible",
+})
+
+--- Deferred resize: after a buffer opens/closes, wait 50ms for the layout
+--- to settle (showtabline transition, window redistribution) before restoring
+--- sidebar width and sending SIGWINCH.  This handles the case where
+--- showtabline isn't pinned (adapter disabled) and the sidebar shifts.
 local function deferred_resize()
     if _deferred_resize_pending then
         return
     end
     _deferred_resize_pending = true
-    vim.schedule(function()
+    vim.defer_fn(function()
         _deferred_resize_pending = false
         resize_all_sidebars()
-    end)
+    end, 50)
 end
 
 local function ensure_buf_autocmd()

@@ -112,4 +112,55 @@ function M.open_git_root(integration_identifier, args, visual_text)
 	terminal.open_terminal(integration, args, integration.keep_open, working_dir, visual_text)
 end
 
+--- Print debug info about integration terminal dimensions.
+--- Useful for diagnosing resize and layout issues.
+function M.dbg_print()
+	local state = require("cli-integration.window.state")
+	local window = require("cli-integration.window")
+
+	vim.print("=== Editor ===")
+	vim.print(string.format("columns=%d  lines=%d  showtabline=%s  laststatus=%d  cmdheight=%d",
+		vim.o.columns, vim.o.lines, vim.o.showtabline, vim.o.laststatus, vim.o.cmdheight))
+
+	vim.print("=== Sidebars ===")
+	if vim.tbl_count(state.sidebars) == 0 then
+		vim.print("  (none)")
+	end
+	for buf, data in pairs(state.sidebars) do
+		local sw, fw = data.sidebar_win, data.float_win
+		local sw_valid = sw and state.is_valid_win(sw)
+		local fw_valid = fw and state.is_valid_win(fw)
+		local active_win = sw_valid and sw or (fw_valid and fw or nil)
+		local w, h, padding, ft = "?", "?", data.padding or 0, "?"
+		if active_win then
+			w = vim.api.nvim_win_get_width(active_win)
+			h = vim.api.nvim_win_get_height(active_win)
+			ft = vim.bo[buf].filetype or "?"
+		end
+		vim.print(string.format("  buf=%-3d  mode=%-10s  origin=%-8s  sidebar_win=%-4s  float_win=%-4s  w=%-4s  h=%-4s  padding=%d  ft=%s",
+			buf, data.mode, data.origin,
+			tostring(sw), tostring(fw),
+			tostring(w), tostring(h),
+			padding, ft))
+		if active_win then
+			local wfw = vim.wo[active_win].winfixwidth
+			local wfh = vim.wo[active_win].winfixheight
+			vim.print(string.format("    winfixwidth=%s  winfixheight=%s", tostring(wfw), tostring(wfh)))
+		end
+	end
+
+	vim.print("=== Terminals ===")
+	local term_mod = require("cli-integration.terminal")
+	if vim.tbl_count(term_mod.terminals) == 0 then
+		vim.print("  (none)")
+	end
+	for name, td in pairs(term_mod.terminals) do
+		local tb = td.term_buf
+		local jid = tb and vim.bo[tb].channel or "?"
+		local cli_term = td.cli_term or {}
+		vim.print(string.format("  %-20s buf=%-3s  job=%-4s  is_fullscreen=%s",
+			name, tostring(tb), tostring(jid), tostring(td.is_fullscreen)))
+	end
+end
+
 return M

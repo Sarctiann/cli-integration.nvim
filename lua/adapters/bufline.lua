@@ -16,19 +16,27 @@ local function remove_all_plugin_offsets(cfg)
 	end
 end
 
+--- @return table|nil
+local function get_config()
+	local ok, bc = pcall(require, "bufferline.config")
+	if not ok then
+		return nil
+	end
+	local cfg = bc.get()
+	if not cfg or not cfg.options then
+		return nil
+	end
+	return cfg
+end
+
 --- Inject a single bufferline offset for the sidebar vsplit, so bufferline
 --- does not draw over the integration window.  Best-effort: no-op if
 --- bufferline is absent.
 --- @param term_buf number
 --- @param title string
 function M.inject_offset(term_buf, title)
-	local ok, bc = pcall(require, "bufferline.config")
-	if not ok then
-		return
-	end
-
-	local cfg = bc.get()
-	if not cfg or not cfg.options then
+	local cfg = get_config()
+	if not cfg then
 		return
 	end
 
@@ -43,6 +51,19 @@ function M.inject_offset(term_buf, title)
 		separator = true,
 		_cli_integration_buf = term_buf,
 	})
+	vim.schedule(function()
+		vim.cmd("redrawtabline")
+	end)
+end
+
+--- Remove all plugin-owned offset entries and redraw the tabline.
+--- Safe to call even when no plugin offsets exist.
+function M.restore()
+	local cfg = get_config()
+	if not cfg then
+		return
+	end
+	remove_all_plugin_offsets(cfg)
 	vim.schedule(function()
 		vim.cmd("redrawtabline")
 	end)
