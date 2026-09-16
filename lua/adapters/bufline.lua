@@ -29,6 +29,47 @@ local function get_config()
 	return cfg
 end
 
+--- Whether we've overridden bufferline's own `always_show_bufferline`, and
+--- what to restore it to. nil means "not currently overridden".
+M._prev_always_show = nil
+
+--- Cooperate with bufferline's own tabline-visibility logic instead of
+--- fighting it. bufferline decides whether to show the tabline on every
+--- redraw (`toggle_bufferline()`, bound to its own high-frequency redraw
+--- path) purely from its `always_show_bufferline` option — it has no idea
+--- our integration window wants the tabline kept visible. Forcing
+--- `showtabline` back to 2 from the outside every time bufferline hides it
+--- creates a fight: each of bufferline's redraws (many per second while a
+--- CLI tool is streaming output) flips showtabline 2->0, and reverting it
+--- retriggers a global chrome resize for every window in the tabpage —
+--- an autocmd storm that is a real source of window-size drift/corruption.
+--- Flipping bufferline's OWN flag instead means it simply stops wanting to
+--- hide the tabline, so there's nothing left to fight.
+--- @param enabled boolean
+function M.set_always_show(enabled)
+	local cfg = get_config()
+	if not cfg then
+		if enabled then
+			-- No bufferline installed/active: just force it once directly.
+			vim.o.showtabline = 2
+		end
+		return
+	end
+
+	if enabled then
+		if M._prev_always_show == nil then
+			M._prev_always_show = cfg.options.always_show_bufferline or false
+		end
+		cfg.options.always_show_bufferline = true
+		if vim.o.showtabline ~= 2 then
+			vim.o.showtabline = 2
+		end
+	elseif M._prev_always_show ~= nil then
+		cfg.options.always_show_bufferline = M._prev_always_show
+		M._prev_always_show = nil
+	end
+end
+
 --- Inject a single bufferline offset for the sidebar vsplit, so bufferline
 --- does not draw over the integration window.  Best-effort: no-op if
 --- bufferline is absent.
@@ -64,6 +105,7 @@ function M.restore()
 		return
 	end
 	remove_all_plugin_offsets(cfg)
+	M.set_always_show(false)
 	vim.schedule(function()
 		vim.cmd("redrawtabline")
 	end)

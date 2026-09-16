@@ -2,7 +2,24 @@
 local M = {}
 local debug = require("cli-integration.debug")
 
+--- Last (width, height) actually sent to each job, keyed by job_id. A burst
+--- of WinResized events that all resolve to the same content size (common:
+--- one layout change can fire several times as siblings settle) must not
+--- send repeated SIGWINCHes — many TUIs do a full clear+repaint per resize,
+--- and a rapid duplicate burst is a real source of rendering corruption.
+--- @type table<number, {w: number, h: number}>
+M._last_size = {}
+
+--- Forget a job's cached size (call when its terminal is closed/exits).
+--- @param job_id number|nil
+function M.forget_job(job_id)
+    if job_id then
+        M._last_size[job_id] = nil
+    end
+end
+
 --- Resize the pty of a terminal job to match current window content dimensions.
+--- No-ops if the last size sent to this job is unchanged.
 --- @param term_buf number Terminal buffer handle
 --- @param win number Window handle (must be valid)
 --- @param padding number Horizontal padding (foldcolumn columns to subtract)
@@ -15,6 +32,23 @@ function M.resize_pty(term_buf, win, padding)
     local h = vim.api.nvim_win_get_height(win)
     local content_width = math.max(1, w - (padding * 2))
     local content_height = math.max(1, h)
+
+    local last = M._last_size[job_id]
+    if last and last.w == content_width and last.h == content_height then
+        debug.log("resize_pty_skipped_dedup", function()
+            return {
+                term_buf = term_buf,
+                job_id = job_id,
+                win_width = w,
+                win_height = h,
+                content_width = content_width,
+                content_height = content_height,
+            }
+        end)
+        return
+    end
+    M._last_size[job_id] = { w = content_width, h = content_height }
+
     pcall(vim.fn.jobresize, job_id, content_width, content_height)
     debug.log("resize_pty", function()
         return {

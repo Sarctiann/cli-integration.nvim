@@ -13,11 +13,6 @@ local M = {}
 --- @field win_opts table
 --- @field padding number
 --- @field list_buffer boolean
---- @field _last_pty_width number
---- @field _last_pty_height number
---- @field _last_win_width number|nil
---- @field _last_win_height number|nil
---- @field _pty_resize_pending boolean|nil
 
 --- Store active sidebar configurations
 --- Keyed by term_buf (stable across toggles)

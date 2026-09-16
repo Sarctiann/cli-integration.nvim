@@ -111,7 +111,7 @@ M.defaults = {
 - All `terminal_keys` values MUST be arrays (enforced by validation)
 - Minimum `cli_cmd` length: 2 characters (to avoid false pattern matches)
 - Integration-specific config overrides global defaults
-- Environment strategy: inherit full Neovim process environment by default (including NVIM/TERM/TMUX), with optional per-integration `env` overrides and `unset_env` removals
+- Environment strategy (see `window/geometry.lua:build_job_env()`): inherit the full Neovim process environment via `vim.fn.environ()`, then strip host-identity vars that cause TUI/clipboard corruption in the child (`TMUX`, `TMUX_PANE`, `TERM_PROGRAM`, `TERM_PROGRAM_VERSION`, Ghostty vars, `TERMINFO`), normalize `TERM`/`COLORTERM` unless overridden, then apply per-integration `env` overrides and `unset_env` removals. The job is started with `clear_env = true` so these removals actually take effect — without it, `jobstart`'s `env` only *extends* the inherited environment (`:h jobstart-options`), and the child would still see the real `$TMUX` regardless of what was deleted from the table.
 - Default `border`: "none" for sidebar, "rounded" for float/expanded
 
 ## Source Location

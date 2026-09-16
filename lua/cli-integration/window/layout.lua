@@ -9,7 +9,12 @@ local config = require("cli-integration.config")
 --- @param win number Window handle
 --- @param padding number Horizontal padding (foldcolumn)
 local function apply_sidebar_win_opts(win, padding)
-    vim.wo[win].winfixwidth = config.options.window_features and config.options.window_features.dynamic_resize == false
+    -- Always fixed: this stops Neovim's own layout redistribution from
+    -- resizing the sidebar when sibling windows open/close (Snacks.explorer,
+    -- bufferline offset, etc). It does NOT prevent our own explicit
+    -- nvim_win_set_width calls (e.g. from dynamic_resize), so this is safe
+    -- regardless of whether that feature is enabled.
+    vim.wo[win].winfixwidth = true
     vim.wo[win].winfixheight = true
     vim.wo[win].number = false
     vim.wo[win].relativenumber = false
@@ -87,8 +92,6 @@ function M.create_float_window(buf, win_opts)
         win_opts = win_opts,
         padding = 0,
         list_buffer = win_opts.list_buffer or false,
-        _last_pty_width = -1,
-        _last_pty_height = -1,
     }
 
     vim.api.nvim_create_autocmd("WinClosed", {
@@ -129,7 +132,7 @@ function M.create_float_window(buf, win_opts)
     })
 
     if config.options.adapters and config.options.adapters.bufferline then
-        vim.o.showtabline = 2
+        require("adapters.bufline").set_always_show(true)
     end
     vim.cmd("startinsert")
     return win
@@ -163,7 +166,6 @@ function M.create_sidebar_layout(buf, win_opts)
         existing.float_win = nil
         existing.float_original = nil
         existing.fullscreen_autocmd_id = nil
-        existing._pty_resize_pending = false
     else
         state.sidebars[buf] = {
             term_buf = buf,
@@ -177,9 +179,6 @@ function M.create_sidebar_layout(buf, win_opts)
             win_opts = win_opts,
             padding = padding,
             list_buffer = win_opts.list_buffer or false,
-            _pty_resize_pending = false,
-            _last_pty_width = -1,
-            _last_pty_height = -1,
         }
     end
 
@@ -187,8 +186,9 @@ function M.create_sidebar_layout(buf, win_opts)
     apply_sidebar_win_opts(sidebar_win, padding)
 
     if config.options.adapters and config.options.adapters.bufferline then
-        vim.o.showtabline = 2
-        require("adapters.bufline").inject_offset(buf, win_opts.title or "")
+        local bufline = require("adapters.bufline")
+        bufline.set_always_show(true)
+        bufline.inject_offset(buf, win_opts.title or "")
     end
 
     vim.api.nvim_create_autocmd("WinClosed", {
@@ -251,17 +251,9 @@ function M.apply_geometry(term_buf)
     if data.mode == "sidebar" and state.is_valid_win(data.sidebar_win) then
         pcall(vim.api.nvim_win_set_width, data.sidebar_win, geom.width)
         geometry.resize_pty(term_buf, data.sidebar_win, data.padding or 0)
-        local cw = vim.api.nvim_win_get_width(data.sidebar_win)
-        local ch = vim.api.nvim_win_get_height(data.sidebar_win)
-        data._last_pty_width = cw
-        data._last_pty_height = ch
     elseif data.float_win and state.is_valid_win(data.float_win) then
         pcall(vim.api.nvim_win_set_config, data.float_win, geom)
         geometry.resize_pty(term_buf, data.float_win, 0)
-        local cw = vim.api.nvim_win_get_width(data.float_win)
-        local ch = vim.api.nvim_win_get_height(data.float_win)
-        data._last_pty_width = cw
-        data._last_pty_height = ch
     end
 end
 

@@ -16,11 +16,11 @@
 **Components:**
 
 - **Normal Windows** — Regular editor windows (left side)
-- **Vsplit Window** — Terminal window on the right side with `winfixwidth` set per `dynamic_resize`
+- **Vsplit Window** — Terminal window on the right side, always `winfixwidth=true`
 
 **Key properties:**
 
-- Vsplit window: `winfixwidth=true` when `dynamic_resize=false`, `false` when enabled. This prevents Neovim's layout engine from auto-resizing the sidebar when the user resizes the editor.
+- Vsplit window: `winfixwidth=true` unconditionally (not tied to `dynamic_resize`). This prevents Neovim's layout engine from auto-resizing the sidebar when a sibling window opens/closes (e.g. Snacks.explorer, a bufferline offset appearing) — it does not block our own explicit `nvim_win_set_width` calls, which is how `dynamic_resize` re-applies the configured width on `WinResized`/`VimResized`.
 - No border, behaves as a native split
 
 ### Fullscreen Mode (toggle)
@@ -112,16 +112,15 @@ Calculated AFTER geometry is finalized:
 
 ## Height Stability
 
-### CRITICAL: showtabline Pin
+### CRITICAL: cooperate with bufferline over showtabline, don't fight it
 
-The sidebar is a vsplit — it shares the full editor height with other windows. When `showtabline` changes (e.g. bufferline sets it to 2 when files open, 0 when none remain), ALL windows lose/gain 1 row. The sidebar cannot maintain its height because Neovim's layout engine must redistribute the reduced available rows — `nvim_win_set_height` is overridden every time.
+The sidebar is a vsplit — it shares the full editor height with other windows. When `showtabline` changes (e.g. bufferline sets it to 2 when files open, 0 when none remain), ALL windows lose/gain 1 row.
 
-**`window/init.lua`** module-level code pins `showtabline = 2` and registers an `OptionSet` autocmd that reverts any override. This prevents bufferline (or any plugin) from fluctuating the value.
+A previous version pinned `showtabline = 2` by reverting every change from an `OptionSet` autocmd. This created a hidden feedback loop instead of a fix: bufferline's `toggle_bufferline()` runs on nearly every tabline redraw — very frequent while a CLI tool is streaming output — and kept trying to hide the tabline; the revert ran nested inside that same `OptionSet` callback, so Neovim suppressed re-firing `OptionSet` for it (invisible in logs) while still forcing a full chrome-driven resize of every window each time. Confirmed with real logs: **675 `showtabline: 2->0` transitions and 0 `0->2` in 15 seconds** — this, not a single clean resize, was what made the sidebar drift by 1-2 rows unpredictably.
 
-**Do not remove or weaken this guard.** Testing showed that:
-- Setting `showtabline = 2` once is not enough (bufferline overrides it back)
-- Restoring sidebar height via `nvim_win_set_height` is futile (Neovim redistributes after each layout pass)
-- Only an `OptionSet` guard that intercepts EVERY change and reverts it works reliably
+**Current approach:** `adapters/bufline.lua:set_always_show(enabled)` flips bufferline's OWN `config.options.always_show_bufferline` flag while an integration window is open. `toggle_bufferline()` re-reads that flag every call, so it simply stops wanting to hide the tabline on its own — nothing to fight. `set_always_show(true)` is called at sidebar/float creation; `set_always_show(false)` is folded into `adapters/bufline.lua:restore()`, which already runs whenever the last integration window closes.
+
+**Do not reintroduce an `OptionSet`-based revert.** If a new drift symptom appears, use `debug.lua:win_tree_diff(label)` (snapshots every window's size/buftype and logs only what changed since the last call) around the suspected resize point before reaching for a force-set.
 
 ## Source
 

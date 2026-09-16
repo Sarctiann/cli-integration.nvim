@@ -9,7 +9,6 @@ local buffer_lock = require("cli-integration.window.features.buffer_lock")
 local insert = require("cli-integration.window.features.insert")
 local nav = require("cli-integration.window.features.nav")
 local debug = require("cli-integration.debug")
-local config = require("cli-integration.config")
 
 M.sidebars = state.sidebars
 
@@ -110,8 +109,19 @@ function M.create_terminal(cmd, opts)
         local job_opts = {
             cwd = cwd,
             env = env,
+            -- `env` only *extends* the inherited environment unless clear_env is
+            -- set (see :h jobstart-options). Without this, build_job_env()'s
+            -- removal of TMUX/TMUX_PANE etc. has no effect: the child still
+            -- inherits them from Nvim's own process, which makes tools like
+            -- claude-code think their immediate terminal is real tmux and wrap
+            -- OSC 52 (clipboard) sequences in tmux's passthrough envelope. Nvim's
+            -- own :terminal (libvterm) doesn't understand that envelope, so the
+            -- raw escape/base64 payload gets rendered as literal "ghost text"
+            -- when selecting/copying with the mouse inside a nested tmux session.
+            clear_env = true,
             term = true,
-            on_exit = function(_, exit_code, _)
+            on_exit = function(exited_job_id, exit_code, _)
+                geometry.forget_job(exited_job_id)
                 if auto_close and exit_code == 0 then
                     vim.schedule(function()
                         local title = (win_opts.title ~= "" and win_opts.title) or "cli"
@@ -174,13 +184,6 @@ function M.create_terminal(cmd, opts)
     -- channel is 0 and the call is a no-op.  Always call it here after the
     -- job is created so the PTY starts with the correct dimensions.
     geometry.resize_pty(buf, win, padding)
-    local data_entry = state.sidebars[buf]
-    if data_entry then
-        data_entry._last_pty_width = vim.api.nvim_win_get_width(win)
-        data_entry._last_pty_height = vim.api.nvim_win_get_height(win)
-        data_entry._last_win_width = vim.api.nvim_win_get_width(win)
-        data_entry._last_win_height = vim.api.nvim_win_get_height(win)
-    end
 
     if opts.win and opts.win.list_buffer then
         vim.bo[buf].buflisted = true
@@ -286,106 +289,5 @@ M.apply_geometry = layout.apply_geometry
 M.resize_sidebars = function()
     dynamic_resize.resize_sidebars()
 end
-
-local _buf_autocmd_setup = false
-local _deferred_resize_pending = false
-local function resize_all_sidebars()
-    if vim.tbl_count(state.sidebars) == 0 then
-        if config.options and config.options.adapters and config.options.adapters.bufferline then
-            require("adapters.bufline").restore()
-        end
-        return
-    end
-    for _, data in pairs(state.sidebars) do
-        local win = data.sidebar_win or data.float_win
-        if win and state.is_valid_win(win) then
-            if data.mode == "sidebar" then
-                local expected_width = geometry.calculate_width(data.width_config)
-                local current_width = vim.api.nvim_win_get_width(win)
-                if current_width ~= expected_width then
-                    pcall(vim.api.nvim_win_set_width, win, expected_width)
-                end
-            end
-            geometry.resize_pty(data.term_buf, win, data.padding or 0)
-        end
-    end
-    if config.options and config.options.adapters and config.options.adapters.bufferline then
-        local has_active = false
-        for _, data in pairs(state.sidebars) do
-            local win = data.sidebar_win or data.float_win
-            if win and state.is_valid_win(win) then
-                has_active = true
-                break
-            end
-        end
-        if has_active then
-            local bufline = require("adapters.bufline")
-            for buf, data in pairs(state.sidebars) do
-                bufline.inject_offset(buf, (data.win_opts and data.win_opts.title) or "")
-            end
-        else
-            require("adapters.bufline").restore()
-        end
-    end
-end
-
---- When the bufferline adapter is active, pin showtabline=2 while any
---- integration window is visible so the sidebar height stays stable.
---- bufferline (or Neovim itself) may try to change showtabline when buffers
---- open/close — this guard reverts it immediately.
-local function ensure_showtabline_while_active()
-    if not config.options or not config.options.adapters or not config.options.adapters.bufferline then
-        return false
-    end
-    for _, d in pairs(state.sidebars) do
-        if state.is_valid_win(d.sidebar_win) or state.is_valid_win(d.float_win) then
-            if vim.o.showtabline ~= 2 then
-                vim.o.showtabline = 2
-            end
-            return true
-        end
-    end
-    return false
-end
-
-vim.api.nvim_create_autocmd("OptionSet", {
-    pattern = "showtabline",
-    callback = function()
-        if vim.o.showtabline ~= 2 then
-            ensure_showtabline_while_active()
-        end
-    end,
-    desc = "Pin showtabline to 2 while bufferline adapter is active and sidebar visible",
-})
-
---- Deferred resize: after a buffer opens/closes, wait 50ms for the layout
---- to settle (showtabline transition, window redistribution) before restoring
---- sidebar width and sending SIGWINCH.  This handles the case where
---- showtabline isn't pinned (adapter disabled) and the sidebar shifts.
-local function deferred_resize()
-    if _deferred_resize_pending then
-        return
-    end
-    _deferred_resize_pending = true
-    vim.defer_fn(function()
-        _deferred_resize_pending = false
-        resize_all_sidebars()
-    end, 50)
-end
-
-local function ensure_buf_autocmd()
-    if _buf_autocmd_setup then
-        return
-    end
-    _buf_autocmd_setup = true
-    vim.api.nvim_create_autocmd({ "BufReadPost", "BufDelete" }, {
-        callback = function()
-            deferred_resize()
-        end,
-        desc = "Deferred resize of sidebar on file open/close",
-    })
-end
-
-ensure_buf_autocmd()
 
 return M

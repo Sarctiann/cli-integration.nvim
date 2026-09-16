@@ -86,10 +86,6 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
             data.fullscreen_autocmd_id = autocmd_id
 
             geometry.resize_pty(data.term_buf, new_win, 0)
-            data._last_win_width = vim.api.nvim_win_get_width(new_win)
-            data._last_win_height = vim.api.nvim_win_get_height(new_win)
-            data._last_pty_width = data._last_win_width
-            data._last_pty_height = data._last_win_height
             debug.log("fullscreen_float_created", function()
                 return {
                     term_buf = term_buf,
@@ -161,10 +157,6 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
         sidebar_win = data.sidebar_win
         if sidebar_win and state.is_valid_win(sidebar_win) then
             geometry.resize_pty(data.term_buf, sidebar_win, data.padding or 0)
-            data._last_win_width = vim.api.nvim_win_get_width(sidebar_win)
-            data._last_win_height = vim.api.nvim_win_get_height(sidebar_win)
-            data._last_pty_width = data._last_win_width
-            data._last_pty_height = data._last_win_height
             if should_focus then
                 vim.api.nvim_set_current_win(sidebar_win)
                 vim.schedule(function()
