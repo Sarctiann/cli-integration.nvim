@@ -8,7 +8,7 @@ The `window` module manages terminal windows for cli-integration plugin. It supp
 
 - `init.lua` - Main orchestrator
 - `state.lua` - State management (M.sidebars)
-- `geometry.lua` - Geometry calculations and PTY resize
+- `geometry.lua` - Geometry calculations and job environment
 - `layout.lua` - Window layout creation
 - `features/` - Optional features
   - `dynamic_resize.lua` - Editor resize handling
@@ -60,4 +60,4 @@ To diagnose a similar drift in the future: `debug.lua:win_tree_diff(label)` snap
 
 **`features/dynamic_resize.lua`** reacts to `WinResized`/`VimResized` only. A previous version *also* guessed at layout changes via `BufReadPost`/`BufDelete` plus a 50ms `defer_fn` ("let the layout settle") in a second, near-duplicate resize routine in `window/init.lua`. That guessed timing raced against bufferline/Snacks' own redraw and could apply already-stale dimensions to the PTY — a real source of TUIs rendering with corrupted/leftover content after a resize. It has been removed. `WinResized` fires only *after* Neovim's layout has actually settled, for any reason a window's size changed (manual resize, a sibling split, `showtabline`/`cmdheight`/`laststatus` changing) — there is no case that needs a guessed companion event.
 
-`geometry.lua:resize_pty()` also deduplicates: it remembers the last `(width, height)` actually sent to each job (keyed by `job_id`, cleared on job exit) and skips `jobresize` if nothing changed. This matters because `WinResized` can legitimately fire several times for the same final size as sibling windows settle — many TUI frameworks do a full clear+repaint per `SIGWINCH`, so a rapid duplicate burst is itself a source of visible rendering corruption, not just wasted work.
+The PTY itself is never resized manually: Nvim resizes it to the window text area on every geometry change. `dynamic_resize` only keeps the window geometry (e.g. the configured sidebar width) in place. See `docs/superpowers/specs/common-pitfalls.md` #16 and #19–#21.

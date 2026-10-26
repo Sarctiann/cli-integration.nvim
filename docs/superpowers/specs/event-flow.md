@@ -16,9 +16,9 @@ window.create_terminal():
   1. Creates terminal buffer (bufhidden=hide, buflisted=false)
   2. Sets b:cli_integration_name BEFORE termopen/jobstart
   3. Calls create_sidebar_layout() or create_float_window()
-  4. Calculates content dimensions via calculate_content_dimensions(win, padding)
+  4. Calculates content dimensions via calculate_content_dimensions(win)
   5. Starts terminal job (jobstart/termopen) with calculated COLUMNS/LINES
-  6. Calls resize_pty(buf, win, padding) to align PTY with calculated dimensions
+  6. (No manual PTY resize: Nvim sizes the PTY to the window text area)
   7. Re-applies buffer name AFTER termopen (Neovim overwrites it)
   8. Sets up navigation keymaps (<C-h/j/k/l>)
   9. Sets up BufWinEnter protection autocmd

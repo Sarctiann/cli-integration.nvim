@@ -58,7 +58,7 @@
 --- @field show_help_on_open boolean|nil # Whether to show help notification when opening the terminal (default: true)
 --- @field new_lines_amount number|nil # Number of new lines to insert after command submission (default: 2)
 --- @field window_width number|nil # Default width for the terminal window (default: 34, percentage 0-100 or absolute value >100)
---- @field window_padding number|nil # Horizontal padding in columns (default: 0, adds empty space on left and right)
+--- @field window_padding number|nil # Horizontal padding in columns (default: 0, adds empty space on the left)
 --- @field border string|nil # Border style for terminal window: "none", "single", "double", "rounded", "solid", "shadow" (default: "none" for sidebar, "rounded" for floating and when expanded)
 --- @field floating boolean|nil # Whether to open terminal in floating window (default: false)
 --- @field keep_open boolean|nil # Whether to keep the terminal open after execution (default: false)

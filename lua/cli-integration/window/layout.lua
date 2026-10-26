@@ -21,10 +21,17 @@ local function apply_sidebar_win_opts(win, padding)
     vim.wo[win].signcolumn = "no"
     vim.wo[win].cursorline = false
     vim.wo[win].spell = false
+    -- Nvim's default TermOpen handler disables these, but it only runs once
+    -- (when the job starts). A vsplit recreated later (toggle, leaving
+    -- fullscreen) inherits them from the editor window instead, e.g. 'list'
+    -- renders listchars' "trail:-" as dashes across the whole TUI.
+    vim.wo[win].list = false
+    vim.wo[win].wrap = false
+    vim.wo[win].statuscolumn = ""
+    vim.wo[win].colorcolumn = ""
+    vim.wo[win].cursorcolumn = false
     vim.wo[win].winhighlight = "Normal:NormalSB,NormalNC:NormalSB,EndOfBuffer:NormalSB"
-    if padding > 0 then
-        vim.wo[win].foldcolumn = tostring(padding)
-    end
+    vim.wo[win].foldcolumn = tostring(padding)
 end
 
 --- Find a safe anchor window in the normal layout for creating splits
@@ -154,6 +161,9 @@ function M.create_sidebar_layout(buf, win_opts)
     vim.cmd("botright vsplit")
     local sidebar_win = vim.api.nvim_get_current_win()
 
+    -- Options first: Nvim sizes the PTY (width - textoff) when the buffer enters
+    -- the window, and a later foldcolumn change does not make it re-check.
+    apply_sidebar_win_opts(sidebar_win, padding)
     vim.api.nvim_win_set_buf(sidebar_win, buf)
     if config.options.adapters and config.options.adapters.bufferline then
         vim.bo[buf].filetype = "cli-integration"
@@ -183,7 +193,6 @@ function M.create_sidebar_layout(buf, win_opts)
     end
 
     M.apply_geometry(buf)
-    apply_sidebar_win_opts(sidebar_win, padding)
 
     if config.options.adapters and config.options.adapters.bufferline then
         local bufline = require("adapters.bufline")
@@ -250,10 +259,8 @@ function M.apply_geometry(term_buf)
 
     if data.mode == "sidebar" and state.is_valid_win(data.sidebar_win) then
         pcall(vim.api.nvim_win_set_width, data.sidebar_win, geom.width)
-        geometry.resize_pty(term_buf, data.sidebar_win, data.padding or 0)
     elseif data.float_win and state.is_valid_win(data.float_win) then
         pcall(vim.api.nvim_win_set_config, data.float_win, geom)
-        geometry.resize_pty(term_buf, data.float_win, 0)
     end
 end
 

@@ -78,7 +78,21 @@ function M.create_terminal(cmd, opts)
     local integration_name = win_opts.integration_name or ""
 
     local padding = is_float and 0 or (win_opts.padding or 0)
-    local cols, lines = geometry.calculate_content_dimensions(win, padding)
+    if padding > 0 then
+        -- Nvim's default TermOpen handler resets foldcolumn to 0 when the job
+        -- starts; restore the padding right after it, before Nvim sizes the PTY.
+        vim.api.nvim_create_autocmd("TermOpen", {
+            buffer = buf,
+            once = true,
+            callback = function()
+                if vim.api.nvim_win_is_valid(win) then
+                    vim.wo[win].foldcolumn = tostring(padding)
+                end
+            end,
+            desc = "Restore sidebar padding reset by Nvim's TermOpen defaults",
+        })
+    end
+    local cols, lines = geometry.calculate_content_dimensions(win)
 
     local job_id
     vim.api.nvim_buf_call(buf, function()
@@ -120,8 +134,7 @@ function M.create_terminal(cmd, opts)
             -- when selecting/copying with the mouse inside a nested tmux session.
             clear_env = true,
             term = true,
-            on_exit = function(exited_job_id, exit_code, _)
-                geometry.forget_job(exited_job_id)
+            on_exit = function(_, exit_code, _)
                 if auto_close and exit_code == 0 then
                     vim.schedule(function()
                         local title = (win_opts.title ~= "" and win_opts.title) or "cli"
@@ -167,10 +180,6 @@ function M.create_terminal(cmd, opts)
         vim.cmd("lcd " .. vim.fn.fnameescape(original_cwd))
     end)
 
-    if padding > 0 then
-        vim.wo[win].foldcolumn = tostring(padding)
-    end
-
     if not job_id or job_id <= 0 then
         vim.api.nvim_win_close(win, true)
         vim.api.nvim_buf_delete(buf, { force = true })
@@ -178,12 +187,6 @@ function M.create_terminal(cmd, opts)
     end
 
     terminal.job_id = job_id
-
-    -- apply_geometry (called inside create_sidebar_layout) also calls
-    -- resize_pty, but that runs *before* the terminal job exists so the
-    -- channel is 0 and the call is a no-op.  Always call it here after the
-    -- job is created so the PTY starts with the correct dimensions.
-    geometry.resize_pty(buf, win, padding)
 
     if opts.win and opts.win.list_buffer then
         vim.bo[buf].buflisted = true
@@ -271,14 +274,6 @@ function M.is_terminal_visible(terminal)
         return false
     end
     return ((data.sidebar_win and state.is_valid_win(data.sidebar_win)) or (data.float_win and state.is_valid_win(data.float_win))) == true
-end
-
---- Public wrapper for resize_pty
---- @param term_buf number
---- @param win number
---- @param padding number
-function M.resize_pty(term_buf, win, padding)
-    geometry.resize_pty(term_buf, win, padding)
 end
 
 M.update_sidebar_geometry = fullscreen.update_sidebar_geometry

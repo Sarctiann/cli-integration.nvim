@@ -35,10 +35,6 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
                 cmdheight = vim.o.cmdheight,
             }
         end)
-        if data.sidebar_win and state.is_valid_win(data.sidebar_win) then
-            pcall(vim.api.nvim_win_set_width, data.sidebar_win, 1)
-        end
-
         local float_opts = {
             relative = "editor",
             width = vim.o.columns,
@@ -85,7 +81,18 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
             })
             data.fullscreen_autocmd_id = autocmd_id
 
-            geometry.resize_pty(data.term_buf, new_win, 0)
+            -- Close the vsplit instead of shrinking it: Neovim sizes a terminal's
+            -- PTY to the max width/height across ALL windows showing its buffer,
+            -- so a lingering full-height vsplit would keep the PTY taller than the
+            -- bordered float and clip the TUI's top rows. Closed after float_win
+            -- is set so the bufferline cleanup still sees an active window. The
+            -- vsplit is recreated by create_sidebar_layout when leaving fullscreen.
+            local sidebar_win = data.sidebar_win
+            if sidebar_win and state.is_valid_win(sidebar_win) then
+                pcall(vim.api.nvim_win_close, sidebar_win, true)
+            end
+            data.sidebar_win = nil
+
             debug.log("fullscreen_float_created", function()
                 return {
                     term_buf = term_buf,
@@ -156,7 +163,6 @@ function M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)
 
         sidebar_win = data.sidebar_win
         if sidebar_win and state.is_valid_win(sidebar_win) then
-            geometry.resize_pty(data.term_buf, sidebar_win, data.padding or 0)
             if should_focus then
                 vim.api.nvim_set_current_win(sidebar_win)
                 vim.schedule(function()

@@ -31,19 +31,14 @@
 - Width detection logic distinguishes editor vs manual resize using `M._last_editor_width`
 - `M._last_editor_width` is updated correctly
 - Sidebar vsplit width equals `configured_width` (no padding discount)
-- `resize_pty` called with correct padding: `data.padding` for sidebar, `0` for fullscreen float
+- PTY size equals the window text area: `stty size` inside the terminal must match `height` x `width - getwininfo(win)[1].textoff`
+- The terminal buffer is shown in exactly one window (Nvim sizes the PTY to the max across all of them)
 
 ## PTY Size Issues
 
-**Check:** resize_pty() and calculate_content_dimensions() in window.lua lines ~137 and ~226
 
 **Verify:**
 
-- `resize_pty(term_buf, win, padding)` uses 3 parameters (no border parameter)
-- For splits: `content_width = w - (padding * 2)` (w includes foldcolumn)
-- For floats: `content_width = w` (padding is always 0)
-- `resize_pty` is called after jobstart in create_terminal
-- Fullscreen floats always pass `padding = 0` to resize_pty
 
 ## Fullwidth Toggle Issues
 

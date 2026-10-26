@@ -8,11 +8,11 @@ local config = require("cli-integration.config")
 
 M._autocmd_setup = false
 
---- Re-apply geometry and resize the pty for every active integration window.
+--- Re-apply the configured geometry of every active integration window.
 --- Called from WinResized/VimResized, i.e. only when Neovim reports that a
 --- window's size actually changed and the layout has already settled — so
 --- there's no need to guess via other events or debounce with a timer.
---- jobresize with unchanged dimensions is a harmless no-op for the child.
+--- The PTY follows the window on its own (Nvim resizes it), see geometry.lua.
 function M.resize_sidebars()
     debug.log("resize_sidebars", function()
         return {
@@ -27,7 +27,6 @@ function M.resize_sidebars()
         if data.mode == "sidebar" and state.is_valid_win(data.sidebar_win) then
             local w = geometry.calculate_width(data.width_config)
             pcall(vim.api.nvim_win_set_width, data.sidebar_win, w)
-            geometry.resize_pty(data.term_buf, data.sidebar_win, data.padding or 0)
         elseif data.float_win and state.is_valid_win(data.float_win) then
             layout.apply_geometry(data.term_buf)
         end
@@ -78,7 +77,7 @@ function M.setup()
                 debug.win_tree_diff(args.event .. "_before_react")
                 M.resize_sidebars()
                 -- ...and again AFTER, to catch any further change our own
-                -- nvim_win_set_width/resize_pty calls provoke.
+                -- nvim_win_set_width calls provoke.
                 debug.win_tree_diff(args.event .. "_after_react")
             end,
             desc = "Keep integration windows and their PTYs in sync with any layout change",

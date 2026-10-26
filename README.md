@@ -212,7 +212,7 @@ These terms are used throughout the documentation and the codebase (AGENTS.md co
 | `show_help_on_open` | `boolean`  | `true`                                | Default: Show help screen when terminal opens                                         |
 | `new_lines_amount`  | `number`   | `2`                                   | Default: Number of new lines to insert after command submission                       |
 | `window_width`      | `number`   | `34`                                  | Default: Width for terminal window (percentage 0-100, or absolute >100)               |
-| `window_padding`    | `number`   | `0`                                   | Default: Horizontal padding in columns (adds empty space on left and right)           |
+| `window_padding`    | `number`   | `0`                                   | Default: Horizontal padding in columns (adds empty space on the left)           |
 | `border`            | `string`   | `"none"`                              | Default: Border style ("none", "single", "double", "rounded", "solid", "shadow")      |
 | `floating`          | `boolean`  | `false`                               | Default: Whether to open terminal in floating window                                  |
 | `env`               | `table`    | `{}`                                  | Default: Environment overrides merged on top of inherited process environment         |
@@ -248,7 +248,7 @@ Each integration in the `integrations` array can have:
 | `show_help_on_open`     | `boolean`  | Inherits global | Override: Show help screen when terminal opens                                                                                                                                                                                                                                                                                                         |
 | `new_lines_amount`      | `number`   | Inherits global | Override: Number of new lines to insert after command submission                                                                                                                                                                                                                                                                                       |
 | `window_width`          | `number`   | Inherits global | Override: Width for terminal window (percentage 0-100, or absolute >100)                                                                                                                                                                                                                                                                               |
-| `window_padding`        | `number`   | Inherits global | Override: Horizontal padding in columns (adds empty space on left and right)                                                                                                                                                                                                                                                                           |
+| `window_padding`        | `number`   | Inherits global | Override: Horizontal padding in columns (adds empty space on the left)                                                                                                                                                                                                                                                                           |
 | `border`                | `string`   | Inherits global | Override: Border style ("none", "single", "double", "rounded", "solid", "shadow"). Default is "none" for sidebar, "rounded" when expanded or floating                                                                                                                                                                                                  |
 | `floating`              | `boolean`  | Inherits global | Override: Whether to open terminal in floating window                                                                                                                                                                                                                                                                                                  |
 | `env`                   | `table`    | Inherits global | Override: Environment overrides merged on top of inherited process environment                                                                                                                                                                                                                                                                         |
@@ -350,8 +350,8 @@ See the [Global Options](#global-options-applied-to-all-integrations) table for 
 
 - **`window_width`**: Controls how wide the terminal panel is.  
   Values 1-100 = percentage of editor width (e.g., `34` = 34%). Values >100 = absolute columns (e.g., `150` = 150 characters wide).
-- **`window_padding`**: Adds horizontal spacing on each side of the terminal content.  
-  `1` adds 1 character of visual margin on the left and right.
+- **`window_padding`**: Adds horizontal spacing on the left of the terminal content.  
+  `1` adds 1 character of visual margin on the left.
 - **`border`**: Border style for the terminal window.  
   Values: `"none"` (sidebar default), `"single"`, `"double"`, `"rounded"` (float default), `"solid"`, `"shadow"`.
 
