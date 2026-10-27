@@ -340,16 +340,24 @@ function M.toggle_fullscreen(term_buf)
 		return
 	end
 
-	local is_fullscreen = not (term_data.is_fullscreen or false)
+	local data = window.sidebars[term_buf]
+	-- The window's own mode is the source of truth: term_data.is_fullscreen goes
+	-- stale when the window is closed while fullscreen (hide) and reopened.
+	local was_fullscreen
+	if data then
+		was_fullscreen = data.mode == "fullscreen"
+	else
+		was_fullscreen = term_data.is_fullscreen or false
+	end
+	local is_fullscreen = not was_fullscreen
 	debug.log("toggle_fullscreen", function()
 		return {
 			name = name,
 			buf = term_buf,
-			from_mode = term_data.is_fullscreen and "fullscreen" or "sidebar",
+			from_mode = was_fullscreen and "fullscreen" or "sidebar",
 			to_mode = is_fullscreen and "fullscreen" or "sidebar",
 		}
 	end)
-	local data = window.sidebars[term_buf]
 
 	if data and data.origin == "sidebar" then
 		window.update_sidebar_geometry(term_buf, is_fullscreen, true)
@@ -386,7 +394,7 @@ function M.toggle_fullscreen(term_buf)
 	end
 
 	term_data.is_fullscreen = is_fullscreen
-	window.set_nav_keymaps_enabled(term_buf, not is_fullscreen)
+	window.sync_nav_keymaps(term_buf, is_fullscreen)
 end
 
 --- Hide terminal window (keeps process alive)

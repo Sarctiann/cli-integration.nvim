@@ -279,6 +279,7 @@ end
 M.update_sidebar_geometry = fullscreen.update_sidebar_geometry
 M.update_float_geometry = fullscreen.update_float_geometry
 M.set_nav_keymaps_enabled = nav.set_nav_keymaps_enabled
+M.sync_nav_keymaps = nav.sync
 M.apply_geometry = layout.apply_geometry
 
 M.resize_sidebars = function()

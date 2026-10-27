@@ -29,16 +29,22 @@ function M.set_nav_keymaps_enabled(term_buf, enabled)
 	end
 end
 
+--- Make the nav keymaps follow a window's actual mode: disabled in fullscreen
+--- (by design) and when the nav_keymaps feature is off, enabled otherwise.
+--- Call whenever an integration window is (re)created or changes mode.
+--- @param term_buf number Terminal buffer
+--- @param is_fullscreen boolean
+function M.sync(term_buf, is_fullscreen)
+	local feature_on = not (config.options.window_features and config.options.window_features.nav_keymaps == false)
+	M.set_nav_keymaps_enabled(term_buf, feature_on and not is_fullscreen)
+end
+
 --- Setup nav feature
 --- @param term_buf number Terminal buffer
 --- @return boolean true if enabled
 function M.setup(term_buf)
-	if config.options.window_features and config.options.window_features.nav_keymaps == false then
-		M.set_nav_keymaps_enabled(term_buf, false)
-		return false
-	end
-	M.set_nav_keymaps_enabled(term_buf, true)
-	return true
+	M.sync(term_buf, false)
+	return not (config.options.window_features and config.options.window_features.nav_keymaps == false)
 end
 
 return M

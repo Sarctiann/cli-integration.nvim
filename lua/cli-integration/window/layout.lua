@@ -4,6 +4,7 @@ local state = require("cli-integration.window.state")
 local geometry = require("cli-integration.window.geometry")
 local debug = require("cli-integration.debug")
 local config = require("cli-integration.config")
+local nav = require("cli-integration.window.features.nav")
 
 --- Apply sidebar window options to a vsplit window
 --- @param win number Window handle
@@ -100,6 +101,8 @@ function M.create_float_window(buf, win_opts)
         padding = 0,
         list_buffer = win_opts.list_buffer or false,
     }
+    -- A (re)created window is never fullscreen, whatever mode it was closed in
+    nav.sync(buf, false)
 
     vim.api.nvim_create_autocmd("WinClosed", {
         pattern = tostring(win),
@@ -193,6 +196,8 @@ function M.create_sidebar_layout(buf, win_opts)
     end
 
     M.apply_geometry(buf)
+    -- A (re)created window is never fullscreen, whatever mode it was closed in
+    nav.sync(buf, false)
 
     if config.options.adapters and config.options.adapters.bufferline then
         local bufline = require("adapters.bufline")
