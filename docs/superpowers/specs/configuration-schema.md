@@ -10,6 +10,7 @@
   new_lines_amount = number,       -- Default: 2
   window_width = number,           -- Default: 34 (percentage 1-100 or absolute >100)
   window_padding = number,         -- Default: 0 (horizontal padding in columns)
+  window_side = "left"|"right",    -- Default: "right" (sidebar side; ignored when floating)
   border = "none"|"single"|"double"|"rounded"|"solid"|"shadow", -- Default: "none"
   floating = boolean,              -- Default: false (true = centered float, false = sidebar)
   keep_open = boolean,             -- Default: false (true = keep after exit code 0)
@@ -45,11 +46,13 @@ terminal_keys = {
     enter = {"<CR>"},                           -- Send Enter key
     help = {"<M-?>", "??", "\\"},             -- Show help
     toggle_fullscreen = {"<C-f>"},              -- Toggle fullscreen
+    toggle_window_side = {"<C-y>"},             -- Move sidebar to the other side (runtime only)
     hide = {"<C-q>"},                           -- Hide window (keep process)
     close = {"<C-S-q>"}                         -- Close window (kill process)
   },
   normal_mode = {
     toggle_fullscreen = {"<C-f>"},              -- Toggle fullscreen
+    toggle_window_side = {"<C-y>"},             -- Move sidebar to the other side (runtime only)
     hide = {"<C-q>"},                           -- Hide window (keep process)
     close = {"<C-S-q>"}                         -- Close window (kill process)
   }
@@ -103,6 +106,7 @@ AskData = {
   new_lines_amount = 2,           -- Newlines after submit
   window_width = 34,              -- Default width (percentage or absolute)
   window_padding = 0,               -- Horizontal padding
+  window_side = "right",          -- Sidebar side ("left" or "right")
   border = "none",                -- Border style
   floating = false,                 -- Floating window mode
   terminal_keys = { ... },        -- Default key mappings

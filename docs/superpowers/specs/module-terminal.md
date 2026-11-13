@@ -64,6 +64,10 @@ Polls terminal output for ready flag.
 
 Toggles between default and fullscreen. Delegates to `window.update_sidebar_geometry()` or `window.update_float_geometry()` depending on origin.
 
+### `M.toggle_window_side(term_buf)`
+
+Moves the sidebar to the opposite side at runtime. Delegates to `window.toggle_sidebar_side()`; no-op for float and fullscreen windows. The configuration is not modified.
+
 ### `M.hide_terminal(term_buf)`
 
 Hides window, keeps process alive.

@@ -30,6 +30,7 @@ Sets up all keymaps for current terminal buffer. Called by autocmd on TermOpen/T
 | `enter`              | `<CR>`              | Send Enter key                                              |
 | `help`               | `<M-?>`, `??`, `\\` | Show help                                                   |
 | `toggle_fullscreen`  | `<C-f>`             | Toggle fullscreen                                           |
+| `toggle_window_side` | `<C-y>`             | Move the sidebar to the other side (runtime only)           |
 | `hide`               | `<C-q>`             | Hide window (keep process)                                  |
 | `close`              | `<C-S-q>`           | Close window (kill process)                                 |
 
@@ -38,6 +39,7 @@ Sets up all keymaps for current terminal buffer. Called by autocmd on TermOpen/T
 | Action              | Default Keys | Behavior          |
 | ------------------- | ------------ | ----------------- |
 | `toggle_fullscreen` | `<C-f>`      | Toggle fullscreen |
+| `toggle_window_side` | `<C-y>`     | Move the sidebar to the other side |
 | `hide`              | `<C-q>`      | Hide window       |
 | `close`             | `<C-S-q>`    | Close window      |
 
@@ -59,6 +61,7 @@ Sets up all keymaps for current terminal buffer. Called by autocmd on TermOpen/T
 - `run_format_paths(paths, current_buf, integration)` wraps the callback in a coroutine so `wait()` works
 - All buffers insertion gets paths via `buffers.get_open_buffers_paths(working_dir)`
 - Toggle fullscreen is mapped in modes: `i`, `t`, `n`, `v`
+- Toggle window side is mapped in modes: `i`, `t`, `n`, `v`; it calls `terminal.toggle_window_side()`, which is a no-op for float and fullscreen modes
 
 ## Source Location
 

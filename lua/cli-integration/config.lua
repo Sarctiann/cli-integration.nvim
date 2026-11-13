@@ -59,6 +59,7 @@
 --- @field new_lines_amount number|nil # Number of new lines to insert after command submission (default: 2)
 --- @field window_width number|nil # Default width for the terminal window (default: 34, percentage 0-100 or absolute value >100)
 --- @field window_padding number|nil # Horizontal padding in columns (default: 0, adds empty space on the left)
+--- @field window_side "left"|"right"|nil # Side of the editor for the sidebar vsplit (default: "right")
 --- @field border string|nil # Border style for terminal window: "none", "single", "double", "rounded", "solid", "shadow" (default: "none" for sidebar, "rounded" for floating and when expanded)
 --- @field floating boolean|nil # Whether to open terminal in floating window (default: false)
 --- @field keep_open boolean|nil # Whether to keep the terminal open after execution (default: false)
@@ -94,6 +95,7 @@
 --- @field new_lines_amount number|nil # Default: number of new lines to insert after command submission (applied to all integrations)
 --- @field window_width number|nil # Default: width for the terminal window (percentage 0-100 or absolute value >100, applied to all integrations)
 --- @field window_padding number|nil # Default: horizontal padding in columns (applied to all integrations)
+--- @field window_side "left"|"right"|nil # Default: side of the editor for the sidebar vsplit (applied to all integrations)
 --- @field border string|nil # Default: border style for terminal window (applied to all integrations)
 --- @field floating boolean|nil # Default: whether to open terminal in floating window (applied to all integrations)
 --- @field terminal_keys Cli-Integration.TerminalKeys|nil # Default: key mappings for the CLI terminal window (applied to all integrations)
@@ -121,6 +123,7 @@ M.defaults = {
 	new_lines_amount = 2,
 	window_width = 34, -- 34% of editor width
 	window_padding = 0, -- No padding by default
+	window_side = "right", -- Sidebar on the right by default
 	border = "none", -- No border by default for sidebar (rounded when expanded or floating)
 	floating = false,
 	start_insert_on_click = false,
@@ -155,11 +158,13 @@ M.defaults = {
 			enter = { "<CR>" },
 			help = { "<M-?>", "??", "\\\\" },
 			toggle_fullscreen = { "<C-f>" },
+			toggle_window_side = { "<C-y>" },
 			hide = { "<C-q>" },
 			close = { "<C-S-q>" },
 		},
 		normal_mode = {
       toggle_fullscreen = { "<C-f>" },
+			toggle_window_side = { "<C-y>" },
 			hide = { "<C-q>" },
 			close = { "<C-S-q>" },
 		},
@@ -250,6 +255,17 @@ local function validate_unset_env(unset_env)
 	return true
 end
 
+--- Validate window_side value ("left" or "right")
+--- @param window_side string|nil
+--- @return boolean
+local function validate_window_side(window_side)
+	if window_side == nil then
+		return true
+	end
+
+	return window_side == "left" or window_side == "right"
+end
+
 --- @param config Cli-Integration.Config
 --- @return Cli-Integration.Config
 function M.setup(config)
@@ -298,6 +314,15 @@ function M.setup(config)
 			vim.log.levels.WARN
 		)
 		M.options.unset_env = vim.deepcopy(M.defaults.unset_env)
+	end
+
+	-- Validate global window_side if provided
+	if user_config.window_side ~= nil and not validate_window_side(M.options.window_side) then
+		vim.notify(
+			"cli-integration.nvim: 'window_side' must be 'left' or 'right'",
+			vim.log.levels.WARN
+		)
+		M.options.window_side = M.defaults.window_side
 	end
 
 	-- Apply global defaults to each integration (unless overridden by integration-specific config)
@@ -361,6 +386,17 @@ function M.setup(config)
 				integration.unset_env = nil -- Will use global default
 			end
 
+			-- Validate window_side if provided
+			if integration.window_side ~= nil and not validate_window_side(integration.window_side) then
+				vim.notify(
+					"cli-integration.nvim: Integration '"
+						.. cli_cmd
+						.. "' has invalid 'window_side' (must be 'left' or 'right')",
+					vim.log.levels.WARN
+				)
+				integration.window_side = nil -- Will use global default
+			end
+
 			-- Build terminal_keys: per-section override with key-by-key merge
 			-- If integration defines terminal_keys, it replaces entire sub-section (terminal_mode or normal_mode)
 			-- but within each sub-section, only defined keys are overridden
@@ -388,6 +424,7 @@ function M.setup(config)
 				new_lines_amount = M.options.new_lines_amount,
 				window_width = M.options.window_width,
 				window_padding = M.options.window_padding,
+				window_side = M.options.window_side,
 				border = M.options.border,
 				floating = M.options.floating,
 				start_insert_on_click = M.options.start_insert_on_click,

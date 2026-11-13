@@ -13,6 +13,7 @@ local M = {}
 --- @field win_opts table
 --- @field padding number
 --- @field list_buffer boolean
+--- @field side "left"|"right"|nil  -- Transient runtime side (nil = use the configured side)
 
 --- Store active sidebar configurations
 --- Keyed by term_buf (stable across toggles)

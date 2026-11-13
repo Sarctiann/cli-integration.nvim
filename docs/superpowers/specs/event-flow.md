@@ -26,11 +26,12 @@ window.create_terminal():
   |
   v
 window.create_sidebar_layout():
-  1. Creates vsplit on the right side (`botright vsplit`)
-  2. Sets terminal buffer in vsplit
-  3. Registers in M.sidebars
-  4. Sets up WinClosed cleanup autocmd
-  5. Sets up VimResized/WinResized sync autocmd
+  1. Resolves the side (runtime side -> window_side config -> "right")
+  2. Creates vsplit on that side (`topleft vsplit` or `botright vsplit`)
+  3. Sets terminal buffer in vsplit
+  4. Registers in M.sidebars (including the resolved side)
+  5. Sets up WinClosed cleanup autocmd
+  6. Sets up VimResized/WinResized sync autocmd
   |
   v
 TermOpen event fires -> autocmds.lua triggers keymaps.setup_terminal_keymaps()
@@ -112,8 +113,8 @@ terminal.toggle_fullscreen():
   |
   v
 For sidebar origin (update_sidebar_geometry):
-  - If expanding: hides vsplit, opens fullscreen float
-  - If restoring: deletes WinClosed guard, closes float, restores vsplit
+  - If expanding: closes vsplit (runtime side stays in data.side), opens fullscreen float
+  - If restoring: deletes WinClosed guard, closes float, recreates vsplit on the preserved side
   |
   v
 For float origin (update_float_geometry):
@@ -122,6 +123,28 @@ For float origin (update_float_geometry):
   |
   v
 Result: Terminal toggles between sidebar/float and fullscreen modes
+```
+
+## Side Toggle
+
+```
+User presses toggle_window_side key (default: <C-y>)
+  |
+  v
+keymaps.lua calls terminal.toggle_window_side(term_buf)
+  |
+  v
+window.toggle_sidebar_side(term_buf):
+  1. Returns early unless data.mode == "sidebar" (float/fullscreen are no-ops)
+  2. Computes the opposite side from the current runtime/config side
+  3. Closes the current vsplit (its WinClosed handler resets the runtime side)
+  4. Sets data.side to the new side (after the close, so the reset cannot undo it)
+  5. Recreates the vsplit via create_sidebar_layout on the new side
+  |
+  v
+Result: Sidebar moves to the other side; config is unchanged.
+        Closing the sidebar (hide/toggle/:q) resets data.side,
+        so the next open uses the configured window_side again.
 ```
 
 ## Ask Hook Flow

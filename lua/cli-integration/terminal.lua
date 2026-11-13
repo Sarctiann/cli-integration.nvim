@@ -213,6 +213,7 @@ local function create_new_terminal(integration, args, keep_open, working_dir, vi
 			position = integration.floating and "float" or "right",
 			min_width = integration.floating and nil or integration.window_width,
 			padding = integration.window_padding or 0,
+			window_side = integration.window_side or "right",
 			border = integration.border,
 			start_insert_on_click = integration.start_insert_on_click,
 			list_buffer = integration.list_buffer,
@@ -395,6 +396,23 @@ function M.toggle_fullscreen(term_buf)
 
 	term_data.is_fullscreen = is_fullscreen
 	window.sync_nav_keymaps(term_buf, is_fullscreen)
+end
+
+--- Toggle the sidebar between the left and right sides (runtime only).
+--- No-op for floating or fullscreen windows.
+--- @param term_buf number|nil The terminal buffer (if nil, uses current terminal)
+--- @return nil
+function M.toggle_window_side(term_buf)
+	term_buf = term_buf or M.get_current_terminal_buf()
+	if not term_buf then
+		return
+	end
+
+	local name = M.buf_to_name[term_buf]
+	debug.log("toggle_window_side", function()
+		return { name = name, term_buf = term_buf }
+	end)
+	window.toggle_sidebar_side(term_buf)
 end
 
 --- Hide terminal window (keeps process alive)

@@ -23,6 +23,7 @@ Table mapping `term_buf` → sidebar data (stable key across toggles):
   win_opts              = table,
   padding               = number,
   list_buffer           = boolean,
+  side                  = "left"|"right"|nil, -- runtime side; nil = use configured window_side
 }
 ```
 
@@ -59,20 +60,32 @@ Creates centered floating window. Returns window handle.
 
 ### `M.create_sidebar_layout(buf, win_opts)`
 
-Creates vsplit on the right side with terminal buffer. Returns vsplit window handle.
+Creates vsplit on the configured side (`win_opts.window_side`, default `"right"`) with the terminal buffer. Returns the vsplit window handle.
 
 **Steps:**
 
 1. Calculate vsplit width from `width_config` (percentage or absolute) — vsplit width equals configured width (padding renders inside via foldcolumn)
-2. Find anchor window via `find_layout_anchor_window()`
-3. Create vsplit via `botright vsplit`
-4. Set terminal buffer in the vsplit
-5. Configure vsplit (winfixwidth=true, no line numbers, no signcolumn, etc.)
-6. Apply padding via foldcolumn
-7. Register in `M.sidebars[term_buf]`
-8. Set up WinClosed cleanup autocmd
-9. Set up VimResized/WinResized sync autocmd
-10. Enter insert mode (`startinsert`)
+2. Resolve the effective side: `state.sidebars[buf].side` (runtime) → `win_opts.window_side` (config) → `"right"`
+3. Find anchor window via `find_layout_anchor_window()`
+4. Create vsplit via `topleft vsplit` (left) or `botright vsplit` (right)
+5. Set terminal buffer in the vsplit
+6. Configure vsplit (winfixwidth=true, no line numbers, no signcolumn, etc.)
+7. Apply padding via foldcolumn
+8. Register in `M.sidebars[term_buf]` (including the resolved `side`)
+9. Set up WinClosed cleanup autocmd
+10. Set up VimResized/WinResized sync autocmd
+11. Enter insert mode (`startinsert`)
+
+The `WinClosed` autocmd clears `side` on regular closes (hide, toggle, `:q`) so the next open falls back to the configured side. It preserves `side` during fullscreen transitions (mode is `"fullscreen"` when the vsplit closes), and it ignores stale close events when the entry already points at a replacement window.
+
+### `M.toggle_sidebar_side(term_buf)`
+
+Moves the sidebar to the opposite side at runtime. Returns `true` when it acted.
+
+- **No-op** unless `data.mode == "sidebar"` (ignored for floating and fullscreen windows)
+- Flips `data.side`, closes the current vsplit and recreates it with `create_sidebar_layout()`
+- Keeps the terminal buffer, width, focus and insert mode
+- Never modifies the configuration
 
 ### `M.update_sidebar_geometry(term_buf, is_fullscreen, should_focus)`
 
@@ -93,6 +106,7 @@ Handles fullscreen toggle for sidebar-origin integrations.
 - Deletes `WinClosed` guard via `nvim_del_autocmd(data.fullscreen_autocmd_id)`
 - Closes float
 - Recreates the vsplit via `create_sidebar_layout` (configured width, no padding discount)
+- Preserves the runtime side (`data.side`), so a sidebar toggled to the left stays on the left after a fullscreen roundtrip
 
 ### `M.update_float_geometry(term_buf, is_fullscreen, should_focus)`
 
@@ -137,9 +151,9 @@ It only re-applies window geometry (sidebar width, float config). The PTY is nev
 
 The vsplit is created directly with the terminal buffer:
 
-- **Layout**: `botright vsplit` with `winfixwidth=true` on the right side
+- **Layout**: `topleft vsplit` (left) or `botright vsplit` (right) with `winfixwidth=true`
 - **Configuration**: No line numbers, no signcolumn, no cursorline, no spell
-- **Cleanup**: `WinClosed` autocmd removes sidebar entry from `M.sidebars`
+- **Cleanup**: `WinClosed` autocmd clears the window reference and the runtime side
 - **Resize Sync**: `VimResized`/`WinResized` autocmds adjust width proportionally
 
 ### Insert Mode Management

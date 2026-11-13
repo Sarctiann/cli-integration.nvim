@@ -15,6 +15,7 @@ Global configuration object. Fields:
 - `new_lines_amount: number` — Newlines after submit (default: 2)
 - `window_width: number` — Width percentage (1-100) or absolute (>100) (default: 34)
 - `window_padding: number` — Horizontal padding in columns (default: 0)
+- `window_side: "left"|"right"` — Sidebar side (default: "right"; ignored when floating)
 - `border: string` — Border style (default: "none")
 - `floating: boolean` — Open in floating window (default: false)
 - `terminal_keys: TerminalKeys` — Key mappings
@@ -51,12 +52,14 @@ Per-CLI-tool configuration. Inherits from Config, adds:
     submit = {"<C-s>", "<C-CR>"},
     enter = {"<CR>"},
     help = {"<M-?>", "??", "\\"},
-    toggle_width = {"<C-f>"},
+    toggle_fullscreen = {"<C-f>"},
+    toggle_window_side = {"<C-y>"},
     hide = {"<C-q>"},
     close = {"<C-S-q>"}
   },
   normal_mode = {
-    toggle_width = {"<C-f>"},
+    toggle_fullscreen = {"<C-f>"},
+    toggle_window_side = {"<C-y>"},
     hide = {"<C-q>"},
     close = {"<C-S-q>"}
   }
@@ -72,6 +75,7 @@ M.defaults = {
   new_lines_amount = 2,
   window_width = 34,
   window_padding = 0,
+  window_side = "right",
   border = "none",
   floating = false,
   start_insert_on_click = false,
@@ -95,16 +99,18 @@ M.defaults = {
 2. Validate `terminal_keys` if provided (all values must be arrays)
 3. Validate `env` if provided (string keys and values)
 4. Validate `unset_env` if provided (array of strings)
-5. Build merged `terminal_keys`:
+5. Validate `window_side` if provided (`"left"` or `"right"`)
+6. Build merged `terminal_keys`:
    - Per-section override: if integration defines `terminal_mode` or `normal_mode`, merge key-by-key within that section
    - Undefined sections inherit from global defaults
-6. Apply integration-specific config via `vim.tbl_deep_extend("force", default_integration, integration)`
+7. Apply integration-specific config via `vim.tbl_deep_extend("force", default_integration, integration)`
 
 ## Validation Functions
 
 - `validate_terminal_keys(terminal_keys)` — Recursively checks all values are arrays
 - `validate_env(env)` — Checks table has string keys and string values
 - `validate_unset_env(unset_env)` — Checks array of strings
+- `validate_window_side(window_side)` — Checks the value is `"left"`, `"right"`, or nil
 
 ## Critical Details
 
@@ -113,6 +119,7 @@ M.defaults = {
 - Integration-specific config overrides global defaults
 - Environment strategy (see `window/geometry.lua:build_job_env()`): inherit the full Neovim process environment via `vim.fn.environ()`, then strip host-identity vars that cause TUI/clipboard corruption in the child (`TMUX`, `TMUX_PANE`, `TERM_PROGRAM`, `TERM_PROGRAM_VERSION`, Ghostty vars, `TERMINFO`), normalize `TERM`/`COLORTERM` unless overridden, then apply per-integration `env` overrides and `unset_env` removals. The job is started with `clear_env = true` so these removals actually take effect — without it, `jobstart`'s `env` only *extends* the inherited environment (`:h jobstart-options`), and the child would still see the real `$TMUX` regardless of what was deleted from the table.
 - Default `border`: "none" for sidebar, "rounded" for float/expanded
+- Default `window_side`: "right"; invalid values warn and fall back to the default
 
 ## Source Location
 

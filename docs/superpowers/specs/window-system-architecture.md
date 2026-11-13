@@ -7,16 +7,27 @@
 ```
 +----------------+------------------------+
 |                |                        |
-|   Normal       |  Vsplit Window          |  <- Terminal buffer (locked)
+|   Normal       |  Vsplit Window          |  <- Terminal buffer (locked), right side
 |   Windows      |  (winfixwidth=true)     |  <- C-h navigates left
 |                |                        |
 +----------------+------------------------+
 ```
 
+or, with `window_side = "left"`:
+
+```
++------------------------+----------------+
+|                        |                |
+|  Vsplit Window          |   Normal       |  <- Terminal buffer (locked), left side
+|  (winfixwidth=true)     |   Windows      |  <- C-l navigates right
+|                        |                |
++------------------------+----------------+
+```
+
 **Components:**
 
-- **Normal Windows** — Regular editor windows (left side)
-- **Vsplit Window** — Terminal window on the right side, always `winfixwidth=true`
+- **Normal Windows** — Regular editor windows (opposite side)
+- **Vsplit Window** — Terminal window on the configured side (`"right"` by default), always `winfixwidth=true`
 
 **Key properties:**
 
@@ -51,8 +62,8 @@
 
 **Behavior:**
 
-- Sidebar → fullscreen: vsplit hides (`nvim_win_hide`), float opens
-- Fullscreen → sidebar: float closes, vsplit restores to layout
+- Sidebar → fullscreen: vsplit closes, float opens (runtime side is preserved in `M.sidebars[buf].side`)
+- Fullscreen → sidebar: float closes, vsplit is recreated on the same runtime side (or the configured side if it was reset)
 - Float → fullscreen: same float resizes to full editor coverage
 - Fullscreen → float: same float restores original dimensions
 - Window navigation keymaps disabled in fullscreen (no other windows visible)
@@ -75,17 +86,27 @@
 - Border: "rounded"
 - Size: 80% of editor width/height
 
+### Side Toggle (runtime)
+
+- Key: `toggle_window_side` (default `<C-y>`), mapped in terminal and normal modes
+- Only acts when the window is in sidebar mode; floating and fullscreen are no-ops
+- Flips `M.sidebars[buf].side` and recreates the vsplit on the opposite side
+- Keeps buffer, width, focus, and insert mode; does not touch the configuration
+- Runtime side survives fullscreen roundtrips; closing the sidebar (hide, toggle, `:q`) resets it to `window_side`
+
 ## Window Invariants
 
 1. **Terminal Buffer Lock**: Terminal window MUST NEVER change buffers
-2. **Vsplit Layout**: Sidebar mode uses vsplit on the right side with `winfixwidth=true`
+2. **Vsplit Layout**: Sidebar mode uses a vsplit on the configured side (`window_side`, default right) with `winfixwidth=true`
 3. **Fullscreen Float**: Fullscreen mode uses a float covering the full editor width with single border
-4. **Fullscreen Toggle**: Vsplit is hidden (not closed) in fullscreen; restored on toggle back
+4. **Fullscreen Toggle**: Vsplit is closed in fullscreen and recreated on toggle back, preserving the runtime side
 5. **Float Toggle**: Float resizes in-place for float-origin integrations
+6. **Runtime Side**: `window_side` is only the initial side. The toggle key flips a transient value that survives fullscreen roundtrips and resets to config when the sidebar closes; configuration is never mutated
 
 ## Focus Behavior
 
 - **Navigation from float**: `<C-h>` focuses the nearest normal window to the left
+- **Navigation from sidebar**: `<C-h>`/`<C-l>` follow the actual layout, so the usable direction depends on which side the sidebar is on
 - **Float focus management**: Focus stays in float or moves to normal windows; no intermediate vsplit for navigation
 
 ## Geometry Engine

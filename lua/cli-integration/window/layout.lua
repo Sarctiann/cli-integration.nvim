@@ -148,7 +148,21 @@ function M.create_float_window(buf, win_opts)
     return win
 end
 
---- Create the Sidebar layout (vsplit terminal on right side)
+--- Resolve the effective sidebar side: runtime value wins over config
+--- @param data Cli-Integration.SidebarEntry|nil
+--- @param win_opts table
+--- @return "left"|"right"
+local function resolve_side(data, win_opts)
+    if data and (data.side == "left" or data.side == "right") then
+        return data.side
+    end
+    if win_opts and (win_opts.window_side == "left" or win_opts.window_side == "right") then
+        return win_opts.window_side
+    end
+    return "right"
+end
+
+--- Create the Sidebar layout (vsplit terminal on the configured side)
 --- @param buf number Terminal buffer
 --- @param win_opts table Window options
 --- @return number|nil The vsplit window handle
@@ -157,11 +171,18 @@ function M.create_sidebar_layout(buf, win_opts)
     local padding = win_opts.padding or 0
     local configured_width = geometry.calculate_width(width_config)
 
+    local existing = state.sidebars[buf] --- @type Cli-Integration.SidebarEntry|nil
+    local side = resolve_side(existing, win_opts)
+
     local anchor_win = M.find_layout_anchor_window()
     if anchor_win and vim.api.nvim_win_is_valid(anchor_win) then
         pcall(vim.api.nvim_set_current_win, anchor_win)
     end
-    vim.cmd("botright vsplit")
+    if side == "left" then
+        vim.cmd("topleft vsplit")
+    else
+        vim.cmd("botright vsplit")
+    end
     local sidebar_win = vim.api.nvim_get_current_win()
 
     -- Options first: Nvim sizes the PTY (width - textoff) when the buffer enters
@@ -172,13 +193,14 @@ function M.create_sidebar_layout(buf, win_opts)
         vim.bo[buf].filetype = "cli-integration"
     end
 
-    local existing = state.sidebars[buf] --- @type Cli-Integration.SidebarEntry
+    local existing = state.sidebars[buf] --- @type Cli-Integration.SidebarEntry|nil
     if existing then
         existing.sidebar_win = sidebar_win
         existing.mode = "sidebar"
         existing.float_win = nil
         existing.float_original = nil
         existing.fullscreen_autocmd_id = nil
+        existing.side = side
     else
         state.sidebars[buf] = {
             term_buf = buf,
@@ -192,6 +214,7 @@ function M.create_sidebar_layout(buf, win_opts)
             win_opts = win_opts,
             padding = padding,
             list_buffer = win_opts.list_buffer or false,
+            side = side,
         }
     end
 
@@ -212,8 +235,17 @@ function M.create_sidebar_layout(buf, win_opts)
                 return { term_buf = buf, sidebar_win = sidebar_win, mode = existing and existing.mode or "new" }
             end)
             local data = state.sidebars[buf]
-            if data then
+            -- Only react if this entry still points at the window that was just
+            -- closed. A side switch closes and recreates in one go, so the new
+            -- window may already be registered here.
+            if data and data.sidebar_win == sidebar_win then
                 data.sidebar_win = nil
+                -- A regular close (hide, toggle, :q) discards the runtime side so
+                -- the next open falls back to the configured value. Fullscreen
+                -- transitions keep it.
+                if data.mode ~= "fullscreen" then
+                    data.side = nil
+                end
             end
             if config.options.adapters and config.options.adapters.bufferline then
                 local has_active = false
@@ -251,6 +283,38 @@ function M.create_sidebar_layout(buf, win_opts)
         }
     end)
     return sidebar_win
+end
+
+--- Toggle the sidebar between the left and right sides (runtime only).
+--- No-op for floating or fullscreen windows.
+--- @param term_buf number
+--- @return boolean true if the sidebar was toggled
+function M.toggle_sidebar_side(term_buf)
+    local data = state.sidebars[term_buf]
+    if not data or data.mode ~= "sidebar" then
+        return false
+    end
+
+    local current_side = resolve_side(data, data.win_opts or {})
+    local new_side = current_side == "left" and "right" or "left"
+    debug.log("toggle_sidebar_side", function()
+        return {
+            term_buf = term_buf,
+            from_side = current_side,
+            to_side = new_side,
+            sidebar_win = data.sidebar_win,
+        }
+    end)
+
+    local old_win = data.sidebar_win
+    if state.is_valid_win(old_win) then
+        pcall(vim.api.nvim_win_close, old_win, true)
+    end
+    -- Set after closing: the WinClosed handler resets the runtime side on a
+    -- regular close, and must not undo the side we are switching to.
+    data.side = new_side
+    M.create_sidebar_layout(term_buf, data.win_opts or {})
+    return true
 end
 
 --- Apply geometry and resize PTY

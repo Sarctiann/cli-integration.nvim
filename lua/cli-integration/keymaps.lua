@@ -267,6 +267,36 @@ function M.setup_terminal_keymaps(known_integration)
 		end, toggle_opts)
 	end
 	::skip_fullscreen::
+
+	if keys.terminal_mode.toggle_window_side and type(keys.terminal_mode.toggle_window_side) == "table" then
+		set_keymaps("i", keys.terminal_mode.toggle_window_side, function()
+			debug.log("keymap_toggle_window_side", function()
+				return { name = integration and integration.name or "unknown", buf = current_buf, mode = "I" }
+			end)
+			terminal.toggle_window_side(current_buf)
+		end, toggle_opts)
+		set_keymaps("t", keys.terminal_mode.toggle_window_side, function()
+			debug.log("keymap_toggle_window_side", function()
+				return { name = integration and integration.name or "unknown", buf = current_buf, mode = "T" }
+			end)
+			terminal.toggle_window_side(current_buf)
+		end, toggle_opts)
+	end
+
+	if keys.normal_mode.toggle_window_side and type(keys.normal_mode.toggle_window_side) == "table" then
+		set_keymaps("n", keys.normal_mode.toggle_window_side, function()
+			debug.log("keymap_toggle_window_side", function()
+				return { name = integration and integration.name or "unknown", buf = current_buf, mode = "N" }
+			end)
+			terminal.toggle_window_side(current_buf)
+		end, toggle_opts)
+		set_keymaps("v", keys.normal_mode.toggle_window_side, function()
+			debug.log("keymap_toggle_window_side", function()
+				return { name = integration and integration.name or "unknown", buf = current_buf, mode = "V" }
+			end)
+			terminal.toggle_window_side(current_buf)
+		end, toggle_opts)
+	end
 end
 
 return M

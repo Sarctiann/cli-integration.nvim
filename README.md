@@ -131,6 +131,7 @@ require("cli-integration").setup({
   new_lines_amount = 2,
   window_width = 34,  -- Percentage (0-100) or absolute width (>100)
   window_padding = 0,  -- Horizontal padding in columns (0 = no padding)
+  window_side = "right",  -- Sidebar side: "left" or "right"
   border = "none",  -- Border style (none/single/double/rounded/solid/shadow)
   floating = false,  -- Whether to open terminal in floating window
   env = {},  -- Default environment overrides for all integration jobs
@@ -149,12 +150,14 @@ require("cli-integration").setup({
 
       help = { "<M-?>", "??", "\\\\" },
       toggle_fullscreen = { "<C-f>" },
+      toggle_window_side = { "<C-y>" },  -- Move sidebar to the other side (runtime only)
       hide = { "<C-q>" },  -- Hide terminal (keeps process alive)
       close = { "<C-S-q>" },  -- Close terminal and kill process
     },
     normal_mode = {
       hide = { "<C-q>" },  -- Hide terminal (keeps process alive)
       toggle_fullscreen = { "<C-f>" },
+      toggle_window_side = { "<C-y>" },  -- Move sidebar to the other side (runtime only)
       close = { "<C-S-q>" },  -- Close terminal and kill process
     },
   },
@@ -194,7 +197,7 @@ require("cli-integration").setup({
 
 ## Terminology (glossary)
 
-- Integration Window: The plugin's terminal window. It can open as a centered floating window (`floating`), a right-side panel (`sidebar`), or a fullwidth variant of the sidebar (`fullwidth`).
+- Integration Window: The plugin's terminal window. It can open as a centered floating window (`floating`), a side panel (`sidebar`, on the left or right side), or a fullwidth variant of the sidebar (`fullwidth`).
 
 These terms are used throughout the documentation and the codebase (AGENTS.md contains the canonical definitions and invariants).
 
@@ -213,6 +216,7 @@ These terms are used throughout the documentation and the codebase (AGENTS.md co
 | `new_lines_amount`  | `number`   | `2`                                   | Default: Number of new lines to insert after command submission                       |
 | `window_width`      | `number`   | `34`                                  | Default: Width for terminal window (percentage 0-100, or absolute >100)               |
 | `window_padding`    | `number`   | `0`                                   | Default: Horizontal padding in columns (adds empty space on the left)           |
+| `window_side`       | `string`   | `"right"`                             | Default: Sidebar side (`"left"` or `"right"`)                                          |
 | `border`            | `string`   | `"none"`                              | Default: Border style ("none", "single", "double", "rounded", "solid", "shadow")      |
 | `floating`          | `boolean`  | `false`                               | Default: Whether to open terminal in floating window                                  |
 | `env`               | `table`    | `{}`                                  | Default: Environment overrides merged on top of inherited process environment         |
@@ -249,6 +253,7 @@ Each integration in the `integrations` array can have:
 | `new_lines_amount`      | `number`   | Inherits global | Override: Number of new lines to insert after command submission                                                                                                                                                                                                                                                                                       |
 | `window_width`          | `number`   | Inherits global | Override: Width for terminal window (percentage 0-100, or absolute >100)                                                                                                                                                                                                                                                                               |
 | `window_padding`        | `number`   | Inherits global | Override: Horizontal padding in columns (adds empty space on the left)                                                                                                                                                                                                                                                                           |
+| `window_side`           | `string`   | Inherits global | Override: Sidebar side (`"left"` or `"right"`). Ignored when `floating = true`                                                                                                                                                                                                                                                                         |
 | `border`                | `string`   | Inherits global | Override: Border style ("none", "single", "double", "rounded", "solid", "shadow"). Default is "none" for sidebar, "rounded" when expanded or floating                                                                                                                                                                                                  |
 | `floating`              | `boolean`  | Inherits global | Override: Whether to open terminal in floating window                                                                                                                                                                                                                                                                                                  |
 | `env`                   | `table`    | Inherits global | Override: Environment overrides merged on top of inherited process environment                                                                                                                                                                                                                                                                         |
@@ -352,6 +357,10 @@ See the [Global Options](#global-options-applied-to-all-integrations) table for 
   Values 1-100 = percentage of editor width (e.g., `34` = 34%). Values >100 = absolute columns (e.g., `150` = 150 characters wide).
 - **`window_padding`**: Adds horizontal spacing on the left of the terminal content.  
   `1` adds 1 character of visual margin on the left.
+- **`window_side`**: Where the sidebar is created.  
+  `"right"` (default) or `"left"`. It only applies to sidebar mode (`floating = false`). Pressing
+  the `toggle_window_side` key (default `<C-y>`) switches sides at runtime without changing this option;
+  the change is discarded when the sidebar is closed, but kept across fullscreen toggles.
 - **`border`**: Border style for the terminal window.  
   Values: `"none"` (sidebar default), `"single"`, `"double"`, `"rounded"` (float default), `"solid"`, `"shadow"`.
 
@@ -374,6 +383,7 @@ multiple key combinations for the same action.
 | `enter`              | `{ "<CR>" }`                | Enter key                           |
 | `help`               | `{ "<M-?>", "??", "\\\\" }` | Show help (multiple keys supported) |
 | `toggle_fullscreen`  | `{ "<C-f>" }`               | Toggle fullscreen                   |
+| `toggle_window_side` | `{ "<C-y>" }`               | Move sidebar to the other side      |
 | `hide`               | `{ "<C-q>" }`               | Hide terminal (keeps process alive) |
 | `close`              | `{ "<C-S-q>" }`             | Close terminal and kill process     |
 
@@ -382,11 +392,12 @@ multiple key combinations for the same action.
 <details>
 <summary>Normal Mode Keys</summary>
 
-| Key                 | Default         | Description                         |
-| ------------------- | --------------- | ----------------------------------- |
-| `hide`              | `{ "<C-q>" }`   | Hide terminal (keeps process alive) |
-| `toggle_fullscreen` | `{ "<C-f>" }`   | Toggle fullscreen                   |
-| `close`             | `{ "<C-S-q>" }` | Close terminal and kill process     |
+| Key                  | Default         | Description                         |
+| -------------------- | --------------- | ----------------------------------- |
+| `hide`               | `{ "<C-q>" }`   | Hide terminal (keeps process alive) |
+| `toggle_fullscreen`  | `{ "<C-f>" }`   | Toggle fullscreen                   |
+| `toggle_window_side` | `{ "<C-y>" }`   | Move sidebar to the other side      |
+| `close`              | `{ "<C-S-q>" }` | Close terminal and kill process     |
 
 </details>
 
@@ -400,6 +411,7 @@ require("cli-integration").setup({
       submit = { "<C-s>", "<leader><CR>" },  -- Multiple keys for submit
       help = { "??", "F1" },                 -- Custom help keys
       toggle_fullscreen = { "<C-f>", "<C-w>" },   -- Multiple toggle options
+      toggle_window_side = { "<C-y>" },      -- Move sidebar to the other side
       hide = { "<C-q>", "<Esc>" },           -- Multiple hide options
       close = { "<C-S-q>", "<leader>q" },    -- Multiple close options
     },
@@ -656,7 +668,8 @@ See the [Integration Options](#integration-options-can-override-global-defaults)
 - **Integration Selection**: Specify the integration name as the second argument (e.g., `:CLIIntegration open_root CursorAgent`)
   Use autocompletion (Tab) to see available integration names
 - **Pass CLI Arguments**: Add arguments after the integration name (e.g., `:CLIIntegration open_cwd MyTool --verbose`)
-- **Floating vs Side Panel**: Use `floating = true` for floating windows, `false` for side panels (right side)
+- **Floating vs Side Panel**: Use `floating = true` for floating windows, `false` for side panels (see `window_side` for left/right placement)
+- **Switch Sides On The Fly**: Press `<C-y>` in the terminal to move the sidebar to the other side without touching your config
 - **Custom Initialization**: Use `start_doing` to automatically run actions when terminal is ready
 - **Readiness Detection**: Configure `cli_ready_flags` to customize how the plugin detects when your CLI tool is ready
 - **Keep Terminal Open**: Set `keep_open = true` to prevent auto-closing after execution
